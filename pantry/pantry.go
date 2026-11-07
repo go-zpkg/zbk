@@ -61,6 +61,48 @@ type Recipe struct {
 	DisplayName string `yaml:"display-name"`
 	Summary     string `yaml:"summary"`
 	Description string `yaml:"description"`
+
+	// Provenance records the files of the PROJECT ITSELF that this recipe's
+	// build was derived from.
+	//
+	// ⛔ IT IS THE REASON THESE RECIPES MAY EXIST. pkgxdev/pantry carries no
+	// licence — 0 of 2453 files, and `"license": null` from the API — so it
+	// cannot seed ours, and the recipes are WRITTEN rather than converted
+	// (go-zpkg/packages#431). Written from what? From each project's own
+	// configure, CMakeLists.txt, Makefile, INSTALL or README, under that
+	// project's own licence. This field is where that claim stops being a
+	// claim.
+	//
+	// Typed rather than left in the generic document because a field nothing
+	// decodes is a field nothing can require, and `additionalProperties` is
+	// true at the root: before this, a recipe could carry `provenance` and
+	// zbk would accept it and drop it, which reads to anyone opening the
+	// recipe as a record that exists.
+	// ⛔⛔ `json:"-"` IS LOAD-BEARING, AND A GOLDEN TEST CAUGHT ITS ABSENCE.
+	// spec.hashRecipes json.Marshals the whole Recipe, so a new field adds a
+	// key to the canonical form and moves the LOCK SPEC HASH that every lock
+	// file in existence holds — `zbk lock --check` would then report every
+	// project as changed, which reads as "the pantry moved" rather than "the
+	// tool did". TestTheLockSpecHashIsTheValueLockFilesHold said so in one
+	// line.
+	//
+	// Excluded on principle and not merely to keep the test quiet:
+	// provenance records WHY WE MAY SHIP THIS RECIPE, not anything the build
+	// consumes. It cannot change a byte of the output, so it must not change
+	// the identity of the output. Were it ever to appear in the hash, a
+	// reworded `note` would re-address every bottle of that project.
+	Provenance *Provenance `yaml:"provenance" json:"-"`
+}
+
+// Provenance is a recipe's own origin: not the package's source, which is
+// `distributable`, but the project files whose build instructions this recipe
+// re-expresses.
+type Provenance struct {
+	// Read names paths inside the project's source. At least one, enforced by
+	// the schema: a provenance block with nothing read says less than none.
+	Read []string `yaml:"read"`
+	// Note is one line on what those files said to do.
+	Note string `yaml:"note"`
 }
 
 // Runtime is the environment a package exports to its consumers.

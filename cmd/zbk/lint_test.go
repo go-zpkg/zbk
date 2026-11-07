@@ -150,3 +150,69 @@ func TestLintDispatch(t *testing.T) {
 		t.Errorf("want the count on stdout, got %q", out.String())
 	}
 }
+
+// ⛔⛔ A FIELD NOTHING DECODES IS A FIELD NOTHING CAN REQUIRE. Before
+// `provenance` was typed and enumerated, a recipe could carry it and zbk
+// would accept it and drop it — `additionalProperties` is true at the root —
+// which reads, to anyone opening the recipe, as a record that exists.
+func TestLintReadsProvenance(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/package.yml": "distributable:\n  url: https://acme.org/x.tar.gz\n" +
+			"provenance:\n  read:\n    - configure\n    - README\n" +
+			"  note: ./configure then make install, as the README documents\n",
+	})
+	rc, out, errb := lint(t, "--dir", dir, "--require-provenance")
+	if rc != 0 {
+		t.Fatalf("a recipe that records its provenance must pass: rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(out, "1 recipe(s) read") {
+		t.Errorf("the denominator is missing:\n%s", out)
+	}
+}
+
+// ⛔ The requirement is about OUR recipes, so it is a FLAG and not the
+// schema: making it a schema rule would refuse every foreign recipe we still
+// read, which is the mistake closing `additionalProperties` made when the
+// bootstrap toolchain's own recipes became unreadable (go-zpkg/zbk#427).
+func TestLintRequiresProvenanceOnlyWhenAsked(t *testing.T) {
+	files := map[string]string{
+		"acme.org/package.yml": "distributable:\n  url: https://acme.org/x.tar.gz\n",
+	}
+	if rc, _, errb := lint(t, "--dir", lintTree(t, files)); rc != 0 {
+		t.Fatalf("without the flag a recipe needs no provenance: rc=%d\n%s", rc, errb)
+	}
+	rc, _, errb := lint(t, "--dir", lintTree(t, files), "--require-provenance")
+	if rc != 1 {
+		t.Fatalf("with the flag it must fail: rc=%d", rc)
+	}
+	for _, want := range []string{"1 of 1 recipe(s) record no provenance", "acme.org"} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, errb)
+		}
+	}
+}
+
+// A recipe that packages nothing of its own — a set, or a project whose files
+// come from its dependencies — has no build to have derived from anything.
+func TestLintExemptsARecipeWithNoDistributable(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/set/package.yml": "members:\n  acme.org/tool: '*'\n",
+	})
+	if rc, _, errb := lint(t, "--dir", dir, "--require-provenance"); rc != 0 {
+		t.Errorf("a recipe with no distributable packages nothing: rc=%d\n%s", rc, errb)
+	}
+}
+
+// ⛔ AND A PROVENANCE BLOCK WITH NOTHING READ SAYS LESS THAN NONE: it looks
+// like a record and names no file. The schema refuses it, so this cannot be
+// satisfied by an empty gesture.
+func TestLintRefusesAnEmptyProvenance(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/package.yml": "distributable:\n  url: https://acme.org/x.tar.gz\n" +
+			"provenance:\n  read: []\n",
+	})
+	rc, _, errb := lint(t, "--dir", dir, "--require-provenance")
+	if rc != 1 || !strings.Contains(errb, "cannot be read") {
+		t.Errorf("an empty `read` must be refused by the schema: rc=%d\n%s", rc, errb)
+	}
+}
