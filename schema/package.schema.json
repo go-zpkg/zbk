@@ -4,7 +4,7 @@
   "title": "pkgx pantry package.yml",
   "description": "Schema for a pantry package.yml recipe, derived from libpkgx's parser. Reused by go-zpkg/zbk to validate recipes (YAML and its HCL2 front-end). CLOSED at the root and in build, test, distributable and versions: an unknown key there is refused rather than ignored, because a key nothing implements used to validate and be dropped, which reads to anyone opening the recipe as a feature they have. Those five containers are closed because they were surveyed (schema/corpuskeys_test.go, ZBK_PANTRY_CORPUS); scriptStep, fixture, runtime and interprets are deliberately still open, not because they should be but because nobody has measured them yet. The object form of `provides` and the dep/env maps stay open by nature: their keys are project and platform names, not a fixed set.",
   "type": "object",
-  "additionalProperties": false,
+  "additionalProperties": true,
   "properties": {
     "members": {
       "description": "A SET: the packages this recipe names, as project -> version constraint. A recipe with members describes a tree rather than one package, and must not also carry a distributable.",
@@ -35,7 +35,7 @@
         { "$ref": "#/$defs/script" },
         {
           "type": "object",
-          "additionalProperties": false,
+          "additionalProperties": true,
           "properties": {
             "dependencies": { "$ref": "#/$defs/depMap" },
             "script": { "$ref": "#/$defs/script" },
@@ -54,7 +54,7 @@
         { "$ref": "#/$defs/script" },
         {
           "type": "object",
-          "additionalProperties": false,
+          "additionalProperties": true,
           "properties": {
             "dependencies": { "$ref": "#/$defs/depMap" },
             "script": { "$ref": "#/$defs/script" },
@@ -100,7 +100,7 @@
   "$defs": {
     "versionSource": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "github": { "type": "string", "description": "owner/repo or owner/repo/releases or /tags" },
         "gitlab": { "type": "string" },
@@ -114,7 +114,7 @@
     },
     "distributableObject": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "url": { "type": "string", "description": "source tarball/repo URL; supports {{version}} moustaches" },
         "ref": { "type": "string" },
