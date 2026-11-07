@@ -91,11 +91,14 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 
 	var bad, unrecorded, fragments []string
 	for _, proj := range projects {
-		// LoadFile on the project's DIRECTORY rather than Load on (dir,
-		// project): Load joins `projects/` in, which is right for a pantry and
-		// wrong for the two trees of ours that are not laid out that way.
+		// The project's DIRECTORY rather than (dir, project): the loader that
+		// takes a pantry and a project joins `projects/` in, which is right for
+		// a pantry and wrong for the two trees of ours that are not laid out
+		// that way. The DOCUMENT comes back from the same read as the recipe,
+		// because --require-standalone asks which keys the file STATES and the
+		// typed recipe cannot answer that.
 		pdir := filepath.Join(root, filepath.FromSlash(proj))
-		r, err := recipefile.LoadFile(pdir)
+		r, doc, err := recipefile.LoadWithDoc(pdir)
 		if err != nil {
 			bad = append(bad, fmt.Sprintf("  %s: %v", proj, err))
 			continue
@@ -106,23 +109,9 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 		if *requireProv && r.Provenance == nil && r.Distributable != nil {
 			unrecorded = append(unrecorded, "  "+proj)
 		}
-		if *requireStandalone {
-			doc, ok, err := recipefile.DocFile(pdir)
-			if err != nil {
-				bad = append(bad, fmt.Sprintf("  %s: %v", proj, err))
-				continue
-			}
-			// Unreachable through this loop — recipefile.Load just read the
-			// same file — but a missing recipe must never read as a standalone
-			// one, so the absence is answered rather than assumed away.
-			if !ok {
-				bad = append(bad, fmt.Sprintf("  %s: no recipe document", proj))
-				continue
-			}
-			if miss := missingEssentials(doc); len(miss) > 0 {
-				fragments = append(fragments, fmt.Sprintf("  %s: states no %s",
-					proj, strings.Join(miss, ", no ")))
-			}
+		if miss := missingEssentials(doc); *requireStandalone && len(miss) > 0 {
+			fragments = append(fragments, fmt.Sprintf("  %s: states no %s",
+				proj, strings.Join(miss, ", no ")))
 		}
 	}
 	fmt.Fprintf(stdout, "%d recipe(s) read from %s\n", len(projects), root)

@@ -118,12 +118,69 @@ func LoadFile(path string) (*pantry.Recipe, error) {
 // a clean result (go-zpkg/bk#389).
 func ParseNamed(b []byte, name string) (*pantry.Recipe, error) { return parse(b, name) }
 
+// LoadWithDoc reads one recipe and returns both the validated Recipe and the
+// DOCUMENT it was read from: the keys the file actually states, before any
+// typing. It takes the same path forms LoadFile does, a file or a directory.
+//
+// ⛔ THE TYPED Recipe CANNOT ANSWER "DOES IT STATE THIS KEY". Its optional
+// fields are `any`, so `distributable:` ABSENT and `distributable: null` both
+// decode to nil — and they are opposite claims. The first inherits a source
+// from whatever recipe is merged underneath; the second states that this
+// package has no source of its own. `bk lint --require-standalone` is the
+// caller that has to tell them apart, because an overlay entry resolves only
+// because another tree is under it, and a pantry cannot be made of those.
+//
+// ⛔⛔ ONE READ, ONE CONVERSION, AND THAT IS THE POINT OF THE FUNCTION. The
+// first shape of this read the file twice — once for the recipe, once for the
+// document — which bought error arms that no input could reach: a second read
+// cannot fail to find a file the first just parsed, and `yaml.v3` will coerce
+// even a non-string key rather than refuse the map. The 100% coverage gate
+// said so, and it was right to: an arm a test cannot enter is an arm nobody
+// has checked. The document is therefore returned by the front-end that was
+// already building it (pantry.ParseWithDoc), which removes the arms instead of
+// testing them — and removes a real hazard too, since two reads of a file
+// being edited can disagree, and "the recipe says X and the document says Y"
+// would then be a state this package could produce.
+func LoadWithDoc(path string) (*pantry.Recipe, map[string]any, error) {
+	b, name, err := recipeBytes(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return parseWithDoc(b, name)
+}
+
+// recipeBytes reads whichever of Names is present, taking either a recipe file
+// or the directory holding one.
+func recipeBytes(path string) ([]byte, string, error) {
+	if st, err := os.Stat(path); err == nil && st.IsDir() {
+		for _, n := range Names {
+			b, err := os.ReadFile(filepath.Join(path, n))
+			if err != nil {
+				continue
+			}
+			return b, n, nil
+		}
+		return nil, "", fmt.Errorf("%w in %s (tried %v)", ErrNoRecipe, path, Names)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	return b, filepath.Base(path), nil
+}
+
 // parse picks the front-end. Both end at pantry.Parse and the same JSON
 // Schema — hcl.Parse round-trips through YAML precisely so a recipe written
 // either way cannot validate differently.
 func parse(b []byte, name string) (*pantry.Recipe, error) {
+	r, _, err := parseWithDoc(b, name)
+	return r, err
+}
+
+// parseWithDoc is parse, returning the document the front-end validated.
+func parseWithDoc(b []byte, name string) (*pantry.Recipe, map[string]any, error) {
 	if filepath.Ext(name) == ".hcl" {
-		return hcl.Parse(b, name)
+		return hcl.ParseWithDoc(b, name)
 	}
-	return pantry.Parse(b)
+	return pantry.ParseWithDoc(b)
 }

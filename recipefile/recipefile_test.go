@@ -6,7 +6,123 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/go-zpkg/zbk/pantry"
 )
+
+// LoadWithDoc returns the recipe AND the keys the file states, from one read.
+// Both front-ends, because the document is read by the front-end `parse` uses
+// rather than by a second converter.
+func TestLoadWithDocReadsEitherFrontEnd(t *testing.T) {
+	p := t.TempDir()
+	write(t, filepath.Join(p, "a.org"), "package.yml", yml)
+	write(t, filepath.Join(p, "b.org"), "package.hcl", hclSrc)
+	for _, proj := range []string{"a.org", "b.org"} {
+		r, doc, err := LoadWithDoc(filepath.Join(p, proj))
+		if err != nil {
+			t.Fatalf("%s: %v", proj, err)
+		}
+		if r.Build == nil {
+			t.Errorf("%s: the recipe did not decode", proj)
+		}
+		if _, ok := doc["build"]; !ok {
+			t.Errorf("%s: the document does not state `build`: %v", proj, doc)
+		}
+		if _, ok := doc["distributable"]; ok {
+			t.Errorf("%s: the document invented a key the file does not state", proj)
+		}
+	}
+}
+
+// ⛔⛔ A KEY THE FILE STATES AS null IS NOT A KEY THE FILE OMITS, and the typed
+// Recipe cannot tell them apart: Distributable is `any`, so both are nil. The
+// document can, which is the entire reason it is returned.
+func TestLoadWithDocSeparatesAStatedNullFromAnOmittedKey(t *testing.T) {
+	p := t.TempDir()
+	write(t, filepath.Join(p, "stated"), "package.yml", "distributable: null\nbuild: make\n")
+	write(t, filepath.Join(p, "omitted"), "package.yml", "build: make\n")
+
+	sr, sdoc, err := LoadWithDoc(filepath.Join(p, "stated"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	or, odoc, err := LoadWithDoc(filepath.Join(p, "omitted"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The control: the typed field is identical in both, so a caller reading it
+	// is answering a question it cannot see.
+	if sr.Distributable != nil || or.Distributable != nil {
+		t.Fatal("the premise of this test is that both decode to nil")
+	}
+	if _, ok := sdoc["distributable"]; !ok {
+		t.Error("`distributable: null` is stated and the document must say so")
+	}
+	if _, ok := odoc["distributable"]; ok {
+		t.Error("an omitted key must not appear in the document")
+	}
+}
+
+// ⛔ A NON-STRING KEY DOES NOT SEPARATE THE TWO HALVES, and this is recorded
+// because it was the reason an unreachable error arm looked reachable. The
+// guess was that `1: x` would decode into the Recipe struct and satisfy a
+// root-open schema while a map[string]any could not hold the key — so the
+// document read would be the one to fail. `yaml.v3` coerces the key to "1"
+// instead, and nothing fails at all. There is no input that parses as a recipe
+// and not as a document, which is why the document now comes from the
+// front-end rather than from a second read.
+func TestANonStringKeyIsCoercedRatherThanRefused(t *testing.T) {
+	p := t.TempDir()
+	write(t, filepath.Join(p, "odd"), "package.yml", "build: make\n1: x\n")
+	_, doc, err := LoadWithDoc(filepath.Join(p, "odd"))
+	if err != nil {
+		t.Fatalf("yaml.v3 coerces the key; nothing here should fail: %v", err)
+	}
+	if _, ok := doc["1"]; !ok {
+		t.Errorf("the key was expected as the string \"1\": %v", doc)
+	}
+}
+
+// A recipe the SCHEMA refuses comes back as that refusal, with the document
+// withheld: a caller must not be handed keys from a file we have declined.
+func TestLoadWithDocPassesASchemaRefusalThrough(t *testing.T) {
+	p := t.TempDir()
+	write(t, filepath.Join(p, "bad"), "package.yml", "provenance:\n  read: []\n")
+	_, doc, err := LoadWithDoc(filepath.Join(p, "bad"))
+	if !errors.Is(err, pantry.ErrSchema) {
+		t.Fatalf("want a schema refusal, got %v", err)
+	}
+	if doc != nil {
+		t.Errorf("a refused recipe must not come back with a document: %v", doc)
+	}
+}
+
+// LoadWithDoc on a directory with no recipe is ErrNoRecipe, not a read error:
+// the factory skips an absent recipe and records a malformed one.
+func TestLoadWithDocOnADirectoryWithNoRecipe(t *testing.T) {
+	if _, _, err := LoadWithDoc(t.TempDir()); !errors.Is(err, ErrNoRecipe) {
+		t.Errorf("want ErrNoRecipe, got %v", err)
+	}
+}
+
+// And on a path that is not there at all, the os error survives — a caller that
+// spelled a filename wrong needs to see that, not "no recipe file".
+func TestLoadWithDocOnAMissingPath(t *testing.T) {
+	_, _, err := LoadWithDoc(filepath.Join(t.TempDir(), "nope", "package.yml"))
+	if err == nil || errors.Is(err, ErrNoRecipe) {
+		t.Errorf("want the os error, got %v", err)
+	}
+}
+
+// A file whose front-end refuses it fails before the document is read, so the
+// parse error is what the caller sees.
+func TestLoadWithDocReportsAParseFailure(t *testing.T) {
+	p := t.TempDir()
+	write(t, filepath.Join(p, "bad"), "package.hcl", "build { script = \n")
+	if _, _, err := LoadWithDoc(filepath.Join(p, "bad", "package.hcl")); err == nil {
+		t.Fatal("a recipe that does not parse must not come back with a document")
+	}
+}
 
 func write(t *testing.T, dir, name, body string) {
 	t.Helper()
