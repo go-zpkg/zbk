@@ -101,6 +101,29 @@ type Provenance struct {
 	// Read names paths inside the project's source. At least one, enforced by
 	// the schema: a provenance block with nothing read says less than none.
 	Read []string `yaml:"read"`
+
+	// Consulted names other distributions' packaging of the same project —
+	// Nix, Guix, Spack, Homebrew, pkgx, Debian, Fedora — that were read while
+	// writing this recipe.
+	//
+	// ⛔⛔ READING THEM IS BIBLIOGRAPHY, AND WRITING DOWN THAT WE DID IS THE
+	// HONEST FORM OF IT. Rewriting the recipes rather than converting them
+	// (go-zpkg/packages#431) is about EXPRESSION: we do not take anyone's
+	// script. It is not an undertaking to ignore how six other distributions
+	// solved the same build, and it would be a poor one — their packaging is
+	// where the hard-won facts live: which configure flag a project needs on
+	// darwin, which dependency it does not declare, which test hangs under
+	// qemu. Those are facts about the software, and a fact has no author.
+	//
+	// So this field is not a confession, it is a citation list, and it is the
+	// thing that makes the distinction auditable: `read` is what the build
+	// DERIVES from, `consulted` is what was learned from. A recipe that cites
+	// six distributions and derives from the project's own configure is
+	// visibly doing the right thing; one that cites nothing and happens to
+	// match Debian's rules line for line is not, and nobody could tell the
+	// difference without this.
+	Consulted []string `yaml:"consulted"`
+
 	// Note is one line on what those files said to do.
 	Note string `yaml:"note"`
 }

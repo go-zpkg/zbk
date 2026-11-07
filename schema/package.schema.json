@@ -108,6 +108,11 @@
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
         },
+        "consulted": {
+          "description": "other distributions' packaging of the same project that was read while writing this recipe — Nix, Guix, Spack, Homebrew, pkgx, Debian, Fedora. Reading them is bibliography: their packaging is where the hard-won FACTS live (which configure flag a project needs on darwin, which dependency it does not declare, which test hangs under qemu), and a fact has no author. Writing the recipes rather than converting them (go-zpkg/packages#431) is about EXPRESSION — we take nobody's script. This list is a citation list, not a confession, and it is what makes the distinction auditable: `read` is what the build DERIVES from, `consulted` is what was learned from.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "note": { "type": "string", "description": "one line on what those files said to do" }
       }
     }

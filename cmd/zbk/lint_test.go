@@ -216,3 +216,23 @@ func TestLintRefusesAnEmptyProvenance(t *testing.T) {
 		t.Errorf("an empty `read` must be refused by the schema: rc=%d\n%s", rc, errb)
 	}
 }
+
+// ⛔ `consulted` IS A CITATION LIST AND MUST SURVIVE THE ROUND TRIP. Reading
+// how Nix, Guix, Spack, Homebrew, Debian or Fedora package the same project
+// is bibliography — their packaging is where the facts live, and a fact has
+// no author. What we do not take is their expression, which is why `read`
+// (what the build derives from) and `consulted` (what was learned from) are
+// separate fields rather than one list.
+func TestLintReadsWhatWasConsulted(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/package.yml": "distributable:\n  url: https://acme.org/x.tar.gz\n" +
+			"provenance:\n  read:\n    - configure\n" +
+			"  consulted:\n    - nixpkgs pkgs/development/libraries/acme\n" +
+			"    - guix gnu/packages/acme.scm\n    - spack var/spack/repos/builtin/packages/acme\n" +
+			"  note: ./configure --static, and the darwin flag is the one every other distro sets\n",
+	})
+	rc, _, errb := lint(t, "--dir", dir, "--require-provenance")
+	if rc != 0 {
+		t.Fatalf("a recipe citing its bibliography must pass: rc=%d\n%s", rc, errb)
+	}
+}
