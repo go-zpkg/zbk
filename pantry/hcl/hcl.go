@@ -26,6 +26,13 @@ import (
 
 // Parse decodes a package.hcl into a validated pantry.Recipe.
 func Parse(src []byte, filename string) (*pantry.Recipe, error) {
+	r, _, err := ParseWithDoc(src, filename)
+	return r, err
+}
+
+// ParseWithDoc is Parse, and also returns the document it validated — the keys
+// the file states. See pantry.ParseWithDoc for why both come from one reading.
+func ParseWithDoc(src []byte, filename string) (*pantry.Recipe, map[string]any, error) {
 	// bottle converts HCL to the YAML the schema validates, because the CLIENT
 	// has to read these files too — the overlay is fetched at install time.
 	// Keeping a second converter here would be two readings of one format,
@@ -33,9 +40,9 @@ func Parse(src []byte, filename string) (*pantry.Recipe, error) {
 	// different things from the same recipe.
 	y, err := bottle.HCLToYAML(src, filename)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return pantry.Parse(y)
+	return pantry.ParseWithDoc(y)
 }
 
 // ToMap parses package.hcl into the generic map[string]any document shape that

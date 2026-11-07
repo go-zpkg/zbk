@@ -182,6 +182,13 @@ func LoadMerged(set *logical.Set, overlayDir, pantryDir, project string) (*pantr
 // is there and whether reading it failed. A recipe that EXISTS and does not
 // parse is never silently skipped: the walk would plan a build around
 // something it could not read.
+//
+// ⛔ IT CONVERTS HCL WITH bottle's CONVERTER, NOT OURS, AND THAT IS DELIBERATE.
+// What this document is for is the merge below, and mergeRecipe is bottle's
+// rule because two readers of one overlay that merged differently would
+// describe two different recipes. The reader has to match for the same reason
+// the rule does. LoadWithDoc answers a different question and reads with the
+// front-end `parse` uses; see its comment.
 func sideDoc(dir, project string) (map[string]any, bool, error) {
 	if dir == "" {
 		return nil, false, nil

@@ -236,3 +236,126 @@ func TestLintReadsWhatWasConsulted(t *testing.T) {
 		t.Fatalf("a recipe citing its bibliography must pass: rc=%d\n%s", rc, errb)
 	}
 }
+
+// ⛔⛔ A CORPUS THIS COMMAND CANNOT BE POINTED AT GETS THE ANSWER AN EMPTY TREE
+// GETS. go-zpkg/packages authored 14 recipes of its own and keeps them at
+// `wasip1/recipes/<project>` and `windows/recipes/<project>`, not under
+// `projects/`, so every question asked of our own platform recipes was asked of
+// a directory that does not exist.
+func TestLintReadsATreeThatIsNotCalledProjects(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "recipes", "zlib.net")
+	if err := os.MkdirAll(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "versions { github = \"madler/zlib\" }\n" +
+		"distributable { url = \"https://zlib.net/zlib-{{version}}.tar.gz\" }\n" +
+		"build { script = \"make install\" }\n"
+	if err := os.WriteFile(filepath.Join(p, "package.hcl"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The default must still NOT find it: a flag that silently searched both
+	// layouts would hide which one a tree actually uses.
+	if rc, _, _ := lint(t, "--dir", dir); rc != 1 {
+		t.Errorf("without --subdir there is no projects/ here, and that is the loud case")
+	}
+	rc, out, errb := lint(t, "--dir", dir, "--subdir", "recipes", "--require-standalone")
+	if rc != 0 {
+		t.Fatalf("rc = %d, stderr:\n%s", rc, errb)
+	}
+	if !strings.Contains(out, "1 recipe(s) read") {
+		t.Errorf("want the count of what was read: %q", out)
+	}
+}
+
+// A recipe that states where its versions come from, where its source comes
+// from and how to build it stands on its own.
+func TestLintStandalonePassesACompleteRecipe(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/package.hcl": "versions { github = \"acme/acme\" }\n" +
+			"distributable { url = \"https://acme.org/{{version}}.tar.gz\" }\n" +
+			"build { script = \"make install\" }\n",
+	})
+	if rc, _, errb := lint(t, "--dir", dir, "--require-standalone"); rc != 0 {
+		t.Fatalf("a complete recipe must pass: rc=%d\n%s", rc, errb)
+	}
+}
+
+// ⛔⛔ AN OVERLAY ENTRY IS AN AMENDMENT, NOT A RECIPE, AND THE DIFFERENCE IS
+// INVISIBLE UNTIL THE TREE UNDERNEATH IS TAKEN AWAY. pantry-overlay#50 reduced
+// all 183 entries to the keys they change — correct for a tree bottle merges
+// OVER pkgxdev/pantry, and the whole problem for a tree that must BE the base.
+// Measured when this was written: 15 of 213 overlay recipes state a
+// distributable.
+func TestLintStandaloneNamesAFragmentAndWhatItLacks(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"curl.se/package.hcl": "dependencies = { \"openssl.org\" = \"^3\" }\n",
+	})
+	rc, _, errb := lint(t, "--dir", dir, "--require-standalone")
+	if rc != 1 {
+		t.Fatalf("a fragment must fail: rc=%d\n%s", rc, errb)
+	}
+	// The project AND the keys: a count nobody can follow back to a name is a
+	// number nobody can act on, and "incomplete" does not say what to write.
+	for _, want := range []string{
+		"1 of 1 recipe(s) cannot resolve alone",
+		"curl.se: states no versions, no distributable, no build",
+	} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, errb)
+		}
+	}
+}
+
+// ⛔ PER TREE, like --require-provenance: an overlay is ALLOWED to be made of
+// fragments right up until it is asked to be the base, and the 1932 upstream
+// recipes we still read are nobody's to complete.
+func TestLintRequiresStandaloneOnlyWhenAsked(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"curl.se/package.hcl": "dependencies = { \"openssl.org\" = \"^3\" }\n",
+	})
+	if rc, _, errb := lint(t, "--dir", dir); rc != 0 {
+		t.Fatalf("without the flag a fragment is fine: rc=%d\n%s", rc, errb)
+	}
+}
+
+// A SET names a tree of packages by constraint. It has no source and no build
+// of its own, so judging it by `distributable` would report every set as a
+// fragment — which is how the first version of this read.
+func TestLintStandaloneExemptsASet(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"acme.org/set/package.yml": "members:\n  acme.org/tool: '*'\n",
+	})
+	if rc, _, errb := lint(t, "--dir", dir, "--require-standalone"); rc != 0 {
+		t.Fatalf("a set is not a fragment: rc=%d\n%s", rc, errb)
+	}
+}
+
+// ⛔⛔ THE CASE THE TYPED Recipe CANNOT ANSWER, AND THE REASON recipefile.Doc
+// EXISTS. `distributable:` absent and `distributable: null` both decode to a
+// nil `any`, and they are OPPOSITE claims: the first inherits a source from
+// whatever is merged underneath, the second states that this package has no
+// source of its own — a wrapper, a metapackage, a recipe whose files come from
+// its dependencies.
+//
+// Judged by the typed value, both of these fail. They differ only in the
+// document, so the two are run as a PAIR: equal in every other key, and the
+// gate must separate them. A single case would have passed against a check
+// that was wrong in both directions.
+func TestLintStandaloneTellsAStatedNullFromAnAbsentKey(t *testing.T) {
+	const rest = "versions:\n  github: acme/acme\nbuild:\n  script: make install\n"
+	stated := lintTree(t, map[string]string{
+		"acme.org/package.yml": "distributable: null\n" + rest,
+	})
+	if rc, _, errb := lint(t, "--dir", stated, "--require-standalone"); rc != 0 {
+		t.Errorf("`distributable: null` is a STATEMENT that there is no source: rc=%d\n%s", rc, errb)
+	}
+	absent := lintTree(t, map[string]string{"acme.org/package.yml": rest})
+	rc, _, errb := lint(t, "--dir", absent, "--require-standalone")
+	if rc != 1 {
+		t.Fatalf("an absent distributable inherits one, so it is a fragment: rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(errb, "acme.org: states no distributable") {
+		t.Errorf("the refusal must name the one key that is missing:\n%s", errb)
+	}
+}

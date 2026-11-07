@@ -175,28 +175,60 @@ func must(s *jsonschema.Schema, err error) *jsonschema.Schema {
 
 // Validate checks raw package.yml bytes against the authoritative schema.
 func Validate(data []byte) error {
+	_, err := validated(data)
+	return err
+}
+
+// validated is Validate, and returns the normalised document it checked.
+//
+// The document is the only answer to "does this recipe STATE this key", which
+// the typed Recipe cannot give: its optional fields are `any`, so an absent
+// key and a stated `null` both decode to nil. Rather than read the file a
+// second time to find out, the one reading that already happens is returned —
+// see ParseWithDoc.
+func validated(data []byte) (map[string]any, error) {
 	var doc any
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("pantry: invalid YAML: %w", err)
+		return nil, fmt.Errorf("pantry: invalid YAML: %w", err)
 	}
 	doc = toJSONValue(doc)
 	if err := compiledSchema.Validate(doc); err != nil {
-		return fmt.Errorf("%w: %w", ErrSchema, err)
+		return nil, fmt.Errorf("%w: %w", ErrSchema, err)
 	}
-	return nil
+	// The schema's root is `"type": "object"`, so anything that reached here is
+	// a mapping. Asserted without a branch on purpose: an arm no input can
+	// enter is an arm no test can check.
+	m, _ := doc.(map[string]any)
+	return m, nil
 }
 
 // Parse decodes and validates package.yml bytes into a Recipe. It decodes into
 // the typed struct first (so a type mismatch is reported precisely), then
 // checks the whole document against the authoritative schema.
 func Parse(data []byte) (*Recipe, error) {
+	r, _, err := ParseWithDoc(data)
+	return r, err
+}
+
+// ParseWithDoc is Parse, and also returns the DOCUMENT it validated: the keys
+// the file states, before any typing.
+//
+// It exists so that nothing has to read a recipe twice to learn both. The
+// first shape of `bk lint --require-standalone` read the file once for the
+// recipe and once for the document, which bought two error arms that no input
+// could reach — the second read cannot fail to find a file the first just
+// parsed — and the 100% coverage gate was right to refuse them. One reading
+// also removes a real hazard: two reads of a file being edited can disagree,
+// and "the recipe says X and the document says Y" would then be a state this
+// package could produce.
+func ParseWithDoc(data []byte) (*Recipe, map[string]any, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, fmt.Errorf("pantry: decode: %w", err)
+		return nil, nil, fmt.Errorf("pantry: decode: %w", err)
 	}
 	var r Recipe
 	if err := root.Decode(&r); err != nil {
-		return nil, fmt.Errorf("pantry: decode: %w", err)
+		return nil, nil, fmt.Errorf("pantry: decode: %w", err)
 	}
 	// A list-form `versions:` enumerates candidate versions verbatim. yaml.v3
 	// coerces unquoted numeric scalars when decoding into `any` (3.0 becomes
@@ -204,10 +236,11 @@ func Parse(data []byte) (*Recipe, error) {
 	// that interpolates {{version.raw}}. Re-read the sequence's raw scalar text
 	// straight from the YAML node so each candidate keeps its exact source form.
 	r.Versions = rawListVersions(&root, r.Versions)
-	if err := Validate(data); err != nil {
-		return nil, err
+	doc, err := validated(data)
+	if err != nil {
+		return nil, nil, err
 	}
-	return &r, nil
+	return &r, doc, nil
 }
 
 // rawListVersions returns the verbatim scalar text of a list-form `versions:`
