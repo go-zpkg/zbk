@@ -286,8 +286,24 @@ edits   = [{ path = "distributable", set = 7 }]
 	// is the other half, and the two together are why the upstream recipe is
 	// validated FIRST: refused before any override, nothing can be concluded
 	// about ours; refused only after, the override produced it.
+	//
+	// ⛔ THE FIXTURE MUST FAIL AT THE SCHEMA, NOT BEFORE IT. It was `aliases:`,
+	// one of the real upstream keys that started this, which made the test
+	// depend on the schema being CLOSED — and it had to be reopened, because
+	// closing it stopped us reading the toolchain's own recipes. The second
+	// attempt, `runtime: 7`, failed EARLIER: pantry.Parse decodes into the
+	// typed Recipe first, and Runtime is a struct, so that is a decode error
+	// and not pantry.ErrSchema at all. `distributable` is an `any`, so it
+	// decodes and the schema is what refuses it — the one layer this
+	// distinction is about.
 	t.Run("upstream's own recipe is one this schema declines", func(t *testing.T) {
-		dir, pantry := ovTree(t, logicalRecipe+"aliases:\n  - acme\n", "")
+		bad := strings.Replace(logicalRecipe,
+			"distributable:\n  url: https://acme.org/{{version}}.tar.gz\n",
+			"distributable: 7\n", 1)
+		if bad == logicalRecipe {
+			t.Fatal("the fixture did not change: this would test the passing case")
+		}
+		dir, pantry := ovTree(t, bad, "")
 		writeHCL(t, dir, "acme.hcl", `
 project = "acme.org"
 why     = "our registry carries no openssl 1.x"

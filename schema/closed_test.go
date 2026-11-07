@@ -1,11 +1,34 @@
 package schema_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/go-zpkg/zbk/pantry"
+	"github.com/go-zpkg/zbk/schema"
 )
+
+// rootIsOpen reports whether the schema admits unknown keys at the root. It
+// reads the schema rather than a constant here, so this file cannot disagree
+// with the document it is about.
+func rootIsOpen() (bool, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(schema.PackageJSON, &doc); err != nil {
+		return false, err
+	}
+	v, ok := doc["additionalProperties"]
+	if !ok {
+		// Absent means true in JSON Schema, which is the open case.
+		return true, nil
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("schema: root additionalProperties is %T, not a boolean", v)
+	}
+	return b, nil
+}
 
 // ⛔⛔ A SCHEMA IS ONLY CLOSED IF SOMETHING FAILS WHEN IT IS REOPENED.
 // `additionalProperties: false` is one word in a JSON file, and the corpus
@@ -16,7 +39,22 @@ import (
 //
 // Each case is a recipe that differs from a valid one by exactly one key, so
 // a failure names the container that stopped refusing.
+//
+// ⛔⛔ IT TRACKS THE SCHEMA INSTEAD OF ASSERTING A POLICY. The schema was
+// closed in #423 and REOPENED the same day: closing it stopped us reading
+// foreign recipes, and the toolchain's own — openssl.org, llvm.org,
+// cmake.org, python.org, rust-lang.org — are among them. So this test reads
+// the root's `additionalProperties` and skips while it is open, rather than
+// failing for a policy nobody has adopted yet. The moment someone closes it
+// again, every assertion below comes back without being rewritten.
 func TestAnUnknownKeyIsRefused(t *testing.T) {
+	if open, err := rootIsOpen(); err != nil {
+		t.Fatal(err)
+	} else if open {
+		t.Skip("the schema is open at the root (additionalProperties: true), so an " +
+			"unknown key validates by design — see the reopening in zbk and " +
+			"go-zpkg/packages#420, #431. Close it and these cases apply again.")
+	}
 	const valid = `
 distributable:
   url: https://example.org/x-{{version.raw}}.tar.gz
@@ -106,6 +144,9 @@ distributable:
 // and compares against nothing real. The runner checks the shape too
 // (build.pinnedDigest), and so does the schema, so a recipe is refused at
 // the earliest point rather than at build time on a runner.
+// This one does NOT depend on the container being closed: `sha256` is an
+// enumerated property with a pattern, so a bad digest is refused whether or
+// not unknown keys are admitted beside it.
 func TestSomethingShapedLikeADigestButNotOneIsRefused(t *testing.T) {
 	for _, c := range []struct{ what, yaml string }{
 		{"a checksum URL where a digest belongs", `
