@@ -71,7 +71,36 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	// fragments, right up until it is asked to be the base.
 	requireStandalone := fset.Bool("require-standalone", false,
 		"fail a recipe that cannot resolve alone — one that needs another recipe merged underneath it")
+	// ⛔⛔ A GATE THAT STARTS RED IS NOT A GATE, IT IS A LIGHT NOBODY READS, and
+	// pantry-overlay's own ci.yml carries that lesson already: its lint step
+	// invoked a module path that no longer existed, so every pull request after
+	// the rename failed there, on the toolchain rather than on a recipe, and no
+	// recipe was read by the builder's loader for weeks.
+	//
+	// --require-standalone on our overlay reports 197 of 213 today. Turning it
+	// on as a hard zero would be that same red light; leaving it off until the
+	// last recipe is written means nothing protects the 16 that already stand
+	// alone. A RATCHET is the third option: state the number, refuse an
+	// increase, and refuse a stale ceiling too.
+	//
+	// Refusing to be UNDER the ceiling is the part that makes it a ratchet
+	// rather than a budget. A ceiling nobody lowers stops describing the tree
+	// within a week, and then a regression hides inside the slack — which is
+	// the same failure as a coverage gate left at a number the code has passed.
+	// -1 means "not given": zero is a real and much stricter answer.
+	maxFragments := fset.Int("max-fragments", -1,
+		"with --require-standalone: the number of fragments this tree still has. "+
+			"More fails as a regression, FEWER fails as a ceiling to lower")
 	if err := fset.Parse(args); err != nil {
+		return 2
+	}
+
+	// ⛔ A FLAG THAT SILENTLY DOES NOTHING IS WORSE THAN A MISSING ONE: a lane
+	// that spells --max-fragments without --require-standalone would record a
+	// number nobody checks, and read as protected.
+	if *maxFragments >= 0 && !*requireStandalone {
+		fmt.Fprintln(stderr, "lint: --max-fragments is a ceiling on what "+
+			"--require-standalone counts, and does nothing without it")
 		return 2
 	}
 
@@ -123,6 +152,16 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 			len(unrecorded), len(projects))
 		fmt.Fprintln(stderr, strings.Join(unrecorded, "\n"))
 	}
+	// Under the ceiling: the tree improved and the ceiling did not. Reported on
+	// stdout as a success, because nothing is wrong with the recipes — the
+	// number in the lane is what needs the edit, and the message says which.
+	if *maxFragments > len(fragments) {
+		fmt.Fprintf(stderr, "lint: %d fragment(s), and --max-fragments says %d: "+
+			"lower it to %d. A ceiling nobody lowers stops describing the tree, "+
+			"and then a regression hides in the slack\n",
+			len(fragments), *maxFragments, len(fragments))
+		return 1
+	}
 	if len(fragments) > 0 {
 		sort.Strings(fragments)
 		fmt.Fprintf(stderr, "%d of %d recipe(s) cannot resolve alone — each needs another "+
@@ -131,6 +170,10 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 			"(go-zpkg/packages#431):\n",
 			len(fragments), len(projects))
 		fmt.Fprintln(stderr, strings.Join(fragments, "\n"))
+		if *maxFragments == len(fragments) {
+			fmt.Fprintf(stderr, "lint: at the stated ceiling of %d; each recipe completed "+
+				"must lower it\n", *maxFragments)
+		}
 	}
 	if len(bad) > 0 {
 		fmt.Fprintln(stderr, strings.Join(bad, "\n"))
@@ -139,7 +182,13 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 	}
 	// Reported after the unreadable ones, and a failure in its own right: a
 	// run that printed the list and exited 0 is a list nobody acts on.
-	if len(unrecorded) > 0 || len(fragments) > 0 {
+	if len(unrecorded) > 0 {
+		return 1
+	}
+	// At or under a STATED ceiling the fragments are tolerated — that is what
+	// stating a number means. Without --max-fragments the tolerance is zero,
+	// which is the stricter reading and stays the default.
+	if len(fragments) > 0 && *maxFragments != len(fragments) {
 		return 1
 	}
 	return 0
