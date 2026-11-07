@@ -331,6 +331,97 @@ func TestLintStandaloneExemptsASet(t *testing.T) {
 	}
 }
 
+// ratchetTree is two fragments and one whole recipe, so a ceiling of 2 is the
+// truth about it and 1 and 3 are the two ways of being wrong.
+func ratchetTree(t *testing.T) string {
+	t.Helper()
+	return lintTree(t, map[string]string{
+		"a.org/package.hcl": "dependencies = { \"openssl.org\" = \"^3\" }\n",
+		"b.org/package.hcl": "dependencies = { \"zlib.net\" = \"*\" }\n",
+		"c.org/package.hcl": "versions { github = \"c/c\" }\n" +
+			"distributable { url = \"https://c.org/{{version}}.tar.gz\" }\n" +
+			"build { script = \"make install\" }\n",
+	})
+}
+
+// ⛔⛔ A GATE THAT STARTS RED IS A LIGHT NOBODY READS. 197 of 213 overlay
+// recipes are fragments, so a hard zero could not be switched on, and leaving
+// the check off protects none of the 16 that already stand alone. The stated
+// number is the third option.
+func TestLintRatchetAcceptsTheStatedNumber(t *testing.T) {
+	rc, out, errb := lint(t, "--dir", ratchetTree(t), "--require-standalone", "--max-fragments", "2")
+	if rc != 0 {
+		t.Fatalf("at the stated ceiling the run must pass: rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(out, "3 recipe(s) read") {
+		t.Errorf("the denominator is missing: %q", out)
+	}
+	// Tolerated is not hidden: the fragments are still named, and the message
+	// says the ceiling is where the obligation now sits.
+	for _, want := range []string{"a.org", "b.org", "at the stated ceiling of 2"} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("a tolerated fragment must still be named (%q):\n%s", want, errb)
+		}
+	}
+	if strings.Contains(errb, "c.org") {
+		t.Errorf("the whole recipe must not be listed:\n%s", errb)
+	}
+}
+
+// One more fragment than the stated number is a regression, and must fail.
+func TestLintRatchetRefusesARegression(t *testing.T) {
+	rc, _, errb := lint(t, "--dir", ratchetTree(t), "--require-standalone", "--max-fragments", "1")
+	if rc != 1 {
+		t.Fatalf("2 fragments against a ceiling of 1 must fail: rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(errb, "2 of 3 recipe(s) cannot resolve alone") {
+		t.Errorf("the refusal must give both numbers:\n%s", errb)
+	}
+}
+
+// ⛔⛔ AND FEWER THAN THE STATED NUMBER MUST FAIL TOO, which is what makes this
+// a ratchet rather than a budget. A ceiling nobody lowers stops describing the
+// tree within a week, and a regression then hides inside the slack — the same
+// failure as a coverage gate left at a number the code has long passed.
+func TestLintRatchetRefusesAStaleCeiling(t *testing.T) {
+	rc, _, errb := lint(t, "--dir", ratchetTree(t), "--require-standalone", "--max-fragments", "3")
+	if rc != 1 {
+		t.Fatalf("a ceiling above the truth must fail: rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(errb, "lower it to 2") {
+		t.Errorf("the refusal must say what to write instead:\n%s", errb)
+	}
+}
+
+// Zero tolerated is a real answer and stays the default: --require-standalone
+// alone is the strict reading, and a ceiling of 0 says so explicitly.
+func TestLintRatchetZeroIsNotUnset(t *testing.T) {
+	clean := lintTree(t, map[string]string{
+		"c.org/package.hcl": "versions { github = \"c/c\" }\n" +
+			"distributable { url = \"https://c.org/{{version}}.tar.gz\" }\n" +
+			"build { script = \"make install\" }\n",
+	})
+	if rc, _, errb := lint(t, "--dir", clean, "--require-standalone", "--max-fragments", "0"); rc != 0 {
+		t.Fatalf("a clean tree against a ceiling of 0 must pass: rc=%d\n%s", rc, errb)
+	}
+	if rc, _, _ := lint(t, "--dir", ratchetTree(t), "--require-standalone", "--max-fragments", "0"); rc != 1 {
+		t.Error("a ceiling of 0 must refuse a fragment, not read as unset")
+	}
+}
+
+// ⛔ A FLAG THAT SILENTLY DOES NOTHING IS WORSE THAN A MISSING ONE: a lane that
+// stated a ceiling without the check would record a number nobody reads, and
+// look protected.
+func TestLintRatchetNeedsTheCheckItBounds(t *testing.T) {
+	rc, _, errb := lint(t, "--dir", ratchetTree(t), "--max-fragments", "2")
+	if rc != 2 {
+		t.Fatalf("want a usage error, got rc=%d\n%s", rc, errb)
+	}
+	if !strings.Contains(errb, "does nothing without it") {
+		t.Errorf("the refusal must say why:\n%s", errb)
+	}
+}
+
 // ⛔⛔ THE CASE THE TYPED Recipe CANNOT ANSWER, AND THE REASON recipefile.Doc
 // EXISTS. `distributable:` absent and `distributable: null` both decode to a
 // nil `any`, and they are OPPOSITE claims: the first inherits a source from
