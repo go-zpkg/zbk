@@ -178,6 +178,26 @@ func LoadMerged(set *logical.Set, overlayDir, pantryDir, project string) (*pantr
 	return nil, fmt.Errorf("%w for %s in %s or %s", ErrNoRecipe, project, overlayDir, pantryDir)
 }
 
+// DocFile reads a recipe as a DOCUMENT: the keys it actually states,
+// before any typing. It reports separately whether the recipe is there and
+// whether reading it failed.
+//
+// ⛔ THE TYPED Recipe CANNOT ANSWER "DOES IT STATE THIS KEY". Its optional
+// fields are `any`, so `distributable:` absent and `distributable: null`
+// both decode to nil — and those are opposite claims: the first inherits a
+// source from whatever recipe is merged underneath, the second says this
+// package has no source of its own. A caller asking which keys a recipe
+// states has to read the document, and this is that reader — the same one
+// LoadMerged merges with, so a question about the keys and the merge that
+// consumes them cannot disagree about what a recipe says.
+// It takes the recipe's DIRECTORY rather than a pantry and a project, for the
+// reason LoadFile does: our own recipes do not all live under `projects/` —
+// go-zpkg/packages keeps the platform-specific ones at `wasip1/recipes/<p>` —
+// so a reader that joins the layout in has a corpus it cannot be pointed at.
+func DocFile(dir string) (map[string]any, bool, error) {
+	return docAt(dir, dir)
+}
+
 // sideDoc reads one tree's copy as a document, reporting separately whether it
 // is there and whether reading it failed. A recipe that EXISTS and does not
 // parse is never silently skipped: the walk would plan a build around
@@ -186,20 +206,26 @@ func sideDoc(dir, project string) (map[string]any, bool, error) {
 	if dir == "" {
 		return nil, false, nil
 	}
+	return docAt(Dir(dir, project), project)
+}
+
+// docAt reads whichever of Names is present in dir, naming errors after label
+// — the project for a pantry walk, the path for a caller that has one.
+func docAt(dir, label string) (map[string]any, bool, error) {
 	for _, n := range Names {
-		b, err := os.ReadFile(filepath.Join(Dir(dir, project), n))
+		b, err := os.ReadFile(filepath.Join(dir, n))
 		if err != nil {
 			continue
 		}
 		y := b
 		if filepath.Ext(n) == ".hcl" {
 			if y, err = bottle.HCLToYAML(b, n); err != nil {
-				return nil, false, fmt.Errorf("%s/%s: %w", project, n, err)
+				return nil, false, fmt.Errorf("%s/%s: %w", label, n, err)
 			}
 		}
 		var doc map[string]any
 		if err := yaml.Unmarshal(y, &doc); err != nil {
-			return nil, false, fmt.Errorf("%s/%s: %w", project, n, err)
+			return nil, false, fmt.Errorf("%s/%s: %w", label, n, err)
 		}
 		return doc, true, nil
 	}
