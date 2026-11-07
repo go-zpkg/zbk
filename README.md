@@ -63,7 +63,7 @@ The packages, all at 100% statement coverage (`go test ./... -coverprofile` + `g
 | `moustache` | pkgx's `{{token}}` template substitution (version/deps/prefix/hw) |
 | `buildscript` | the build/test script generator (`if:` guards vs the target, platform-reduced env, fixtures) + the porcelain `Wrap` (full runnable script) |
 | `fetch` | source download + extract (tar.gz/xz/bz2/zip, git), zip-slip-safe |
-| `bottlepkg` | package an install tree into a pkgx bottle + dist layout |
+| `bottlepkg` | package an install tree into a bottle + dist layout |
 | `build` | the pipeline orchestrator (`Runner`): dep-closure, base toolchain, sanitized env, autotools maintainer-mode defeat |
 | `overrides` | applies the factory's local recipe-override patches to a pantry checkout in pure Go — a `git diff` parsed and applied without shelling out to `git apply`, and idempotent (it resets the files it touches first) |
 | `recipefile` | reads a recipe and applies the project's **logical** override on the way in — nothing on disk is touched, which is what lets the same pantry checkout be read twice |
