@@ -96,7 +96,7 @@ func TestSourcePinUsage(t *testing.T) {
 func signedPin(t *testing.T, pin fetch.SourcePin, verr error, key []byte, kerr error, args ...string) (int, string, string) {
 	t.Helper()
 	wasV, wasK := fetchVerified, readKeyFile
-	fetchVerified = func(string, []string, []byte) (fetch.SourcePin, error) { return pin, verr }
+	fetchVerified = func(string, []string, []byte, string) (fetch.SourcePin, error) { return pin, verr }
 	readKeyFile = func(string) ([]byte, error) { return key, kerr }
 	t.Cleanup(func() { fetchVerified, readKeyFile = wasV, wasK })
 	var out, errb bytes.Buffer
@@ -110,6 +110,7 @@ var aPin = fetch.SourcePin{
 	SigURL:      "https://x/y.tar.gz.asc",
 	Fingerprint: "DB1F68E7D0B30EA7C41D1B3E3B7C5B4E9A0F1D2C",
 	Identity:    "Upstream Author <author@upstream.example>",
+	KeysRead:    1,
 }
 
 // ⛔⛔ --sig WITHOUT --key OR --key-source IS A USAGE ERROR, NOT A FALLBACK.
@@ -141,6 +142,7 @@ func TestSourcePinKeyWithoutSigIsAUsageError(t *testing.T) {
 	for _, args := range [][]string{
 		{"--key", "k.asc", "https://x/y.tar.gz"},
 		{"--key-source", "their page", "https://x/y.tar.gz"},
+		{"--fingerprint", "ABCD", "https://x/y.tar.gz"},
 	} {
 		if rc, _, errb := signedPin(t, aPin, nil, []byte("key"), nil, args...); rc != 2 ||
 			!strings.Contains(errb, "only mean something with --sig") {
@@ -216,7 +218,7 @@ func TestSourcePinSignedWhenTheKeyFileCannotBeRead(t *testing.T) {
 func TestSourcePinAutoTriesBothNames(t *testing.T) {
 	var got []string
 	wasV, wasK := fetchVerified, readKeyFile
-	fetchVerified = func(_ string, cands []string, _ []byte) (fetch.SourcePin, error) {
+	fetchVerified = func(_ string, cands []string, _ []byte, _ string) (fetch.SourcePin, error) {
 		got = cands
 		return aPin, nil
 	}
@@ -233,12 +235,71 @@ func TestSourcePinAutoTriesBothNames(t *testing.T) {
 	}
 }
 
+// TestSourcePinPassesTheFingerprintThrough, because a flag the verifier never
+// receives is a flag that reads as enforced and is not.
+func TestSourcePinPassesTheFingerprintThrough(t *testing.T) {
+	var got string
+	wasV, wasK := fetchVerified, readKeyFile
+	fetchVerified = func(_ string, _ []string, _ []byte, fpr string) (fetch.SourcePin, error) {
+		got = fpr
+		return aPin, nil
+	}
+	readKeyFile = func(string) ([]byte, error) { return []byte("key"), nil }
+	t.Cleanup(func() { fetchVerified, readKeyFile = wasV, wasK })
+	var out, errb bytes.Buffer
+	if rc := runSourcePin([]string{"--sig", "auto", "--key", "k.asc", "--key-source", "p",
+		"--fingerprint", "155D 3FC5 00C8", "https://x/y.tar.gz"}, &out, &errb); rc != 0 {
+		t.Fatalf("rc = %d: %q", rc, errb.String())
+	}
+	// Passed VERBATIM: the spaces a person pastes are the verifier's business,
+	// and normalising here would mean two notions of "same fingerprint".
+	if got != "155D 3FC5 00C8" {
+		t.Errorf("fingerprint reached the verifier as %q", got)
+	}
+}
+
+// ⛔⛔ TestSourcePinWarnsWhenAKeyringIsASet. A file holding many keys and no
+// --fingerprint answers "somebody in that file signed it", which is the
+// degradation Guix's --key-download=always produces in CI. Measured: the real
+// GNU keyring holds 326+ primary keys.
+func TestSourcePinWarnsWhenAKeyringIsASet(t *testing.T) {
+	many := aPin
+	many.KeysRead = 326
+	_, out, _ := signedPin(t, many, nil, []byte("key"), nil,
+		"--sig", "auto", "--key", "gnu-keyring.gpg", "--key-source", "p", "https://x/y.tar.gz")
+	for _, want := range []string{"326 key(s) read", "somebody in that", "--fingerprint " + aPin.Fingerprint} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the output does not warn with %q:\n%s", want, out)
+		}
+	}
+
+	// One key is already a choice: no warning.
+	_, out, _ = signedPin(t, aPin, nil, []byte("key"), nil,
+		"--sig", "auto", "--key", "one.asc", "--key-source", "p", "https://x/y.tar.gz")
+	if strings.Contains(out, "somebody in that") {
+		t.Errorf("a one-key file needs no warning:\n%s", out)
+	}
+
+	// And with a fingerprint named, the narrowing is reported instead.
+	narrowed := aPin
+	narrowed.KeysScanned = 326
+	_, out, _ = signedPin(t, narrowed, nil, []byte("key"), nil,
+		"--sig", "auto", "--key", "gnu-keyring.gpg", "--key-source", "p",
+		"--fingerprint", aPin.Fingerprint, "https://x/y.tar.gz")
+	if !strings.Contains(out, "walking 326 primary key(s)") {
+		t.Errorf("the narrowed read must say how far it walked:\n%s", out)
+	}
+	if strings.Contains(out, "somebody in that") {
+		t.Errorf("a named fingerprint needs no warning:\n%s", out)
+	}
+}
+
 // An explicit --sig URL is passed through unchanged: `auto` is a convenience,
 // not a rewrite of whatever the author typed.
 func TestSourcePinExplicitSigURLIsNotRewritten(t *testing.T) {
 	var got []string
 	wasV, wasK := fetchVerified, readKeyFile
-	fetchVerified = func(_ string, cands []string, _ []byte) (fetch.SourcePin, error) {
+	fetchVerified = func(_ string, cands []string, _ []byte, _ string) (fetch.SourcePin, error) {
 		got = cands
 		return aPin, nil
 	}
