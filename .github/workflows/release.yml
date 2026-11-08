@@ -90,9 +90,35 @@ jobs:
             echo "building $out"
             CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
               go build -trimpath -ldflags="-s -w" -o "$DIST/${out}" ./cmd/zbk
+
+            # venvlaunch is the entry point `bkpyvenv seal` installs into a
+            # python-venv bottle (cmd/venvlaunch, go-zpkg/zpkgx#151). It ships
+            # here, from the same matrix and into the same SHA256SUMS, because
+            # a pantry recipe can then pin a STORED asset with an
+            # upstream-attested digest — where the generated tag archive 1111
+            # of 1932 upstream recipes use cannot be pinned at all
+            # (go-zpkg/packages#420).
+            #
+            # ⛔⛔ NOT FOR WINDOWS, AND "IT COMPILES" IS A FALSE WITNESS HERE.
+            # GOOS=windows builds it cleanly, because Go declares the symbol —
+            # and syscall/exec_windows.go:453 is
+            #
+            #     func Exec(argv0 string, argv []string, envv []string) error {
+            #         return EWINDOWS
+            #     }
+            #
+            # so the binary would start and then always fail. Publishing it
+            # would promise a platform this cannot serve, which is worse than
+            # omitting it. The venv layout it walks is POSIX bin/ anyway.
+            if [ "$os" != "windows" ]; then
+              echo "building venvlaunch-${os}-${arch}"
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+                go build -trimpath -ldflags="-s -w" \
+                  -o "$DIST/venvlaunch-${os}-${arch}" ./cmd/venvlaunch
+            fi
           done
           cd "$DIST"
-          sha256sum zbk-* > SHA256SUMS
+          sha256sum zbk-* venvlaunch-* > SHA256SUMS
           cat SHA256SUMS
 
       # An ASSERTION, not a hope. bk writes its own module version into every
@@ -128,13 +154,20 @@ jobs:
           set -eu
           DIST="$RUNNER_TEMP/dist"
           bad=0
-          for bin in "$DIST"/zbk-*; do
+          # ⛔ venvlaunch-* IS IN THIS GLOB ON PURPOSE. The lesson recorded
+          # above is that this assertion once read one file out of fourteen;
+          # adding a second binary to the release without adding it here would
+          # repeat that in a new shape. It is the same module, so it carries
+          # the same stamp, and the dirty-tree check matters for it exactly as
+          # much: a launcher built from an unknown tree is one nobody can
+          # trace, and it ends up inside every python-venv bottle.
+          for bin in "$DIST"/zbk-* "$DIST"/venvlaunch-*; do
             name=$(basename "$bin")
             info=$(go version -m "$bin")
             stamped=$(printf '%s\n' "$info" | awk '$1=="mod" {print $3; exit}')
             echo "$name: $stamped"
             if [ "$stamped" != "$TAG" ]; then
-              echo "::error::$name stamps $stamped but this is $TAG — every lock written by this build would name the wrong zbk"
+              echo "::error::$name stamps $stamped but this is $TAG — a zbk build would name the wrong version in every lock it writes, and a venvlaunch build would be untraceable inside the bottles it ships in"
               bad=1
             fi
             if printf '%s\n' "$info" | grep -q 'vcs\.modified=true'; then
@@ -182,6 +215,7 @@ jobs:
         with:
           subject-path: |
             ${{ runner.temp }}/dist/zbk-*
+            ${{ runner.temp }}/dist/venvlaunch-*
             ${{ runner.temp }}/dist/SHA256SUMS
 
       - name: Publish GitHub Release
@@ -196,5 +230,5 @@ jobs:
           else
             gh release create "$TAG" "$DIST"/* \
               --title "$TAG" \
-              --notes "Static, dependency-free \`bk\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs. Verify downloads against SHA256SUMS. Each binary reports its own version into every \`bk lock\` it writes."
+              --notes "Static, dependency-free \`zbk\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs, and \`venvlaunch\` for the same targets except windows — the entry point \`bkpyvenv seal\` installs into a python-venv bottle, which needs no interpreter of its own to start. Verify downloads against SHA256SUMS; every file here also carries a Sigstore provenance attestation (\`gh attestation verify -R go-zpkg/zbk <file>\`). Each \`zbk\` binary reports its own version into every lock it writes."
           fi
