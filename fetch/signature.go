@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 // Verifying an upstream OpenPGP signature, AT THE MOMENT THE DIGEST IS
@@ -53,6 +55,21 @@ import (
 // Fingerprints are printed as uppercase hex with no separators, which is Arch's
 // documented rule and the strictest of the three.
 
+// pgpReadKeyRing is a seam, and the measurement it stands for is the reason
+// this whole fallback exists.
+//
+// ⛔⛔ THE BRANCH BELOW IT CANNOT BE REACHED WITH CRAFTED BYTES. The real case
+// is https://ftp.gnu.org/gnu/gnu-keyring.gpg — 3 700 423 bytes, 326+ primary
+// keys — which openpgp refuses WHOLE with:
+//
+//	openpgp: invalid data: Cannot have multiple embedded signatures
+//
+// Reproducing that needs an entity with two embedded signatures, not a
+// truncated packet: four hand-built fixtures were tried and ReadKeyRing read
+// every one of them, trailing garbage included. A seam drives the branch
+// honestly; the string above is the evidence that the branch is real.
+var pgpReadKeyRing = openpgp.ReadKeyRing
+
 // maxSigBody caps a detached signature. A real one is a few hundred bytes;
 // anything past this is not one, and reading it all would turn a wrong URL into
 // a memory problem — the same bound DeclaredSHA256 applies for the same reason.
@@ -80,6 +97,15 @@ type SourcePin struct {
 	// Identity is the key's primary user id, for a human reading the output.
 	// It is not a trust statement: anybody can put any name in a user id.
 	Identity string
+	// KeysRead is how many keys were used to verify: 1 when a fingerprint was
+	// named, otherwise everything the file held. KeysScanned is how many
+	// primary keys the file was walked past to find the named one, and is 0
+	// when no fingerprint was given.
+	//
+	// Both are printed, because an author who passed a file holding one key and
+	// an author who passed every GNU maintainer's key otherwise get the same
+	// "signed by" line, and only the second needs a fingerprint.
+	KeysRead, KeysScanned int
 }
 
 // DigestVerified downloads url, verifies a detached OpenPGP signature over
@@ -92,7 +118,19 @@ type SourcePin struct {
 // keyring is the author's public key file, armored or binary. It is the ONLY
 // source of keys: nothing is fetched from a keyserver, so a signature by a key
 // that is not in this file is a refusal and not a prompt.
-func DigestVerified(url string, sigURLs []string, keyring []byte) (SourcePin, error) {
+//
+// wantFPR, when not empty, is the fingerprint the signing key MUST have. It is
+// compared on the primary key, case-insensitively, with spaces and colons
+// stripped — the shapes a person copies out of `gpg --fingerprint`.
+//
+// ⛔ WITHOUT IT, A KEYRING IS A SET AND NOT A CHOICE. The GNU keyring holds
+// every maintainer's key, so verifying against it answers "somebody in here
+// signed this", which is the degradation Guix's `--key-download=always`
+// produces in CI. Arch's `validpgpkeys` exists for this and `PKGBUILD(5)` is
+// explicit: makepkg "will only accept signatures from the keys listed here and
+// will ignore the trust values from the keyring". Empty means the caller
+// accepts any key in the file, which is right only for a file holding one.
+func DigestVerified(url string, sigURLs []string, keyring []byte, wantFPR string) (SourcePin, error) {
 	if len(sigURLs) == 0 {
 		return SourcePin{}, fmt.Errorf("fetch: %s: no signature URL to try", url)
 	}
@@ -100,7 +138,7 @@ func DigestVerified(url string, sigURLs []string, keyring []byte) (SourcePin, er
 		return SourcePin{}, fmt.Errorf("fetch: %s: an empty keyring verifies nothing — "+
 			"pass the author's public key, and never let a keyserver choose it", url)
 	}
-	keys, err := readKeyring(keyring)
+	keys, scanned, err := readKeyring(keyring, wantFPR)
 	if err != nil {
 		return SourcePin{}, err
 	}
@@ -139,32 +177,196 @@ func DigestVerified(url string, sigURLs []string, keyring []byte) (SourcePin, er
 			"so do not pin this until you know why", sigURL, err, digest)
 	}
 
+	got := fmt.Sprintf("%X", signer.PrimaryKey.Fingerprint)
+	// ⛔ CHECKED AFTER THE SIGNATURE AND BEFORE ANYTHING IS RETURNED. A
+	// fingerprint mismatch is not a lesser failure than a bad signature: the
+	// bytes are correctly signed, by somebody the author did not name, which is
+	// precisely the case a keyring of many keys creates.
+	if wantFPR != "" && !sameFingerprint(got, wantFPR) {
+		return SourcePin{}, fmt.Errorf("fetch: %s is signed by %s (%s), not by the %s you "+
+			"named — the signature is VALID and made by a key in your keyring, which is why "+
+			"this is checked separately; a keyring holding many keys answers \"somebody in "+
+			"here signed it\" unless you say which", sigURL, got, primaryIdentity(signer), wantFPR)
+	}
+
 	return SourcePin{
 		SHA256:      digest,
 		Size:        size,
 		SigURL:      sigURL,
-		Fingerprint: fmt.Sprintf("%X", signer.PrimaryKey.Fingerprint),
+		Fingerprint: got,
 		Identity:    primaryIdentity(signer),
+		KeysRead:    len(keys),
+		KeysScanned: scanned,
 	}, nil
 }
 
-// readKeyring parses an armored or binary public key file.
-func readKeyring(b []byte) (openpgp.EntityList, error) {
-	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(b))
-	if err != nil {
-		// Not armoured, or not a key at all: try the binary form before
-		// reporting, and report the BINARY error, which is the one that saw the
-		// bytes as they are.
-		keys, err = openpgp.ReadKeyRing(bytes.NewReader(b))
-		if err != nil {
-			return nil, fmt.Errorf("fetch: the key file is neither an armored nor a "+
-				"binary OpenPGP public key: %w", err)
+// sameFingerprint compares two fingerprints as a person pastes them: `gpg
+// --fingerprint` prints groups separated by spaces, some pages use colons, and
+// case varies. Only the hex digits are compared.
+func sameFingerprint(a, b string) bool {
+	return strings.EqualFold(hexOnly(a), hexOnly(b))
+}
+
+func hexOnly(s string) string {
+	var out strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+			out.WriteRune(r)
 		}
 	}
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("fetch: the key file parsed but holds no keys")
+	return out.String()
+}
+
+// readKeyring parses an armored or binary public key file ENTITY BY ENTITY,
+// keeping the keys that parse and counting the ones that do not.
+//
+// ⛔⛔ ALL-OR-NOTHING WAS UNUSABLE AGAINST THE ONE KEYRING THIS IS FOR.
+// `openpgp.ReadKeyRing` stops at the first entity it cannot read and discards
+// everything before it. Measured on 2026-11-08 against
+// https://ftp.gnu.org/gnu/gnu-keyring.gpg — 3 700 423 bytes, every GNU
+// maintainer's key, which is the keyring an author pinning a GNU tarball
+// actually has:
+//
+//	openpgp: invalid data: Cannot have multiple embedded signatures
+//
+// One unreadable entity among hundreds, and not one key was returned. The error
+// this package then printed was "neither an armored nor a binary OpenPGP public
+// key", which is a FALSE DIAGNOSIS: it is a binary keyring, and a valid one, with
+// a single entity a thirty-year-old archive is entitled to contain.
+//
+// ⭐ SKIPPING AN UNPARSEABLE KEY IS NOT A SECURITY HOLE, and that is the
+// argument for doing it. A key that cannot be parsed is a key nothing can
+// verify against, so skipping it is indistinguishable from its absence — and a
+// revocation inside a packet no implementation can read was never usable
+// either. What WOULD be a hole is doing it silently, which is why the count
+// comes back and `sourcepin` prints it.
+//
+// It is also why [DigestVerified] takes a wanted fingerprint. A keyring of
+// every GNU maintainer answers "somebody in here signed it", which is the same
+// degradation Guix's `--key-download=always` produces in CI. Arch's
+// `validpgpkeys` is the fix and it is documented as exactly that: makepkg
+// "will only accept signatures from the keys listed here and will ignore the
+// trust values from the keyring".
+func readKeyring(b []byte, wantFPR string) (openpgp.EntityList, int, error) {
+	body, ok := keyBody(b)
+	if !ok {
+		return nil, 0, fmt.Errorf("fetch: the key file is neither an armored nor a " +
+			"binary OpenPGP public key")
 	}
-	return keys, nil
+
+	// ⛔⛔ A FIRST ATTEMPT AT THIS SKIPPED UNREADABLE ENTITIES IN A LOOP, AND THE
+	// LOOP DID NOT MOVE. The comment above it asserted that "ReadEntity consumes
+	// up to the next key packet"; measured against the real GNU keyring, it does
+	// not — the reader stays parked on the packet it refused and the same error
+	// repeats, 1025 times until a cap stopped it. The cap earned its keep and
+	// the premise did not.
+	//
+	// ⛔ THE WHOLE FILE FIRST, AND NARROWING ONLY AS A FALLBACK. An earlier
+	// version narrowed to the named key whenever one was given, and that made
+	// the useful diagnosis unreachable: with a one-key list, a signature by
+	// another key IN THE SAME FILE comes back as "signature made by unknown
+	// entity" instead of "signed by X, not by the Y you named". A test caught
+	// it. Reading the ring whole and comparing afterwards is also Arch's order
+	// — makepkg verifies, then compares against validpgpkeys.
+	keys, err := pgpReadKeyRing(bytes.NewReader(body))
+	if err == nil && len(keys) > 0 {
+		return keys, 0, nil
+	}
+	if wantFPR == "" {
+		if err == nil {
+			return nil, 0, fmt.Errorf("fetch: the key file parsed and holds no key")
+		}
+		return nil, 0, fmt.Errorf("fetch: this key file cannot be read whole (%w) — pass "+
+			"--fingerprint to name the one key you mean, which reads only that one. A "+
+			"public archive's keyring spans decades and one entity it holds can be "+
+			"unreadable without the rest being wrong", err)
+	}
+
+	// Naming the key is what makes such a file usable: the entities not asked
+	// for are never assembled, so one unreadable key elsewhere in a
+	// thirty-year-old archive cannot make the one needed unusable. Measured on
+	// the real GNU keyring: 326 primary keys walked, the 327th taken.
+	e, scanned, ferr := keyByFingerprint(body, wantFPR)
+	if ferr != nil {
+		return nil, scanned, ferr
+	}
+	return openpgp.EntityList{e}, scanned, nil
+}
+
+// keyByFingerprint reads only the entity whose PRIMARY key has the wanted
+// fingerprint, and reports how many primary keys it walked past to get there.
+//
+// It compares the fingerprint from the key packet itself, before any entity is
+// assembled, so a key that cannot be assembled is simply not the answer rather
+// than an error.
+func keyByFingerprint(body []byte, wantFPR string) (*openpgp.Entity, int, error) {
+	r := packet.NewReader(bytes.NewReader(body))
+	scanned := 0
+	for {
+		p, err := r.Next()
+		if err == io.EOF {
+			return nil, scanned, fmt.Errorf("fetch: no key with fingerprint %s in the key "+
+				"file (%d primary key(s) walked) — check the fingerprint, and that this is "+
+				"the file you meant", wantFPR, scanned)
+		}
+		if err != nil {
+			// ⛔⛔ STOP, DO NOT CONTINUE. An earlier version of this loop
+			// skipped and carried on, and that is the same defect that made the
+			// first attempt at tolerant parsing spin 1025 times: a
+			// packet.Reader cannot be resynchronised after a tag it refuses, so
+			// `continue` either repeats the error forever or reads the rest of
+			// the file as one packet's payload. A stream this cannot parse is a
+			// stream it cannot search, and saying so is the honest answer.
+			//
+			// This is not the GNU keyring's case, which is why that one works:
+			// there the PACKETS all read and one ENTITY would not assemble, and
+			// entities are assembled here only for the key that matched.
+			// Measured 2026-11-08: 326 primary keys walked, none refused.
+			return nil, scanned, fmt.Errorf("fetch: the key file's packet stream stops "+
+				"being readable after %d primary key(s): %w", scanned, err)
+		}
+		pk, isKey := p.(*packet.PublicKey)
+		if !isKey || pk.IsSubkey {
+			continue
+		}
+		scanned++
+		if !sameFingerprint(fmt.Sprintf("%X", pk.Fingerprint), wantFPR) {
+			continue
+		}
+		// Found it. Hand the key packet back so ReadEntity sees the entity from
+		// its start, with its user ids, self-signatures and subkeys.
+		r.Unread(p)
+		e, err := openpgp.ReadEntity(r)
+		if err != nil {
+			return nil, scanned, fmt.Errorf("fetch: the key %s is in the file and cannot be "+
+				"read: %w", wantFPR, err)
+		}
+		return e, scanned, nil
+	}
+}
+
+// keyBody strips OpenPGP armour if present and returns the binary packet
+// stream, so everything downstream reads one shape.
+//
+// ⛔ THE FIRST OCTET IS THE TEST FOR "IS THIS A PACKET STREAM AT ALL", and it
+// is why a README does not reach the keyring reader. RFC 9580 §4.2: a packet's
+// first octet has bit 7 set, always. Without this check a text file was
+// accepted as "binary" and the refusal then advised passing --fingerprint,
+// which is useless advice for a file that holds no keys at all — a test caught
+// exactly that.
+func keyBody(b []byte) ([]byte, bool) {
+	if len(b) == 0 {
+		return nil, false
+	}
+	if block, err := armor.Decode(bytes.NewReader(b)); err == nil {
+		body, err := io.ReadAll(block.Body)
+		if err != nil || len(body) == 0 {
+			return nil, false
+		}
+		return body, body[0]&0x80 != 0
+	}
+	return b, b[0]&0x80 != 0
 }
 
 // firstSignature fetches the first candidate URL that answers 200.

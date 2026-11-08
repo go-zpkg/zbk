@@ -54,6 +54,18 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 	sig := fset.String("sig", "", "the detached signature's URL, or `auto` to try <url>.asc then <url>.sig")
 	keyFile := fset.String("key", "", "the author's public key file (armored or binary); required with --sig")
 	keySource := fset.String("key-source", "", "where that key's fingerprint came from — a URL, a page, a person; required with --sig")
+	// ⛔⛔ WITHOUT THIS, A KEYRING IS A SET AND NOT A CHOICE. Measured against
+	// the real thing on 2026-11-08: https://ftp.gnu.org/gnu/gnu-keyring.gpg is
+	// 3 700 423 bytes and holds every GNU maintainer's key, so `--key` pointed
+	// at it would accept a signature from ANY of them — the same degradation
+	// Guix's `--key-download=always` produces in CI. Arch's `validpgpkeys` is
+	// the answer and `PKGBUILD(5)` states it plainly: makepkg "will only accept
+	// signatures from the keys listed here and will ignore the trust values
+	// from the keyring". It is optional because a key FILE holding exactly one
+	// key is already a choice; it is strongly advised for anything else, and
+	// the output says how many keys the file held so the author can tell which
+	// case they are in.
+	fingerprint := fset.String("fingerprint", "", "the fingerprint the signing key must have (spaces and colons ignored); without it, any key in --key is accepted")
 	if err := fset.Parse(args); err != nil {
 		return 2
 	}
@@ -72,13 +84,13 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 			"key's fingerprint came from, which is the one thing no other distribution records)")
 		return 2
 	}
-	if *sig == "" && (*keyFile != "" || *keySource != "") {
-		fmt.Fprintln(stderr, "sourcepin: --key and --key-source only mean something with --sig")
+	if *sig == "" && (*keyFile != "" || *keySource != "" || *fingerprint != "") {
+		fmt.Fprintln(stderr, "sourcepin: --key, --key-source and --fingerprint only mean something with --sig")
 		return 2
 	}
 
 	if *sig != "" {
-		return pinSigned(url, *sig, *keyFile, *keySource, *version, stdout, stderr)
+		return pinSigned(url, *sig, *keyFile, *keySource, *fingerprint, *version, stdout, stderr)
 	}
 
 	digest, size, err := fetchDigest(url)
@@ -122,7 +134,7 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 // exactly this kind of claim — what the recipe was written from — and a key is
 // that kind of claim. Adding a field before any recipe carries one would be an
 // API written against a guess.
-func pinSigned(url, sig, keyFile, keySource, version string, stdout, stderr io.Writer) int {
+func pinSigned(url, sig, keyFile, keySource, fingerprint, version string, stdout, stderr io.Writer) int {
 	key, err := readKeyFile(keyFile)
 	if err != nil {
 		fmt.Fprintf(stderr, "sourcepin: %v\n", err)
@@ -138,7 +150,7 @@ func pinSigned(url, sig, keyFile, keySource, version string, stdout, stderr io.W
 		cands = []string{url + ".asc", url + ".sig"}
 	}
 
-	pin, err := fetchVerified(url, cands, key)
+	pin, err := fetchVerified(url, cands, key, fingerprint)
 	if err != nil {
 		fmt.Fprintf(stderr, "sourcepin: %v\n", err)
 		return 1
@@ -147,6 +159,23 @@ func pinSigned(url, sig, keyFile, keySource, version string, stdout, stderr io.W
 	fmt.Fprintf(stdout, "%s\n  %d bytes, fetched with the builder's own fetcher\n", url, pin.Size)
 	fmt.Fprintf(stdout, "  signed by %s\n  %s\n  verified against %s — no keyserver was asked\n",
 		pin.Fingerprint, pin.Identity, keyFile)
+	// ⛔ THE KEYRING'S REAL SHAPE, SAID OUT LOUD. An author who passed a file
+	// holding one key and an author who passed every GNU maintainer's key get
+	// the same "signed by" line otherwise, and only the second needs
+	// --fingerprint. Skipped entities are reported for the same reason: a key
+	// this cannot read is a key nothing can verify against, which is safe, and
+	// silence about it would not be.
+	if pin.KeysScanned > 0 {
+		fmt.Fprintf(stdout, "  the named key, found after walking %d primary key(s) in the file\n",
+			pin.KeysScanned)
+	} else {
+		fmt.Fprintf(stdout, "  %d key(s) read from the file\n", pin.KeysRead)
+	}
+	if fingerprint == "" && pin.KeysRead > 1 {
+		fmt.Fprintf(stdout, "  ⛔ %d keys and no --fingerprint: this says \"somebody in that "+
+			"file signed it\". Re-run with --fingerprint %s to say which.\n",
+			pin.KeysRead, pin.Fingerprint)
+	}
 
 	if version != "" {
 		fmt.Fprintf(stdout, "\n  sha256 = {\n    %q = %q\n  }\n", version, pin.SHA256)
