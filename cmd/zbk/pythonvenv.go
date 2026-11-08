@@ -10,20 +10,17 @@ import (
 	"strings"
 )
 
-// pyStubberStub is bk's copy of the launcher written by pkgx brewkit's
-// libexec/python-venv-stubber.sh (the OLD one-shot python-venv family). Unlike
-// bkpyvenv's stub it keeps a `#!/usr/bin/env python` shebang and resolves the
-// interpreter via shutil.which at runtime. Shipped verbatim so behaviour matches.
-//
-//go:embed python-venv-stubber-stub.py
-var pyStubberStub []byte
-
-// pyPyStub is bk's copy of the POSIX-sh launcher written by brewkit's
-// libexec/python-venv.py. It rewrites the venv's shebangs with sed at runtime
-// and re-execs the real entry point. Shipped verbatim.
-//
-//go:embed python-venv-py-stub.sh
-var pyPyStub []byte
+// ⛔⛔ THE TWO LAUNCHER SCRIPTS THIS FILE EMBEDDED ARE GONE, NOT PORTED.
+// `pyStubberStub` (1837 bytes, from brewkit's libexec/python-venv-stubber.sh)
+// and `pyPyStub` (525 bytes of POSIX sh, from libexec/python-venv.py) were the
+// last two VERBATIM copies of pkgxdev/brewkit in this repository, and brewkit
+// declares no licence at all — so a published zbk binary was redistributing
+// somebody else's expression without a grant (go-zpkg/zbk#431). Both are
+// replaced by installVenvLaunch, which installs cmd/venvlaunch instead; see
+// venvlaunchinstall.go for why a script cannot do this job in the images we
+// target. The sh one rewrote the venv's shebangs with `sed` on every
+// invocation, which is also three dependencies (sh, sed, a writable bottle)
+// this design no longer has.
 
 // pyRunEnv spawns like pyRun but with extra environment entries (the old
 // python-venv family points pip's TMPDIR at $SRCROOT/dev.pkgx.python.build).
@@ -42,7 +39,6 @@ func defaultPyRunEnv(dir string, extraEnv []string, name string, args ...string)
 type pyOneShotOpts struct {
 	venvFlags       []string // extra `python -m venv` flags (.py: --symlinks)
 	pipArgs         []string // pip args after `install`
-	stub            []byte   // launcher written to $prefix/bin/<cmd>
 	delEmptyInclude bool     // .py prunes an empty venv/include
 }
 
@@ -79,11 +75,7 @@ func pyVenvOneShot(root, exe string, o pyOneShotOpts) error {
 		return err
 	}
 
-	binDir := filepath.Join(prefix, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(binDir, cmdName), o.stub, 0o755); err != nil {
+	if err := installVenvLaunch(prefix, venv, []string{cmdName}); err != nil {
 		return err
 	}
 
@@ -106,7 +98,6 @@ func pythonVenvSh(args []string, stderr io.Writer) int {
 	}
 	err = pyVenvOneShot(root, args[0], pyOneShotOpts{
 		pipArgs: []string{root, "--verbose", "--no-clean", "--require-virtualenv"},
-		stub:    pyStubberStub,
 	})
 	if err != nil {
 		fmt.Fprintln(stderr, "python-venv.sh:", err)
@@ -165,7 +156,6 @@ func pythonVenvPy(args []string, stderr io.Writer) int {
 	err = pyVenvOneShot(root, exe, pyOneShotOpts{
 		venvFlags:       []string{"--symlinks"},
 		pipArgs:         pipArgs,
-		stub:            pyPyStub,
 		delEmptyInclude: true,
 	})
 	if err != nil {
@@ -175,8 +165,8 @@ func pythonVenvPy(args []string, stderr io.Writer) int {
 	return 0
 }
 
-// pythonVenvStubber ports libexec/python-venv-stubber.sh — it writes the
-// launcher stub to $VIRTUAL_ENV/../bin/<cmd>, taking the venv from $VIRTUAL_ENV.
+// pythonVenvStubber ports libexec/python-venv-stubber.sh — it installs the
+// launcher at $VIRTUAL_ENV/../bin/<cmd>, taking the venv from $VIRTUAL_ENV.
 func pythonVenvStubber(args []string, stderr io.Writer) int {
 	venv := os.Getenv("VIRTUAL_ENV")
 	if venv == "" {
@@ -187,12 +177,7 @@ func pythonVenvStubber(args []string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: python-venv-stubber.sh <cmd>")
 		return 2
 	}
-	binDir := filepath.Join(filepath.Dir(venv), "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		fmt.Fprintln(stderr, "python-venv-stubber.sh:", err)
-		return 1
-	}
-	if err := os.WriteFile(filepath.Join(binDir, args[0]), pyStubberStub, 0o755); err != nil {
+	if err := installVenvLaunch(filepath.Dir(venv), venv, []string{args[0]}); err != nil {
 		fmt.Fprintln(stderr, "python-venv-stubber.sh:", err)
 		return 1
 	}
