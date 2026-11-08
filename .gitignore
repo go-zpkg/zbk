@@ -1,3 +1,12 @@
 bsd-tests.list
 bsd.test
 cov.out
+
+# The binaries `go build ./cmd/...` drops in the repository root. ⛔ None of
+# these was ignored, and `bk` — this command's old name — sat in HEAD for three
+# months at 19 771 746 bytes (10 575 333 on disk, of a ~15 MiB .git), referenced
+# by nothing. Anchored with a leading slash so only the root build output is
+# ignored, never a directory or a source file that happens to share the name.
+/bk
+/zbk
+/venvlaunch
