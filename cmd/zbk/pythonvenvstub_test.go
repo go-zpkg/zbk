@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ⛔⛔ THIS FILE IS THE FIRST TEST THE LAUNCHER HAS EVER HAD, and its absence
@@ -150,27 +151,34 @@ func TestTheLauncherWritesNothingWhenTheVenvIsCurrent(t *testing.T) {
 		t.Fatalf("first run failed: %v\n%s", err, out)
 	}
 
-	cfgPath := filepath.Join(venv, "pyvenv.cfg")
-	scriptPath := filepath.Join(venv, "bin", "acme")
-	before := make(map[string]os.FileInfo)
-	for _, p := range []string{cfgPath, scriptPath} {
-		st, err := os.Stat(p)
-		if err != nil {
+	// ⛔ THE TIMESTAMPS ARE BACKDATED FIRST, so the assertion does not depend
+	// on the filesystem's mtime granularity. Comparing "before" and "after"
+	// within one tick would report no change for a file that WAS rewritten,
+	// and the test would pass for the wrong reason. Backdated by an hour, any
+	// write at all moves the stamp to now and is visible whatever the
+	// resolution.
+	old := time.Now().Add(-time.Hour)
+	paths := []string{
+		filepath.Join(venv, "pyvenv.cfg"),
+		filepath.Join(venv, "bin", "acme"),
+	}
+	for _, p := range paths {
+		if err := os.Chtimes(p, old, old); err != nil {
 			t.Fatal(err)
 		}
-		before[p] = st
 	}
 
 	if out, err := runStub(t, py, root, "acme"); err != nil {
 		t.Fatalf("second run failed: %v\n%s", err, out)
 	}
-	for p, st := range before {
-		now, err := os.Stat(p)
+	for _, p := range paths {
+		st, err := os.Stat(p)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !now.ModTime().Equal(st.ModTime()) {
-			t.Errorf("%s was rewritten although the venv was already current", filepath.Base(p))
+		if st.ModTime().After(old.Add(time.Minute)) {
+			t.Errorf("%s was rewritten although the venv was already current (mtime %s)",
+				filepath.Base(p), st.ModTime())
 		}
 	}
 }
@@ -206,6 +214,94 @@ func TestTheLauncherRunsACurrentVenvOnAReadOnlyTree(t *testing.T) {
 	}
 }
 
+// ⛔⛔ THE TEST THE DEFECT ACTUALLY CALLED FOR, and the one I nearly shipped
+// without. The launcher runs on every invocation of every packaged tool, and
+// `bkpyvenv seal` takes SEVERAL names, so one venv can have several launchers
+// — so two of them repairing the same tree at the same time is the ordinary
+// case, not a corner. Without the lock they interleave inside one script's
+// rewrite, and between the removal and the recreation of venv/bin/python there
+// is a window with no interpreter at all.
+//
+// Six at once against a stale venv with four entry points. Every one must
+// succeed, and every script must end with the right shebang and its body
+// intact — a torn rewrite shows up as a missing `print`, a truncated file, or
+// an exec that cannot find its interpreter.
+//
+// It is also the only test that reaches the double-check UNDER the lock.
+// Disabling either guard alone leaves the other, so the two cannot be told
+// apart by the idempotence test above: that one only ever exercises the outer
+// guard, which is why this exists separately rather than as another assertion
+// there.
+func TestConcurrentLaunchersDoNotTearTheVenv(t *testing.T) {
+	py := python3(t)
+	root, venv := stubTree(t, "acme")
+
+	names := []string{"acme", "beta", "gamma", "delta"}
+	script := "#!/gone/bin/python3\nprint('entry point ran')\n"
+	for _, n := range names[1:] {
+		if err := os.WriteFile(filepath.Join(venv, "bin", n), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "bin", n), pythonVenvStub, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	const racers = 6
+	type result struct {
+		name string
+		out  string
+		err  error
+	}
+	done := make(chan result, racers)
+	start := make(chan struct{})
+	for i := 0; i < racers; i++ {
+		name := names[i%len(names)]
+		go func() {
+			<-start // released together, so they contend rather than queue
+			out, err := runStub(t, py, root, name)
+			done <- result{name, out, err}
+		}()
+	}
+	close(start)
+	for i := 0; i < racers; i++ {
+		r := <-done
+		if r.err != nil {
+			t.Errorf("%s failed under contention: %v\n%s", r.name, r.err, r.out)
+			continue
+		}
+		if !strings.Contains(r.out, "entry point ran") {
+			t.Errorf("%s produced %q", r.name, r.out)
+		}
+	}
+
+	realVenv, err := filepath.EvalSymlinks(venv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLine := "#!" + filepath.Join(realVenv, "bin", "python") + "\n"
+	for _, n := range names {
+		b, err := os.ReadFile(filepath.Join(venv, "bin", n))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := string(b)
+		if !strings.HasPrefix(got, wantLine) {
+			t.Errorf("%s shebang = %q", n, strings.SplitN(got, "\n", 2)[0])
+		}
+		// The body has to survive the rewrite whole: a torn in-place write
+		// loses the tail, and that is the failure the lock and the atomic
+		// replace exist to make impossible.
+		if !strings.HasSuffix(got, "print('entry point ran')\n") {
+			t.Errorf("%s body was damaged: %q", n, got)
+		}
+		// And no temporary file may be left behind in a packaged tree.
+		if _, err := os.Stat(filepath.Join(venv, "bin", n+".zpkg-new")); err == nil {
+			t.Errorf("%s left its temporary file behind", n)
+		}
+	}
+}
+
 // A venv with no such entry point is a stated error, not a traceback.
 func TestTheLauncherSaysWhenThereIsNoSuchEntryPoint(t *testing.T) {
 	py := python3(t)
@@ -233,12 +329,22 @@ func TestTheLauncherKeepsItsLockAndItsIdempotence(t *testing.T) {
 	src := string(pythonVenvStub)
 	for what, token := range map[string]string{
 		"an exclusive lock while repairing": "fcntl.flock(fd, fcntl.LOCK_EX)",
-		"a check before writing anything":   "if not venv_is_current():",
 		"an atomic shebang replacement":     "os.replace(tmp, path)",
 	} {
 		if !strings.Contains(src, token) {
 			t.Errorf("the launcher no longer has %s (%q)", what, token)
 		}
+	}
+	// ⛔⛔ BOTH GUARDS, COUNTED — and the count is here because a one-occurrence
+	// assertion passed while the outer guard was disabled. There are TWO
+	// checks and they do different jobs: the outer one avoids taking the lock
+	// at all (which is what lets a current venv run on a read-only tree), the
+	// inner one stops the launcher that just waited from repeating a repair
+	// the holder has already done. Asserting the string once cannot tell them
+	// apart, and disabling either alone leaves the other, so no behavioural
+	// test can either.
+	if n := strings.Count(src, "if not venv_is_current():"); n != 2 {
+		t.Errorf("want both the unlocked and the under-lock check, found %d", n)
 	}
 	// The shape it must never go back to: an unconditional in-place rewrite.
 	for _, gone := range []string{"f.truncate()", "f.seek(0)"} {
