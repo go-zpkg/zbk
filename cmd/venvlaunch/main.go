@@ -8,8 +8,8 @@
 // _NSGetExecutablePath on darwin, KERN_PROC_PATHNAME on the BSDs, all of which
 // os.Executable wraps.
 //
-// That one difference settles four separate defects this repository has paid
-// for, each measured rather than assumed (go-zpkg/zpkgx#151):
+// That one difference settles four defects this repository paid for
+// separately, each measured rather than assumed (go-zpkg/zpkgx#151):
 //
 //	no /usr/bin/env, no /bin/sh   1513 of 1870 scripts in a real installed
 //	                              tree need one or the other, so they cannot
@@ -27,21 +27,30 @@
 //
 // ⛔ AND IT EXECS THE INTERPRETER WITH THE SCRIPT AS AN ARGUMENT, so the venv's
 // own console-script shebangs are never consulted by the kernel. The shebang
-// rewriting that the previous launcher existed to do therefore disappears —
-// with it the lock, the race it needed, the NFS restriction that lock turned
-// out to have, and the symlink hazard the temporary file carried.
+// rewriting the previous launcher existed to do therefore disappears — with it
+// the lock, the race it needed, the NFS restriction that lock turned out to
+// have, and the planted-symlink hazard its temporary file carried.
 //
-// What it still has to repair is ONE thing, and only when it is wrong:
-// venv/bin/python. Measured: a venv whose pyvenv.cfg says `home = /gone/bin`
-// still resolves to the venv, because python takes sys.prefix from where
-// sys.executable is; deleting pyvenv.cfg does break it. So the file's presence
-// is load-bearing and its contents are not, and this launcher never writes it.
-// The symlink is replaced by rename, which is atomic, so two launchers doing
-// it at once is harmless and NO LOCK IS NEEDED.
+// ⛔⛔ IT WRITES NOTHING. NOT "LITTLE" — NOTHING.
+//
+// The first version of this file repaired venv/bin/python when an environment
+// variable said it was wrong. That was a smaller version of the same mistake:
+// a launcher that writes needs a lock, and a lock over NFS needs a file opened
+// for writing, and a shared home needs the write not to fight another host.
+// The repair is unnecessary because `seal` can make venv/bin/python a RELATIVE
+// symlink into the store — `../../../../python.org/<ver>/bin/python3` — and a
+// relative link survives the store moving, which is the same property
+// `@loader_path/../../..` already gives our rpaths (go-zpkg/pantry-overlay#28).
+//
+// So there is no ZPKG_PYTHON, no temporary file, no rename and no lock. A
+// read-only store works, an NFS home works, two hosts sharing one home work,
+// and every signature stays valid because nothing is rewritten. The repair
+// mechanism was removed rather than kept "just in case": a bottle built before
+// this carries the old SCRIPT launcher, not this binary, so there is no
+// deployment in which the repair could ever run.
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -53,10 +62,6 @@ import (
 var (
 	osExecutable = os.Executable
 	evalSymlinks = filepath.EvalSymlinks
-	osReadlink   = os.Readlink
-	osSymlink    = os.Symlink
-	osRename     = os.Rename
-	osRemove     = os.Remove
 	osStat       = os.Stat
 	execFn       = syscall.Exec
 	exitFn       = os.Exit
@@ -87,28 +92,21 @@ func run(args []string, stderr io.Writer) int {
 
 	name := filepath.Base(self)
 	prefix := filepath.Dir(filepath.Dir(self)) // <prefix>/bin/<name> -> <prefix>
-	venvBin := filepath.Join(prefix, "venv", "bin")
-	python := filepath.Join(venvBin, "python")
-	entry := filepath.Join(venvBin, name)
+	venv := filepath.Join(prefix, "venv")
+	python := filepath.Join(venv, "bin", "python")
+	entry := filepath.Join(venv, "bin", name)
 
-	// ⛔ THE ENTRY POINT IS CHECKED BEFORE THE SYMLINK IS TOUCHED. Repairing a
-	// venv that has no such entry point writes to a tree to no purpose, and
-	// the error a caller needs is "there is no such program", not a failure
-	// from the repair of something unrelated.
+	// Both are checked before the exec so that the message names which one is
+	// missing. `exec: no such file or directory` cannot distinguish "this venv
+	// has no such program" from "this venv has no interpreter", and those have
+	// different causes and different fixes.
 	if _, err := osStat(entry); err != nil {
-		fmt.Fprintf(stderr, "venvlaunch: %s has no entry point named %s\n",
-			filepath.Join(prefix, "venv"), name)
+		fmt.Fprintf(stderr, "venvlaunch: %s has no entry point named %s\n", venv, name)
 		return 127
 	}
-
-	if want := os.Getenv("ZPKG_PYTHON"); want != "" {
-		if err := ensureSymlink(python, want); err != nil {
-			// A venv that cannot be repaired may still run: the existing
-			// symlink might be correct for this host even though the
-			// environment named another interpreter. The exec below decides,
-			// and its error is the one worth reporting.
-			fmt.Fprintf(stderr, "venvlaunch: could not point %s at %s: %v\n", python, want, err)
-		}
+	if _, err := osStat(python); err != nil {
+		fmt.Fprintf(stderr, "venvlaunch: %s has no interpreter at bin/python: %v\n", venv, err)
+		return 127
 	}
 
 	argv := append([]string{python, entry}, args[1:]...)
@@ -117,34 +115,4 @@ func run(args []string, stderr io.Writer) int {
 		return 127
 	}
 	return 0 // unreachable: a successful exec does not return
-}
-
-// ensureSymlink points path at want, and writes nothing if it already does.
-//
-// The replacement goes through a temporary name and a rename rather than
-// remove-then-create, because remove-then-create leaves a window with NO
-// interpreter — which is exactly how the previous launcher failed under
-// contention: six of them against one stale venv produced
-// `FileNotFoundError: [Errno 2]` on execv, 8 times in 5 runs. rename is
-// atomic, so an observer sees either the old link or the new one.
-func ensureSymlink(path, want string) error {
-	if got, err := osReadlink(path); err == nil && got == want {
-		return nil
-	}
-	// The temporary name is in the same directory, so the rename cannot cross
-	// a filesystem; and it is exclusive, so a planted name is not followed.
-	tmp := path + ".venvlaunch"
-	if err := osRemove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := osSymlink(want, tmp); err != nil {
-		return err
-	}
-	if err := osRename(tmp, path); err != nil {
-		if rmErr := osRemove(tmp); rmErr != nil {
-			return fmt.Errorf("%w (and the temporary survived: %v)", err, rmErr)
-		}
-		return err
-	}
-	return nil
 }
