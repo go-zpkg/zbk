@@ -274,6 +274,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runFactory(rest[1:], stdout, stderr)
 	case "source":
 		return runSource(rest[1:], stdout, stderr)
+	case "sourcepin":
+		return runSourcePin(rest[1:], stdout, stderr)
 	case "reproduce":
 		return runReproduce(rest[1:], stdout, stderr)
 	case "sign":

@@ -47,7 +47,10 @@ var (
 	// to digest it and once to extract it, and those are different failures.
 	// One seam for both would make a test of either a test of neither.
 	osOpenHash = os.Open
-	zipOpen    = defaultZipOpen
+	// And a fourth for Digest's size report: a test that makes the stat fail
+	// must not break the extractor's own handling of the same file.
+	osStatFetched = os.Stat
+	zipOpen       = defaultZipOpen
 	// sleepFn paces the retry backoff; a test sets it to a no-op so the suite
 	// does not actually wait out three seconds of it.
 	sleepFn = time.Sleep
