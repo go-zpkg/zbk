@@ -3,6 +3,7 @@ module github.com/go-zpkg/zbk
 go 1.27.3
 
 require (
+	github.com/ProtonMail/go-crypto v1.1.6
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/go-attest/sbom v0.3.0
 	github.com/go-attest/sign v0.3.0
@@ -23,7 +24,6 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect

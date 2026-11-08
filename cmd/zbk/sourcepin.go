@@ -4,12 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/go-zpkg/zbk/fetch"
 )
 
-// fetchDigest is a seam: the command is driven in tests without a network.
-var fetchDigest = fetch.Digest
+// Seams: the command is driven in tests without a network.
+var (
+	fetchDigest   = fetch.Digest
+	fetchVerified = fetch.DigestVerified
+	readKeyFile   = os.ReadFile
+)
 
 // runSourcePin implements `zbk sourcepin <url>`: fetch a source archive and
 // print the `sha256` a recipe should pin, in the form the schema wants.
@@ -38,14 +43,43 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 	fset := flag.NewFlagSet("sourcepin", flag.ContinueOnError)
 	fset.SetOutput(stderr)
 	version := fset.String("version", "", "the version this URL serves; prints only the keyed form")
+	// ⛔⛔ THREE FLAGS, AND THE SECOND TWO HAVE NO DEFAULTS ON PURPOSE. --sig
+	// asks who signed the bytes; --key says against which key, and --key-source
+	// says how the author came to trust that key. Not one of Gentoo, Arch,
+	// Debian or Guix records the last one — Debian's uscan(1) says "you must
+	// verify the downloaded OpenPGP key using its full fingerprint value WHICH
+	// YOU KNOW IS THE TRUSTED ONE", which is unauditable by construction. A
+	// fingerprint nobody can trace back to a page and a date is a fingerprint
+	// the next reader has to trust on your word.
+	sig := fset.String("sig", "", "the detached signature's URL, or `auto` to try <url>.asc then <url>.sig")
+	keyFile := fset.String("key", "", "the author's public key file (armored or binary); required with --sig")
+	keySource := fset.String("key-source", "", "where that key's fingerprint came from — a URL, a page, a person; required with --sig")
 	if err := fset.Parse(args); err != nil {
 		return 2
 	}
 	if fset.NArg() != 1 {
-		fmt.Fprintln(stderr, "usage: zbk sourcepin [--version V] <url>")
+		fmt.Fprintln(stderr, "usage: zbk sourcepin [--version V] [--sig URL|auto --key FILE --key-source TEXT] <url>")
 		return 2
 	}
 	url := fset.Arg(0)
+
+	// ⛔ A FLAG THAT SILENTLY DOES NOTHING IS WORSE THAN A MISSING ONE, and
+	// here the something it would silently not do is the verification. --sig
+	// without a key would print a digest that looks checked.
+	if *sig != "" && (*keyFile == "" || *keySource == "") {
+		fmt.Fprintln(stderr, "sourcepin: --sig needs --key (nothing is ever fetched from a "+
+			"keyserver, so the key comes from a file you chose) and --key-source (where that "+
+			"key's fingerprint came from, which is the one thing no other distribution records)")
+		return 2
+	}
+	if *sig == "" && (*keyFile != "" || *keySource != "") {
+		fmt.Fprintln(stderr, "sourcepin: --key and --key-source only mean something with --sig")
+		return 2
+	}
+
+	if *sig != "" {
+		return pinSigned(url, *sig, *keyFile, *keySource, *version, stdout, stderr)
+	}
 
 	digest, size, err := fetchDigest(url)
 	if err != nil {
@@ -63,5 +97,80 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "\n  sha256 = %q                 # only for a recipe that resolves ONE version\n", digest)
 	fmt.Fprintf(stdout, "  sha256 = { \"<version>\" = %q }   # what you almost certainly want\n", digest)
+	// ⛔ SAID EVERY TIME, because almost nothing upstream carries either field.
+	// Measured over pkgxdev/pantry at 4eb778f with this repository's own loader
+	// counting the recipes: 1932 recipes, 1 naming `sha:` (openssl.org), 1
+	// naming `sha256:` (github.com/Virviil/oci2git), 3 naming `sig:`
+	// (ffmpeg.org, libuv.org, openssl.org). An author who never hears that a
+	// signature might exist will not go looking for one.
+	//
+	// ⛔ go-zpkg/zbk#282 says "1 of 904" and "the one `sig:`". The denominator
+	// was an older pantry and the `sig:` count was simply wrong — checked here
+	// rather than relayed, which is why these lines name the projects: a count
+	// nobody can follow back to a name is a count nobody can refute.
+	fmt.Fprintf(stdout, "\n  Nothing says WHO produced these bytes. If the project publishes a\n"+
+		"  detached signature, --sig <url>|auto --key <file> --key-source <text>\n"+
+		"  records that too, and prints the provenance block to paste.\n")
+	return 0
+}
+
+// pinSigned is `sourcepin --sig`: the digest, plus who vouched for the bytes
+// and how the author came to trust them.
+//
+// It prints a `provenance` block rather than a new schema field, deliberately.
+// The schema's `provenance { read / consulted / note }` already exists for
+// exactly this kind of claim — what the recipe was written from — and a key is
+// that kind of claim. Adding a field before any recipe carries one would be an
+// API written against a guess.
+func pinSigned(url, sig, keyFile, keySource, version string, stdout, stderr io.Writer) int {
+	key, err := readKeyFile(keyFile)
+	if err != nil {
+		fmt.Fprintf(stderr, "sourcepin: %v\n", err)
+		return 1
+	}
+
+	// `auto` mirrors Debian's `Pgp-Mode: auto`, documented as "uscan checks
+	// possible URLs for the signature file". Both names are tried because both
+	// are in the wild, and the one that answered is printed: a recipe should
+	// record the URL that worked rather than the guess that produced it.
+	cands := []string{sig}
+	if sig == "auto" {
+		cands = []string{url + ".asc", url + ".sig"}
+	}
+
+	pin, err := fetchVerified(url, cands, key)
+	if err != nil {
+		fmt.Fprintf(stderr, "sourcepin: %v\n", err)
+		return 1
+	}
+
+	fmt.Fprintf(stdout, "%s\n  %d bytes, fetched with the builder's own fetcher\n", url, pin.Size)
+	fmt.Fprintf(stdout, "  signed by %s\n  %s\n  verified against %s — no keyserver was asked\n",
+		pin.Fingerprint, pin.Identity, keyFile)
+
+	if version != "" {
+		fmt.Fprintf(stdout, "\n  sha256 = {\n    %q = %q\n  }\n", version, pin.SHA256)
+	} else {
+		fmt.Fprintf(stdout, "\n  sha256 = { \"<version>\" = %q }\n", pin.SHA256)
+	}
+	fmt.Fprintf(stdout, "  sig    = %q\n", pin.SigURL)
+
+	// The block to paste. The fingerprint is uppercase hex with no separators,
+	// which is Arch's documented rule and the strictest of the three read.
+	fmt.Fprintf(stdout, "\nprovenance {\n  note = <<EOT\n"+
+		"The source archive is signed, and the signature was checked when this\n"+
+		"digest was recorded rather than at every build: the signature's job is to\n"+
+		"justify WRITING the hash, and the hash is the durable pin. That is Guix's\n"+
+		"division (its `origin` record has no signature field; `guix refresh` does\n"+
+		"the checking) and it is why nothing here needs the key at build time.\n\n"+
+		"  signature  %s\n"+
+		"  key        %s\n"+
+		"  identity   %s\n"+
+		"  fingerprint came from: %s\n\n"+
+		"No keyserver was consulted. Guix's --key-download defaults to `auto`,\n"+
+		"which it documents as `interactive` on a TTY and \"else always\" — so in CI\n"+
+		"an unknown key is fetched and accepted, and the check degrades to\n"+
+		"\"somebody signed it\". Here an unknown key is a refusal.\nEOT\n}\n",
+		pin.SigURL, keyFile, pin.Identity, keySource)
 	return 0
 }

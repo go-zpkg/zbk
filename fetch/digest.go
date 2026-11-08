@@ -32,12 +32,22 @@ import "fmt"
 // it makes every future build of that version fail, and it looks authoritative
 // while doing it.
 func Digest(url string) (string, int64, error) {
-	path, err := download(url)
+	path, digest, size, err := digestKept(url)
 	if err != nil {
 		return "", 0, err
 	}
-	defer osRemove(path)
+	osRemove(path)
+	return digest, size, nil
+}
 
+// digestKept is Digest without removing the file, so that [DigestVerified] can
+// check a signature over the exact bytes it just hashed rather than downloading
+// them a second time. The caller owns the file.
+func digestKept(url string) (string, string, int64, error) {
+	path, err := download(url)
+	if err != nil {
+		return "", "", 0, err
+	}
 	// ⛔⛔ AND THE MAGIC CHECK IS RE-ASSERTED HERE, BECAUSE download() TREATS IT
 	// AS A RETRY AND NOT AS A REFUSAL. Its loop retries a wrong-magic body up to
 	// downloadAttempts and then returns the file anyway. That is defensible for
@@ -46,17 +56,20 @@ func Digest(url string) (string, int64, error) {
 	// is nothing downstream. A test asserting a captcha page cannot be pinned
 	// failed here until this existed, which is how the distinction was found.
 	if magicWrong(url, path) {
-		return "", 0, fmt.Errorf("fetch: %s: the body is not the archive its name claims "+
+		osRemove(path)
+		return "", "", 0, fmt.Errorf("fetch: %s: the body is not the archive its name claims "+
 			"(a page served with 200, or the wrong file); refusing to pin it", url)
 	}
 
 	digest, err := sha256File(path)
 	if err != nil {
-		return "", 0, err
+		osRemove(path)
+		return "", "", 0, err
 	}
 	fi, err := osStatFetched(path)
 	if err != nil {
-		return "", 0, fmt.Errorf("fetch: %s: %w", url, err)
+		osRemove(path)
+		return "", "", 0, fmt.Errorf("fetch: %s: %w", url, err)
 	}
-	return digest, fi.Size(), nil
+	return path, digest, fi.Size(), nil
 }
