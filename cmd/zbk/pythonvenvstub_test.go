@@ -296,9 +296,98 @@ func TestConcurrentLaunchersDoNotTearTheVenv(t *testing.T) {
 			t.Errorf("%s body was damaged: %q", n, got)
 		}
 		// And no temporary file may be left behind in a packaged tree.
-		if _, err := os.Stat(filepath.Join(venv, "bin", n+".zpkg-new")); err == nil {
-			t.Errorf("%s left its temporary file behind", n)
+		leftover, err := filepath.Glob(filepath.Join(venv, "bin", n+".zpkg-*"))
+		if err != nil {
+			t.Fatal(err)
 		}
+		if len(leftover) > 0 {
+			t.Errorf("%s left temporary file(s) behind: %v", n, leftover)
+		}
+	}
+}
+
+// ⛔⛔ THE REWRITE MUST NOT WRITE THROUGH A SYMLINK SOMEBODY ELSE PLANTED, and
+// the first version did. It wrote `<script>.zpkg-new` with mode 'wb' —
+// O_WRONLY|O_CREAT|O_TRUNC — at a name anyone could predict. A party able to
+// create a file in the venv's bin directory before the launcher ran (a
+// group-writable site store, a home shared over NFS) could aim that name at
+// any path the invoking user can write and have the launcher clobber it.
+//
+// The control is a real planted symlink pointing at a witness file outside the
+// venv. It must survive untouched, and the script must still be repaired.
+func TestTheLauncherWillNotWriteThroughAPlantedSymlink(t *testing.T) {
+	py := python3(t)
+	root, venv := stubTree(t, "acme")
+
+	witness := filepath.Join(t.TempDir(), "witness")
+	const original = "do not overwrite me\n"
+	if err := os.WriteFile(witness, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The predictable name the first version used.
+	planted := filepath.Join(venv, "bin", "acme.zpkg-new")
+	if err := os.Symlink(witness, planted); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runStub(t, py, root, "acme")
+	if err != nil {
+		t.Fatalf("the launcher must still work with a planted name present: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "entry point ran") {
+		t.Errorf("the entry point did not run: %q", out)
+	}
+
+	got, err := os.ReadFile(witness)
+	if err != nil {
+		t.Fatalf("the witness is gone: %v", err)
+	}
+	if string(got) != original {
+		t.Errorf("the launcher wrote through the planted symlink:\n%s", got)
+	}
+
+	// And the script itself was still repaired, so refusing the planted name
+	// did not cost the repair.
+	realVenv, err := filepath.EvalSymlinks(venv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join(venv, "bin", "acme"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "#!" + filepath.Join(realVenv, "bin", "python") + "\n"
+	if !strings.HasPrefix(string(script), want) {
+		t.Errorf("shebang = %q", strings.SplitN(string(script), "\n", 2)[0])
+	}
+}
+
+// setuid and setgid are not re-granted across a content rewrite. Linux ignores
+// setuid on scripts; it is still not ours to carry over onto a file whose
+// interpreter line we have just changed.
+func TestTheLauncherDropsSetuidWhenItRewrites(t *testing.T) {
+	py := python3(t)
+	root, venv := stubTree(t, "acme")
+	script := filepath.Join(venv, "bin", "acme")
+	if err := os.Chmod(script, 0o4755); err != nil {
+		t.Skip(err)
+	}
+	if fi, err := os.Stat(script); err != nil || fi.Mode()&os.ModeSetuid == 0 {
+		t.Skip("this filesystem does not keep setuid; the premise cannot be set up")
+	}
+
+	if out, err := runStub(t, py, root, "acme"); err != nil {
+		t.Fatalf("launcher failed: %v\n%s", err, out)
+	}
+	fi, err := os.Stat(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&(os.ModeSetuid|os.ModeSetgid) != 0 {
+		t.Errorf("setuid/setgid survived the rewrite: %v", fi.Mode())
+	}
+	if fi.Mode().Perm()&0o111 == 0 {
+		t.Errorf("the script is no longer executable: %v", fi.Mode())
 	}
 }
 
