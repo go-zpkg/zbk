@@ -29,10 +29,21 @@
 #  2. IT HOLDS AN EXCLUSIVE LOCK WHILE REPAIRING. Two concurrent invocations
 #     could interleave inside the rewrite of one script, and between the
 #     removal and the recreation of venv/bin/python there is a window in which
-#     the interpreter does not exist. The lock is taken on the bin DIRECTORY
-#     rather than on a lock file because nothing may be added to a packaged
-#     tree. The symlink is still removed first and recreated last, so an
-#     unlocked observer sees "not current" for the whole repair and waits.
+#     the interpreter does not exist. The symlink is still removed first and
+#     recreated last, so an unlocked observer sees "not current" for the whole
+#     repair and waits.
+#
+#     ⛔⛔ THE LOCK IS ON pyvenv.cfg, OPENED FOR WRITING, BECAUSE OF NFS. The
+#     first version locked the bin DIRECTORY with O_RDONLY, reasoning that
+#     nothing may be added to a packaged tree. That cannot work on a home
+#     mounted over NFS, and not merely unreliably: flock(2) says "Since Linux
+#     2.6.12, NFS clients support flock() locks by emulating them as fcntl(2)
+#     byte-range locks on the entire file … in order to place an exclusive
+#     lock, the file must be opened for writing" — and a directory cannot be
+#     opened for writing at all (EISDIR, measured). So an exclusive flock on a
+#     directory is impossible over NFS BY CONSTRUCTION. pyvenv.cfg is the right
+#     token instead: it already exists, every repair rewrites it anyway, so
+#     nothing is added to the tree and the fd can be O_RDWR.
 #
 #  3. IT REPLACES A SHEBANG ATOMICALLY. The old one wrote in place —
 #     seek(0), write, truncate — so a script being read by an interpreter at
@@ -182,12 +193,21 @@ def repair():
 
 
 if not venv_is_current():
+    # O_CREAT because a venv whose pyvenv.cfg is missing is one this launcher
+    # is about to write anyway, and O_RDWR because of the NFS rule above.
     try:
-        fd = os.open(bin_dir, os.O_RDONLY)
+        fd = os.open(cfg_path, os.O_RDWR | os.O_CREAT, 0o644)
     except OSError as err:
-        sys.exit('%s: cannot lock %s: %s' % (arg0, bin_dir, err))
+        sys.exit('%s: cannot lock %s: %s' % (arg0, cfg_path, err))
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        # ⛔ flock ITSELF CAN FAIL, and the first version did not catch it. Over
+        # NFS it is emulated with byte-range locks and can refuse; a traceback
+        # at that point would be this launcher's own failure reported as the
+        # program's.
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as err:
+            sys.exit('%s: cannot lock %s: %s' % (arg0, cfg_path, err))
         # Checked again under the lock: the holder we waited for has very
         # likely just done the repair, and doing it twice is the race.
         if not venv_is_current():

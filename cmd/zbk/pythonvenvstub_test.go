@@ -302,6 +302,35 @@ func TestConcurrentLaunchersDoNotTearTheVenv(t *testing.T) {
 	}
 }
 
+// A venv whose pyvenv.cfg is gone is still repaired, which is the behavioural
+// half of the NFS fix: the lock is taken on that file, so it is opened
+// O_RDWR|O_CREAT rather than assumed to exist. Before the lock moved there,
+// nothing opened pyvenv.cfg before writing it, so this case worked by
+// accident; now it has to work on purpose.
+func TestTheLauncherRepairsAVenvWithNoConfigAtAll(t *testing.T) {
+	py := python3(t)
+	root, venv := stubTree(t, "acme")
+	if err := os.Remove(filepath.Join(venv, "pyvenv.cfg")); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runStub(t, py, root, "acme")
+	if err != nil {
+		t.Fatalf("launcher failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "entry point ran") {
+		t.Errorf("the entry point did not run: %q", out)
+	}
+	cfg, err := os.ReadFile(filepath.Join(venv, "pyvenv.cfg"))
+	if err != nil {
+		t.Fatalf("pyvenv.cfg was not recreated: %v", err)
+	}
+	for _, want := range []string{"home = ", "executable = ", "include-system-site-packages = false"} {
+		if !strings.Contains(string(cfg), want) {
+			t.Errorf("the recreated pyvenv.cfg has no %q:\n%s", want, cfg)
+		}
+	}
+}
+
 // A venv with no such entry point is a stated error, not a traceback.
 func TestTheLauncherSaysWhenThereIsNoSuchEntryPoint(t *testing.T) {
 	py := python3(t)
@@ -335,6 +364,24 @@ func TestTheLauncherKeepsItsLockAndItsIdempotence(t *testing.T) {
 			t.Errorf("the launcher no longer has %s (%q)", what, token)
 		}
 	}
+	// ⛔⛔ THE LOCK MUST BE ON A FILE, OPENED FOR WRITING, AND THE REASON IS NFS.
+	// The first version locked the bin DIRECTORY with O_RDONLY. flock(2):
+	// "Since Linux 2.6.12, NFS clients support flock() locks by emulating them
+	// as fcntl(2) byte-range locks on the entire file … in order to place an
+	// exclusive lock, the file must be opened for writing" — and a directory
+	// cannot be opened for writing at all (EISDIR, measured on this host). So
+	// that form is impossible over NFS by construction, not merely flaky, and a
+	// home on NFS is the ordinary case this has to survive.
+	//
+	// Asserted structurally because no test here can mount NFS: what can be
+	// pinned is that the shape which cannot work does not come back.
+	if !strings.Contains(src, "os.open(cfg_path, os.O_RDWR | os.O_CREAT") {
+		t.Error("the lock fd must be a file opened for writing (NFS needs it)")
+	}
+	if strings.Contains(src, "os.open(bin_dir") {
+		t.Error("locking a directory cannot work over NFS: it cannot be opened for writing")
+	}
+
 	// ⛔⛔ BOTH GUARDS, COUNTED — and the count is here because a one-occurrence
 	// assertion passed while the outer guard was disabled. There are TWO
 	// checks and they do different jobs: the outer one avoids taking the lock
