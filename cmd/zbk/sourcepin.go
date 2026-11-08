@@ -97,9 +97,17 @@ func runSourcePin(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "\n  sha256 = %q                 # only for a recipe that resolves ONE version\n", digest)
 	fmt.Fprintf(stdout, "  sha256 = { \"<version>\" = %q }   # what you almost certainly want\n", digest)
-	// ⛔ SAID EVERY TIME, because 1 upstream recipe in 904 pins a checksum and
-	// exactly one names a `sig:` (go-zpkg/zbk#282). An author who never hears
-	// that a signature was available will not go looking for one.
+	// ⛔ SAID EVERY TIME, because almost nothing upstream carries either field.
+	// Measured over pkgxdev/pantry at 4eb778f with this repository's own loader
+	// counting the recipes: 1932 recipes, 1 naming `sha:` (openssl.org), 1
+	// naming `sha256:` (github.com/Virviil/oci2git), 3 naming `sig:`
+	// (ffmpeg.org, libuv.org, openssl.org). An author who never hears that a
+	// signature might exist will not go looking for one.
+	//
+	// ⛔ go-zpkg/zbk#282 says "1 of 904" and "the one `sig:`". The denominator
+	// was an older pantry and the `sig:` count was simply wrong — checked here
+	// rather than relayed, which is why these lines name the projects: a count
+	// nobody can follow back to a name is a count nobody can refute.
 	fmt.Fprintf(stdout, "\n  Nothing says WHO produced these bytes. If the project publishes a\n"+
 		"  detached signature, --sig <url>|auto --key <file> --key-source <text>\n"+
 		"  records that too, and prints the provenance block to paste.\n")
