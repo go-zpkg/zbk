@@ -141,8 +141,18 @@ func TestBkpyvenvDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read stub: %v", err)
 	}
-	if !strings.HasPrefix(string(got), "#!/usr/bin/env -S pkgx python@3.12\n") {
+	if !strings.HasPrefix(string(got), "#!/usr/bin/env -S zpkgx python@3.12\n") {
 		t.Errorf("stub shebang = %q", string(got)[:40])
+	}
+	// ⛔⛔ AND IT MUST NOT NAME UPSTREAM'S RUNTIME. It did, in every bottle
+	// this factory ever built: `pkgx python@X.Y`, a binary we no longer
+	// interoperate with, do not publish, and cannot expect on a PATH. The
+	// positive assertion above would pass again the moment somebody wrote
+	// `pkgx` back, so the negative one is stated separately — a launcher that
+	// names the wrong runtime is not a cosmetic slip, it is an entry point that
+	// does not start.
+	if strings.Contains(string(got), "-S pkgx ") {
+		t.Errorf("the launcher names upstream's runtime: %q", string(got)[:40])
 	}
 	if !strings.Contains(string(got), "os.execv(arg0, args)") {
 		t.Error("stub body not appended")
@@ -265,7 +275,7 @@ func TestPySealPip(t *testing.T) {
 	}
 	for _, n := range []string{"a", "b"} {
 		b, _ := os.ReadFile(filepath.Join(prefix, "bin", n))
-		if !strings.HasPrefix(string(b), "#!/usr/bin/env -S pkgx python@3.11\n") {
+		if !strings.HasPrefix(string(b), "#!/usr/bin/env -S zpkgx python@3.11\n") {
 			t.Errorf("%s shebang = %q", n, string(b)[:30])
 		}
 	}

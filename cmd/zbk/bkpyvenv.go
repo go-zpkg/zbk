@@ -94,7 +94,7 @@ func srcRoot() (string, error) {
 //	bkpyvenv seal [--engine=poetry] <prefix> <cmd>...
 //	    for poetry, build an sdist and unpack it into the in-project .venv, then
 //	    move it to $PREFIX/venv; finally install the launcher stub as
-//	    $PREFIX/bin/<cmd> for each name, with a `pkgx python@X.Y` shebang.
+//	    $PREFIX/bin/<cmd> for each name, with a `zpkgx python@X.Y` shebang.
 func bkpyvenv(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, "usage: bkpyvenv <stage|seal> [--engine=poetry] <prefix> ...")
@@ -192,13 +192,28 @@ func pySeal(root, prefix, engine string, cmds []string) error {
 		}
 	}
 
-	shebang := "#!/usr/bin/env -S pkgx python@" + pyVer + "\n"
+	// ⛔⛔ zpkgx, NOT pkgx — AND THIS SHIPPED. Every python-venv bottle this
+	// factory has ever built installs $PREFIX/bin/<cmd> whose shebang invokes
+	// `pkgx`: upstream's runtime, which we no longer interoperate with
+	// (go-zpkg/packages#431), do not publish, and have no reason to expect on
+	// anybody's PATH. The launcher was therefore unrunnable unless the user
+	// happened to have installed the software we broke compatibility with.
+	//
+	// It survived the rename because nothing looked: before this line changed,
+	// `git grep zpkgx -- '*.go'` over this whole repository returned ZERO
+	// matches. The rename moved the commands and left every string that names
+	// one behind, and a shebang is the kind of string no test reads out loud.
+	//
+	// `zpkgx <pkg>[@version] [arg...]` is the same form `pkgx` offered — its own
+	// help gives `zpkgx node@22 --version` — so this is a name change and not a
+	// behaviour change.
+	shebang := "#!/usr/bin/env -S zpkgx python@" + pyVer + "\n"
 	binDir := filepath.Join(prefix, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
 	// Replace the stub's first line (`#!/usr/bin/env python`) with the pinned
-	// `pkgx python@X.Y` shebang, then install it as bin/<cmd> for every name.
+	// `zpkgx python@X.Y` shebang, then install it as bin/<cmd> for every name.
 	body := shebang
 	if i := bytes.IndexByte(pythonVenvStub, '\n'); i >= 0 {
 		body += string(pythonVenvStub[i+1:])
