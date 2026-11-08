@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -18,41 +16,6 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
-
-// pythonVenvStub is the launcher `bkpyvenv seal` installs as $PREFIX/bin/<cmd>.
-// At run time it reconciles the venv with where the bottle actually landed —
-// pyvenv.cfg, the python symlink and the console scripts' shebangs all name
-// absolute paths — and then execs the real entry point inside the venv. That is
-// the mechanism that lets a relocatable python bottle keep working.
-//
-// ⛔⛔ IT IS OURS NOW, AND IT HAD TO BECOME OURS FOR TWO SEPARATE REASONS.
-// This said "shipped verbatim so behaviour matches upstream exactly", and both
-// halves of that sentence had stopped being true (go-zpkg/zbk#431):
-//
-//   - pkgxdev/brewkit declares NO LICENCE — no LICENSE file, nothing in its
-//     README — so a verbatim copy embedded in this binary was redistributing
-//     somebody's expression without a grant. Unlike a recipe, where the facts
-//     are nobody's and only the text is withheld, here the text WAS the thing
-//     copied.
-//   - upstream had since rewritten it around an flock and an idempotence
-//     check. Our copy had neither, so it rewrote pyvenv.cfg, every shebang and
-//     the python symlink on every invocation of every packaged tool, with no
-//     lock — and a comment claiming it matched upstream is believed.
-//
-// The replacement is written from CPython's own Lib/venv/__init__.py, which is
-// the only authoritative statement of what pyvenv.cfg contains, and it keeps
-// the lock and the idempotence check because those are facts about the problem.
-// It also fixes two things neither version had: it PRESERVES the pyvenv.cfg
-// keys it does not own (`version`, `prompt`, `command` were discarded on every
-// run), and it rewrites a shebang atomically, so a script being read by an
-// interpreter at that moment cannot be read as garbage.
-//
-// cmd/zbk/pythonvenvstub_test.go is the first test this file has ever had, and
-// its absence is why the drift went unnoticed: a file embedded with //go:embed
-// is still code, it was simply code nobody ran.
-//
-//go:embed python-venv-stub.py
-var pythonVenvStub []byte
 
 // Seams. Building a python venv is intrinsically an exec of the packaged runtime
 // (`python -m venv`, `poetry …`) — exactly as brewkit does; it is the real build
@@ -118,8 +81,9 @@ func srcRoot() (string, error) {
 //	    $PREFIX/venv between the two phases.
 //	bkpyvenv seal [--engine=poetry] <prefix> <cmd>...
 //	    for poetry, build an sdist and unpack it into the in-project .venv, then
-//	    move it to $PREFIX/venv; finally install the launcher stub as
-//	    $PREFIX/bin/<cmd> for each name, with a `zpkgx python@X.Y` shebang.
+//	    move it to $PREFIX/venv; finally install cmd/venvlaunch as
+//	    $PREFIX/bin/<cmd> for each name and relativise the venv's interpreter
+//	    links, so nothing has to be repaired at run time (venvlaunchinstall.go).
 func bkpyvenv(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, "usage: bkpyvenv <stage|seal> [--engine=poetry] <prefix> ...")
@@ -199,56 +163,33 @@ func pyStage(root, prefix, version, engine string) error {
 
 var pyVersionRe = regexp.MustCompile(`Python (\d+\.\d+)`)
 
-// pySeal implements `bkpyvenv seal`.
+// pySeal implements `bkpyvenv seal`: install the entry point, and leave the
+// venv in a state that entry point can use without repairing it.
+//
+// ⛔ THE PYTHON VERSION IS NOW A POETRY-ONLY NEED, so it is read inside that
+// branch. It used to be read unconditionally, because the launcher this
+// installed was a script whose shebang had to NAME an interpreter —
+// `#!/usr/bin/env -S zpkgx python@X.Y`. Three defects lived in that one line:
+// it said `pkgx` for months after the rename (nothing greps a shebang), `env`
+// is absent from a FROM-scratch image, and `env -S` is absent from busybox.
+// venvlaunch finds the interpreter through the venv instead, so the version is
+// no longer part of installing it, and pretending otherwise would keep an exec
+// of the build python on a path that no longer depends on its answer.
 func pySeal(root, prefix, engine string, cmds []string) error {
-	out, err := pyOutput(root, "python", "--version")
-	if err != nil {
-		return err
-	}
-	m := pyVersionRe.FindStringSubmatch(out)
-	if m == nil {
-		return fmt.Errorf("cannot parse python version from %q", strings.TrimSpace(out))
-	}
-	pyVer := m[1]
-
 	if engine == "poetry" {
-		if err := pySealPoetry(root, prefix, pyVer); err != nil {
+		out, err := pyOutput(root, "python", "--version")
+		if err != nil {
+			return err
+		}
+		m := pyVersionRe.FindStringSubmatch(out)
+		if m == nil {
+			return fmt.Errorf("cannot parse python version from %q", strings.TrimSpace(out))
+		}
+		if err := pySealPoetry(root, prefix, m[1]); err != nil {
 			return err
 		}
 	}
-
-	// ⛔⛔ zpkgx, NOT pkgx — AND THIS SHIPPED. Every python-venv bottle this
-	// factory has ever built installs $PREFIX/bin/<cmd> whose shebang invokes
-	// `pkgx`: upstream's runtime, which we no longer interoperate with
-	// (go-zpkg/packages#431), do not publish, and have no reason to expect on
-	// anybody's PATH. The launcher was therefore unrunnable unless the user
-	// happened to have installed the software we broke compatibility with.
-	//
-	// It survived the rename because nothing looked: before this line changed,
-	// `git grep zpkgx -- '*.go'` over this whole repository returned ZERO
-	// matches. The rename moved the commands and left every string that names
-	// one behind, and a shebang is the kind of string no test reads out loud.
-	//
-	// `zpkgx <pkg>[@version] [arg...]` is the same form `pkgx` offered — its own
-	// help gives `zpkgx node@22 --version` — so this is a name change and not a
-	// behaviour change.
-	shebang := "#!/usr/bin/env -S zpkgx python@" + pyVer + "\n"
-	binDir := filepath.Join(prefix, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return err
-	}
-	// Replace the stub's first line (`#!/usr/bin/env python`) with the pinned
-	// `zpkgx python@X.Y` shebang, then install it as bin/<cmd> for every name.
-	body := shebang
-	if i := bytes.IndexByte(pythonVenvStub, '\n'); i >= 0 {
-		body += string(pythonVenvStub[i+1:])
-	}
-	for _, name := range cmds {
-		if err := os.WriteFile(filepath.Join(binDir, name), []byte(body), 0o755); err != nil {
-			return err
-		}
-	}
-	return nil
+	return installVenvLaunch(prefix, filepath.Join(prefix, "venv"), cmds)
 }
 
 // pySealPoetry mirrors upstream's poetry seal: build an sdist, unpack it into

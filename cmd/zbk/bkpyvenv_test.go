@@ -23,10 +23,12 @@ func restorePy(t *testing.T) func() {
 	getwd, run, output, runEnv := pyGetwd, pyRun, pyOutput, pyRunEnv
 	plainInit, worktree, commit, head, createTag := ggPlainInit, ggWorktree, ggCommit, ggHead, ggCreateTag
 	gitInitTag, now, glob, goos := pyGitInitTag, pyNow, pyGlob, pyGOOS
+	lookPath, relink := pyLookPath, pyRelink
 	return func() {
 		pyGetwd, pyRun, pyOutput, pyRunEnv = getwd, run, output, runEnv
 		ggPlainInit, ggWorktree, ggCommit, ggHead, ggCreateTag = plainInit, worktree, commit, head, createTag
 		pyGitInitTag, pyNow, pyGlob, pyGOOS = gitInitTag, now, glob, goos
+		pyLookPath, pyRelink = lookPath, relink
 	}
 }
 
@@ -128,37 +130,31 @@ func TestBkpyvenvDispatch(t *testing.T) {
 		}
 	})
 
+	launcher := fakeVenvLaunch(t)
 	prefix := t.TempDir()
 	t.Setenv("SRCROOT", t.TempDir())
 	if c := code("stage", prefix, "1.2.3"); c != 0 {
 		t.Errorf("stage ok = %d: %q", c, sb.String())
 	}
+	makeVenvBin(t, prefix)
 	if c := code("seal", prefix, "streamlink"); c != 0 {
 		t.Errorf("seal ok = %d: %q", c, sb.String())
 	}
-	// verify the sealed stub was written with the pinned shebang
+	// ⛔⛔ AND IT IS A BINARY, NOT A SHEBANG. What this used to assert was
+	// `#!/usr/bin/env -S zpkgx python@3.12` — a line that had already shipped
+	// for months naming `pkgx`, upstream's runtime, which we do not publish;
+	// that `env` is absent from a FROM-scratch image; and that `env -S` is
+	// absent from busybox. The installed entry point now has no interpreter of
+	// its own to go looking for (go-zpkg/zbk#435).
 	got, err := os.ReadFile(filepath.Join(prefix, "bin", "streamlink"))
 	if err != nil {
-		t.Fatalf("read stub: %v", err)
+		t.Fatalf("read entry point: %v", err)
 	}
-	if !strings.HasPrefix(string(got), "#!/usr/bin/env -S zpkgx python@3.12\n") {
-		t.Errorf("stub shebang = %q", string(got)[:40])
+	if string(got) != string(launcher) {
+		t.Errorf("entry point = %q, want the launcher binary", got)
 	}
-	// ⛔⛔ AND IT MUST NOT NAME UPSTREAM'S RUNTIME. It did, in every bottle
-	// this factory ever built: `pkgx python@X.Y`, a binary we no longer
-	// interoperate with, do not publish, and cannot expect on a PATH. The
-	// positive assertion above would pass again the moment somebody wrote
-	// `pkgx` back, so the negative one is stated separately — a launcher that
-	// names the wrong runtime is not a cosmetic slip, it is an entry point that
-	// does not start.
-	if strings.Contains(string(got), "-S pkgx ") {
-		t.Errorf("the launcher names upstream's runtime: %q", string(got)[:40])
-	}
-	// The body is the launcher's, and the tail is the exec that makes it one.
-	// Asserted on the installed file rather than on the embedded bytes, so
-	// that stripping the shebang and appending cannot quietly lose it.
-	if !strings.Contains(string(got), "os.execv(entry, [entry] + sys.argv[1:])") {
-		t.Error("stub body not appended")
+	if strings.HasPrefix(string(got), "#!") {
+		t.Error("the entry point is still a script")
 	}
 
 	// stage error propagation (git init fails)
@@ -167,8 +163,8 @@ func TestBkpyvenvDispatch(t *testing.T) {
 		t.Error("stage error should be 1")
 	}
 	pyGitInitTag = func(string, string) error { return nil }
-	// seal error propagation (python --version fails)
-	pyOutput = func(string, string, ...string) (string, error) { return "", errBoomPy }
+	// seal error propagation: the launcher is not installable.
+	pyLookPath = func(string) (string, error) { return "", errBoomPy }
 	if code("seal", prefix, "x") != 1 {
 		t.Error("seal error should be 1")
 	}
@@ -244,49 +240,66 @@ func TestPyStage(t *testing.T) {
 	}
 }
 
-// TestPySealPip covers the version-error, version-parse-error, MkdirAll-error
-// and WriteFile-error branches (poetry path is exercised in TestPySealPoetry).
+// TestPySealPip covers the pip path, which now installs the launcher and
+// nothing else (the poetry path is exercised in TestPySealPoetry).
 func TestPySealPip(t *testing.T) {
 	defer restorePy(t)()
+	launcher := fakeVenvLaunch(t)
 
-	pyOutput = func(string, string, ...string) (string, error) { return "", errBoomPy }
-	if err := pySeal(t.TempDir(), t.TempDir(), "pip", []string{"x"}); !errors.Is(err, errBoomPy) {
-		t.Errorf("version error: %v", err)
-	}
-	pyOutput = func(string, string, ...string) (string, error) { return "not a version", nil }
-	if err := pySeal(t.TempDir(), t.TempDir(), "pip", []string{"x"}); err == nil || !strings.Contains(err.Error(), "cannot parse") {
-		t.Errorf("parse error: %v", err)
+	// ⛔ AND IT MUST NOT EXEC PYTHON AT ALL ANY MORE. It used to, on every
+	// seal, only to read a version for the shebang of a script launcher. That
+	// script is gone, so the exec — and the two error branches it brought with
+	// it — have no caller left. A seam that fails the test if it is reached is
+	// how this stays true: the next person to add `python --version` back here
+	// has to justify it.
+	pyOutput = func(string, string, ...string) (string, error) {
+		t.Error("pySeal ran python for the pip engine, which no longer needs its version")
+		return "", errBoomPy
 	}
 
-	pyOutput = func(string, string, ...string) (string, error) { return "Python 3.11.9", nil }
-	// MkdirAll(binDir) error: prefix is a regular file, so <file>/bin can't be made.
+	// install error: prefix is a regular file, so <file>/bin cannot be made.
 	file := filepath.Join(t.TempDir(), "afile")
 	os.WriteFile(file, []byte("x"), 0o644)
 	if err := pySeal(t.TempDir(), file, "pip", []string{"x"}); err == nil {
-		t.Error("expected MkdirAll error under a file prefix")
+		t.Error("expected an install error under a file prefix")
 	}
-	// WriteFile error: pre-create bin/<name> as a directory so writing the file fails.
+
+	// happy: both names get the launcher, and the venv's absolute interpreter
+	// link comes out relative.
 	prefix := t.TempDir()
-	os.MkdirAll(filepath.Join(prefix, "bin", "clash"), 0o755)
-	if err := pySeal(t.TempDir(), prefix, "pip", []string{"clash"}); err == nil {
-		t.Error("expected WriteFile error over a directory")
-	}
-	// happy: two names both written with the 3.11 shebang.
-	prefix = t.TempDir()
+	makeVenvBin(t, prefix)
 	if err := pySeal(t.TempDir(), prefix, "pip", []string{"a", "b"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, n := range []string{"a", "b"} {
 		b, _ := os.ReadFile(filepath.Join(prefix, "bin", n))
-		if !strings.HasPrefix(string(b), "#!/usr/bin/env -S zpkgx python@3.11\n") {
-			t.Errorf("%s shebang = %q", n, string(b)[:30])
+		if string(b) != string(launcher) {
+			t.Errorf("%s = %q, want the launcher", n, b)
 		}
+	}
+	target, err := os.Readlink(filepath.Join(prefix, "venv", "bin", "python"))
+	if err != nil || filepath.IsAbs(target) {
+		t.Errorf("venv python = %q, %v — want a relative link", target, err)
 	}
 }
 
 // TestPySealPoetry covers the poetry seal path end-to-end plus its error branches.
 func TestPySealPoetry(t *testing.T) {
 	defer restorePy(t)()
+	fakeVenvLaunch(t)
+
+	// The python version is read for the poetry path alone — it names the
+	// site-packages directory the sdist is unpacked into — so its two failures
+	// are asserted here, where the call actually lives.
+	pyOutput = func(string, string, ...string) (string, error) { return "", errBoomPy }
+	if err := pySeal(t.TempDir(), t.TempDir(), "poetry", []string{"x"}); !errors.Is(err, errBoomPy) {
+		t.Errorf("version error: %v", err)
+	}
+	pyOutput = func(string, string, ...string) (string, error) { return "not a version", nil }
+	if err := pySeal(t.TempDir(), t.TempDir(), "poetry", []string{"x"}); err == nil || !strings.Contains(err.Error(), "cannot parse") {
+		t.Errorf("parse error: %v", err)
+	}
+
 	pyOutput = func(string, string, ...string) (string, error) { return "Python 3.12.1", nil }
 
 	// poetry build error
@@ -313,8 +326,31 @@ func TestPySealPoetry(t *testing.T) {
 	root = t.TempDir()
 	os.MkdirAll(filepath.Join(root, "dist"), 0o755)
 	os.MkdirAll(filepath.Join(root, ".venv", "lib", "python3.12", "site-packages"), 0o755)
+	// poetry's in-project .venv carries the same absolute interpreter link, and
+	// it is moved to prefix/venv before the launcher is installed.
+	os.MkdirAll(filepath.Join(root, ".venv", "bin"), 0o755)
+	if err := os.Symlink(filepath.Join(t.TempDir(), "python3"), filepath.Join(root, ".venv", "bin", "python")); err != nil {
+		t.Fatal(err)
+	}
 	writeSdist(t, filepath.Join(root, "dist", "pkg-1.0.tar.gz"), "pkg-1.0/mod.py", "print(1)\n")
 	prefix := t.TempDir()
+	if err := pySeal(root, prefix, "poetry", []string{"cli"}); err == nil {
+		t.Error("a venv whose relativised interpreter does not exist must be refused")
+	}
+	// and again with an interpreter that is really there
+	root = t.TempDir()
+	os.MkdirAll(filepath.Join(root, "dist"), 0o755)
+	os.MkdirAll(filepath.Join(root, ".venv", "lib", "python3.12", "site-packages"), 0o755)
+	os.MkdirAll(filepath.Join(root, ".venv", "bin"), 0o755)
+	store := t.TempDir()
+	if err := os.WriteFile(filepath.Join(store, "python3"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(store, "python3"), filepath.Join(root, ".venv", "bin", "python")); err != nil {
+		t.Fatal(err)
+	}
+	writeSdist(t, filepath.Join(root, "dist", "pkg-1.0.tar.gz"), "pkg-1.0/mod.py", "print(1)\n")
+	prefix = t.TempDir()
 	if err := pySeal(root, prefix, "poetry", []string{"cli"}); err != nil {
 		t.Fatalf("poetry seal: %v", err)
 	}
