@@ -61,6 +61,7 @@ import glob
 import os
 import re
 import sys
+import tempfile
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 virtual_env = os.path.normpath(os.path.join(script_dir, '..', 'venv'))
@@ -164,13 +165,39 @@ def replace_shebang(path):
     with open(path, 'rb') as f:
         f.readline()
         rest = f.read()
-    mode = os.stat(path).st_mode & 0o7777
-    tmp = path + '.zpkg-new'
-    with open(tmp, 'wb') as f:
-        f.write(wanted_shebang)
-        f.write(rest)
-    os.chmod(tmp, mode)
-    os.replace(tmp, path)
+
+    # ⛔⛔ THE TEMPORARY FILE IS CREATED EXCLUSIVELY, AND THE FIRST VERSION OF
+    # THIS WAS A SYMLINK ATTACK. It used `open(path + '.zpkg-new', 'wb')`,
+    # which is O_WRONLY|O_CREAT|O_TRUNC: it FOLLOWS a symlink and reuses an
+    # existing file, at a name anyone could predict. So a party able to create
+    # a file in this directory before the launcher ran — a group-writable site
+    # store, or a home shared over NFS — could point that name anywhere the
+    # invoking user can write and have this function clobber it with the
+    # script's body. mkstemp opens with O_CREAT|O_EXCL and a random suffix,
+    # which refuses an existing path, cannot follow a link, and also survives
+    # a stale temporary left by a crashed run.
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path),
+                               prefix=os.path.basename(path) + '.zpkg-')
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(wanted_shebang)
+            f.write(rest)
+        # ⛔ AND setuid/setgid ARE NOT CARRIED ACROSS A CONTENT REWRITE. The
+        # first version preserved st_mode & 0o7777, so a script that was setuid
+        # would be recreated setuid with a DIFFERENT interpreter line. Linux
+        # ignores setuid on scripts; not every kernel this ships to has always
+        # done so, and in no case is it ours to re-grant. 0o777 keeps the
+        # permission bits that make it executable and drops the rest.
+        os.chmod(tmp, os.stat(path).st_mode & 0o777)
+        os.replace(tmp, path)
+    except BaseException:
+        # Nothing may be left behind in a packaged tree, including on the way
+        # out of a failure.
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def repair():
@@ -195,8 +222,10 @@ def repair():
 if not venv_is_current():
     # O_CREAT because a venv whose pyvenv.cfg is missing is one this launcher
     # is about to write anyway, and O_RDWR because of the NFS rule above.
+    # O_NOFOLLOW for the same reason the temporary file is exclusive: a
+    # pyvenv.cfg that is a symlink is not a venv we should be writing through.
     try:
-        fd = os.open(cfg_path, os.O_RDWR | os.O_CREAT, 0o644)
+        fd = os.open(cfg_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
     except OSError as err:
         sys.exit('%s: cannot lock %s: %s' % (arg0, cfg_path, err))
     try:
