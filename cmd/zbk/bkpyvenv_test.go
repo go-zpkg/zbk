@@ -154,7 +154,10 @@ func TestBkpyvenvDispatch(t *testing.T) {
 	if strings.Contains(string(got), "-S pkgx ") {
 		t.Errorf("the launcher names upstream's runtime: %q", string(got)[:40])
 	}
-	if !strings.Contains(string(got), "os.execv(arg0, args)") {
+	// The body is the launcher's, and the tail is the exec that makes it one.
+	// Asserted on the installed file rather than on the embedded bytes, so
+	// that stripping the shebang and appending cannot quietly lose it.
+	if !strings.Contains(string(got), "os.execv(entry, [entry] + sys.argv[1:])") {
 		t.Error("stub body not appended")
 	}
 

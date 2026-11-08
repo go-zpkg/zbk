@@ -19,12 +19,37 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// pythonVenvStub is bk's copy of pkgx brewkit's share/brewkit/python-venv-stub.py.
-// `bkpyvenv seal` installs it as $PREFIX/bin/<cmd>: at runtime the stub rewrites
-// the venv's interpreter shebangs to an absolute in-venv python, (re)creates the
-// python symlink + pyvenv.cfg, and re-execs the real entry point inside the venv
-// — the mechanism that lets a relocatable python bottle keep working wherever it
-// is installed. It is shipped verbatim so behaviour matches upstream exactly.
+// pythonVenvStub is the launcher `bkpyvenv seal` installs as $PREFIX/bin/<cmd>.
+// At run time it reconciles the venv with where the bottle actually landed —
+// pyvenv.cfg, the python symlink and the console scripts' shebangs all name
+// absolute paths — and then execs the real entry point inside the venv. That is
+// the mechanism that lets a relocatable python bottle keep working.
+//
+// ⛔⛔ IT IS OURS NOW, AND IT HAD TO BECOME OURS FOR TWO SEPARATE REASONS.
+// This said "shipped verbatim so behaviour matches upstream exactly", and both
+// halves of that sentence had stopped being true (go-zpkg/zbk#431):
+//
+//   - pkgxdev/brewkit declares NO LICENCE — no LICENSE file, nothing in its
+//     README — so a verbatim copy embedded in this binary was redistributing
+//     somebody's expression without a grant. Unlike a recipe, where the facts
+//     are nobody's and only the text is withheld, here the text WAS the thing
+//     copied.
+//   - upstream had since rewritten it around an flock and an idempotence
+//     check. Our copy had neither, so it rewrote pyvenv.cfg, every shebang and
+//     the python symlink on every invocation of every packaged tool, with no
+//     lock — and a comment claiming it matched upstream is believed.
+//
+// The replacement is written from CPython's own Lib/venv/__init__.py, which is
+// the only authoritative statement of what pyvenv.cfg contains, and it keeps
+// the lock and the idempotence check because those are facts about the problem.
+// It also fixes two things neither version had: it PRESERVES the pyvenv.cfg
+// keys it does not own (`version`, `prompt`, `command` were discarded on every
+// run), and it rewrites a shebang atomically, so a script being read by an
+// interpreter at that moment cannot be read as garbage.
+//
+// cmd/zbk/pythonvenvstub_test.go is the first test this file has ever had, and
+// its absence is why the drift went unnoticed: a file embedded with //go:embed
+// is still code, it was simply code nobody ran.
 //
 //go:embed python-venv-stub.py
 var pythonVenvStub []byte
