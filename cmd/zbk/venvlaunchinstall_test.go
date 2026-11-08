@@ -236,6 +236,85 @@ func TestInstallVenvLaunchErrors(t *testing.T) {
 	})
 }
 
+// TestFindVenvLaunch covers the lookup order: PATH first, because only PATH can
+// hold the TARGET's launcher under a cross build, then the HOST's beside the
+// running zbk, which is what saves every python-venv recipe that has not
+// declared the dependency.
+func TestFindVenvLaunch(t *testing.T) {
+	t.Run("PATH wins over the one beside zbk", func(t *testing.T) {
+		defer restorePy(t)()
+		fakeVenvLaunch(t) // sets PATH
+		beside := t.TempDir()
+		if err := os.WriteFile(filepath.Join(beside, venvLaunchName), []byte("host"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		pyExecutable = func() (string, error) { return filepath.Join(beside, "zbk"), nil }
+		got, err := findVenvLaunch()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if filepath.Dir(got) == beside {
+			t.Error("the host's launcher was preferred over the one on PATH: a cross build would put the wrong platform in the bottle")
+		}
+	})
+
+	t.Run("beside zbk, plain name", func(t *testing.T) {
+		defer restorePy(t)()
+		t.Setenv("PATH", t.TempDir())
+		beside := t.TempDir()
+		want := filepath.Join(beside, venvLaunchName)
+		if err := os.WriteFile(want, []byte("host"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		pyExecutable = func() (string, error) { return filepath.Join(beside, "zbk"), nil }
+		got, err := findVenvLaunch()
+		if err != nil || got != want {
+			t.Errorf("got %q, %v; want %q", got, err, want)
+		}
+	})
+
+	t.Run("beside zbk, release asset name", func(t *testing.T) {
+		defer restorePy(t)()
+		t.Setenv("PATH", t.TempDir())
+		beside := t.TempDir()
+		pyGOOS, pyGOARCH = "linux", "s390x"
+		want := filepath.Join(beside, venvLaunchName+"-linux-s390x")
+		if err := os.WriteFile(want, []byte("host"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		pyExecutable = func() (string, error) { return filepath.Join(beside, "zbk"), nil }
+		got, err := findVenvLaunch()
+		if err != nil || got != want {
+			t.Errorf("got %q, %v; want %q", got, err, want)
+		}
+	})
+
+	t.Run("cannot locate zbk", func(t *testing.T) {
+		defer restorePy(t)()
+		t.Setenv("PATH", t.TempDir())
+		pyExecutable = func() (string, error) { return "", errBoomPy }
+		if _, err := findVenvLaunch(); !errors.Is(err, errBoomPy) {
+			t.Errorf("err = %v", err)
+		}
+	})
+
+	t.Run("nowhere, and the message says where it looked", func(t *testing.T) {
+		defer restorePy(t)()
+		t.Setenv("PATH", t.TempDir())
+		beside := t.TempDir()
+		pyExecutable = func() (string, error) { return filepath.Join(beside, "zbk"), nil }
+		_, err := findVenvLaunch()
+		if err == nil {
+			t.Fatal("want an error")
+		}
+		for _, want := range []string{"(PATH)", beside, "go-zpkg.github.io/venvlaunch"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the message does not mention %q: %v", want, err)
+			}
+		}
+	})
+}
+
 // TestRelativiseVenvLinksErrors covers the branches of the relativiser that the
 // installer's own tests cannot reach.
 func TestRelativiseVenvLinksErrors(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 // Installing the venvlaunch entry point, which is what replaces the three
@@ -34,9 +35,13 @@ import (
 // Seams. pyLookPath and pyRelink are indirected so that the two error branches
 // no temp directory can produce — a PATH entry that disappears between lookup
 // and read, and a failed relink — stay reachable from a test.
+// pyGOOS lives in bkpyvenv.go, where it already selects the venv-creation
+// flags; it is the same question here and a second copy of it could disagree.
 var (
-	pyLookPath = exec.LookPath
-	pyRelink   = defaultRelink
+	pyLookPath   = exec.LookPath
+	pyRelink     = defaultRelink
+	pyExecutable = os.Executable
+	pyGOARCH     = runtime.GOARCH
 )
 
 // venvLaunchName is the program `seal` looks for on PATH. It is a build
@@ -46,6 +51,60 @@ var (
 // 1111 of 1932 upstream recipes fetch a GitHub-GENERATED archive, whose bytes
 // have changed before, and cannot be pinned at all (go-zpkg/packages#420).
 const venvLaunchName = "venvlaunch"
+
+// findVenvLaunch locates the launcher to install: PATH first, then beside the
+// running zbk.
+//
+// ⛔⛔ PATH FIRST, AND THE ORDER IS THE WHOLE CORRECTNESS ARGUMENT. The binary
+// that goes into the bottle must be for the bottle's TARGET, and the two
+// candidates answer for different platforms:
+//
+//	on PATH             resolved from the recipe's build dependencies, so it
+//	                    is the TARGET's. Correct for a cross build, and the
+//	                    only candidate that can be.
+//	beside this zbk     the HOST's, because it came out of the same release
+//	                    matrix as the zbk now running. Correct whenever host
+//	                    and target are the same, which every python-venv build
+//	                    is — a venv is built by running the packaged python.
+//
+// So PATH wins when a recipe declares the dependency, and the fallback saves
+// every recipe that does not from failing. Without the fallback this change
+// would have required editing every python-venv recipe in the pantry before it
+// could land; with it, the behaviour improves for all of them at once and a
+// recipe can still override it explicitly.
+//
+// Both spellings are tried beside zbk because the release publishes the assets
+// under their platform names (`venvlaunch-linux-amd64`) and an installer may
+// or may not have renamed them.
+func findVenvLaunch() (string, error) {
+	if src, err := pyLookPath(venvLaunchName); err == nil {
+		return src, nil
+	}
+	self, err := pyExecutable()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(self)
+	tried := []string{venvLaunchName + " (PATH)"}
+	for _, name := range []string{
+		venvLaunchName,
+		venvLaunchName + "-" + pyGOOS + "-" + pyGOARCH,
+	} {
+		cand := filepath.Join(dir, name)
+		if _, err := os.Stat(cand); err == nil {
+			return cand, nil
+		}
+		tried = append(tried, cand)
+	}
+	// ⛔ go-zpkg.github.io, NOT go-zpkg.org. A pantry project name is a DOMAIN,
+	// and it is the thing a consumer trusts to say where a package came from;
+	// go-zpkg.org is not a domain this organisation holds, so naming it here
+	// would tell every recipe author to pin provenance to an address somebody
+	// else could register. go-zpkg.github.io is the one we actually serve, and
+	// the convention the pantry already uses for projects published that way
+	// (aria2.github.io, openprinting.github.io).
+	return "", fmt.Errorf("cannot find %s — looked at %v; install it beside zbk from the same release, or declare go-zpkg.github.io/venvlaunch among the recipe's build dependencies", venvLaunchName, tried)
+}
 
 // installVenvLaunch copies the venvlaunch binary to <prefix>/bin/<name> for
 // every name, and relativises the venv's absolute symlinks.
@@ -60,16 +119,9 @@ const venvLaunchName = "venvlaunch"
 // bytes for linux/s390x, 1 610 011 for openbsd/amd64, stripped). Almost every
 // python-venv recipe declares exactly one command.
 func installVenvLaunch(prefix, venv string, names []string) error {
-	src, err := pyLookPath(venvLaunchName)
+	src, err := findVenvLaunch()
 	if err != nil {
-		// ⛔ go-zpkg.github.io, NOT go-zpkg.org. A pantry project name is a
-		// DOMAIN, and it is the thing a consumer trusts to say where a package
-		// came from; go-zpkg.org is not a domain this organisation holds, so
-		// naming it here would tell every recipe author to pin provenance to an
-		// address somebody else could register. go-zpkg.github.io is the one we
-		// actually serve, and the convention the pantry already uses for
-		// projects published that way (aria2.github.io, openprinting.github.io).
-		return fmt.Errorf("%s is not on PATH: a python-venv recipe must declare go-zpkg.github.io/venvlaunch among its build dependencies: %w", venvLaunchName, err)
+		return err
 	}
 	launcher, err := os.ReadFile(src)
 	if err != nil {
