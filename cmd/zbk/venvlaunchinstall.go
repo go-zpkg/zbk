@@ -37,10 +37,18 @@ import (
 // and read, and a failed relink — stay reachable from a test.
 // pyGOOS lives in bkpyvenv.go, where it already selects the venv-creation
 // flags; it is the same question here and a second copy of it could disagree.
+// ⛔⛔ pyReadlink IS A SEAM BECAUSE THE CLEVER ALTERNATIVE FAILED ON THREE
+// KERNELS. Reaching os.Readlink's error without one means making <venv>/bin
+// readable but not searchable (mode 0444), so that os.ReadDir lists it and
+// resolving a name inside it fails. That works on linux and darwin, and
+// FreeBSD, NetBSD and OpenBSD all answered the readlink anyway: 21 green, 3
+// red, on a run whose other 23 checks said the change was fine. A test that
+// depends on where a kernel places a permission check is testing the kernel.
 var (
 	pyLookPath   = exec.LookPath
 	pyRelink     = defaultRelink
 	pyExecutable = os.Executable
+	pyReadlink   = os.Readlink
 	pyGOARCH     = runtime.GOARCH
 )
 
@@ -177,7 +185,7 @@ func relativiseVenvLinks(venv string) error {
 			continue
 		}
 		link := filepath.Join(binDir, e.Name())
-		target, err := os.Readlink(link)
+		target, err := pyReadlink(link)
 		if err != nil {
 			return err
 		}

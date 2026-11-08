@@ -24,12 +24,13 @@ func restorePy(t *testing.T) func() {
 	plainInit, worktree, commit, head, createTag := ggPlainInit, ggWorktree, ggCommit, ggHead, ggCreateTag
 	gitInitTag, now, glob, goos := pyGitInitTag, pyNow, pyGlob, pyGOOS
 	lookPath, relink, executable, goarch := pyLookPath, pyRelink, pyExecutable, pyGOARCH
+	readlink := pyReadlink
 	return func() {
 		pyGetwd, pyRun, pyOutput, pyRunEnv = getwd, run, output, runEnv
 		ggPlainInit, ggWorktree, ggCommit, ggHead, ggCreateTag = plainInit, worktree, commit, head, createTag
 		pyGitInitTag, pyNow, pyGlob, pyGOOS = gitInitTag, now, glob, goos
 		pyLookPath, pyRelink = lookPath, relink
-		pyExecutable, pyGOARCH = executable, goarch
+		pyExecutable, pyGOARCH, pyReadlink = executable, goarch, readlink
 	}
 }
 

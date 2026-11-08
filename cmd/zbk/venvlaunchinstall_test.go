@@ -329,20 +329,19 @@ func TestRelativiseVenvLinksErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("unsearchable bin", func(t *testing.T) {
+	// ⛔⛔ THIS USED TO MAKE <venv>/bin MODE 0444 — readable, not searchable —
+	// so that os.ReadDir listed it and os.Readlink failed inside it. That is
+	// true on linux and darwin, and FreeBSD, NetBSD and OpenBSD answered the
+	// readlink anyway: 21 green checks and 3 red, on a change none of them was
+	// about. A test that depends on where a kernel places a permission check is
+	// testing the kernel, so the seam is the honest instrument here.
+	t.Run("readlink fails", func(t *testing.T) {
 		defer restorePy(t)()
 		prefix := t.TempDir()
 		venv, _ := makeVenvBin(t, prefix)
-		bin := filepath.Join(venv, "bin")
-		// Readable but not searchable: os.ReadDir lists it, os.Readlink cannot
-		// resolve a name inside it. That is the only way this branch is
-		// reachable, and it is a real state an over-tightened umask produces.
-		if err := os.Chmod(bin, 0o444); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(bin, 0o755) })
-		if err := relativiseVenvLinks(venv); err == nil {
-			t.Fatal("want a readlink error")
+		pyReadlink = func(string) (string, error) { return "", errBoomPy }
+		if err := relativiseVenvLinks(venv); !errors.Is(err, errBoomPy) {
+			t.Fatalf("readlink error = %v", err)
 		}
 	})
 
