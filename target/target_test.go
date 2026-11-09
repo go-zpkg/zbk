@@ -52,7 +52,7 @@ func TestNativeTripleAllOS(t *testing.T) {
 }
 
 func TestOverrideUnset(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "")
+	t.Setenv("ZBK_TARGET", "")
 	_, _, ok, err := Override()
 	if ok || err != nil {
 		t.Errorf("unset: ok=%v err=%v", ok, err)
@@ -68,9 +68,44 @@ func TestOverrideUnset(t *testing.T) {
 	}
 }
 
+// TestTheOldVariableNameIsNotRead is the gate on "no alias".
+//
+// ⛔⛔ The variable was `BREWKIT_TARGET` and no alias was kept, because
+// upstream's brewkit can sit on the same PATH as `zbk` — a variable read by
+// both is the collision the rename existed to remove, in the place that decides
+// what a build targets. "We removed it" was a claim about code that nothing
+// asserted, so this asserts it: with the old name set to a VALID target and the
+// new one unset, the build must resolve to the HOST, not to the old name's
+// value.
+//
+// A valid value on purpose: an invalid one would pass this test even if the old
+// name were still read, because the error would look like the refusal.
+func TestTheOldVariableNameIsNotRead(t *testing.T) {
+	t.Setenv("ZBK_TARGET", "")
+	t.Setenv("BREWKIT_TARGET", "windows/x86-64")
+
+	_, _, ok, err := Override()
+	if err != nil {
+		t.Fatalf("Override errored on the old name: %v", err)
+	}
+	if ok {
+		t.Error("BREWKIT_TARGET was honoured — the alias is still there")
+	}
+	got, err := Resolve()
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got.Cross() {
+		t.Errorf("Resolve returned a cross target %+v from BREWKIT_TARGET", got)
+	}
+	if got.Platform != runtime.GOOS {
+		t.Errorf("Resolve → %q, want the host %q", got.Platform, runtime.GOOS)
+	}
+}
+
 func TestOverrideWindows(t *testing.T) {
 	for _, raw := range []string{"windows/x86-64", "windows+x86-64"} {
-		t.Setenv("BREWKIT_TARGET", raw)
+		t.Setenv("ZBK_TARGET", raw)
 		p, a, ok, err := Override()
 		if !ok || err != nil || p != "windows" || a != "x86-64" {
 			t.Fatalf("%q → %q %q ok=%v err=%v", raw, p, a, ok, err)
@@ -86,7 +121,7 @@ func TestOverrideWindows(t *testing.T) {
 			// only equal when host is windows/x86-64
 		}
 	}
-	t.Setenv("BREWKIT_TARGET", "windows/aarch64")
+	t.Setenv("ZBK_TARGET", "windows/aarch64")
 	tgt, err := Resolve()
 	if err != nil || tgt.Triple != "aarch64-w64-mingw32" {
 		t.Errorf("win/aarch64 triple=%q err=%v", tgt.Triple, err)
@@ -101,7 +136,7 @@ func TestOverrideWindows(t *testing.T) {
 // It is asserted so that a unix→unix cross build has to come here and say what
 // it is doing, rather than inheriting an answer about the wrong machine.
 func TestOverrideNonWindowsTripleFallsBackToNative(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "linux/aarch64")
+	t.Setenv("ZBK_TARGET", "linux/aarch64")
 	tgt, err := Resolve()
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +151,7 @@ func TestOverrideNonWindowsTripleFallsBackToNative(t *testing.T) {
 
 func TestOverrideErrors(t *testing.T) {
 	for _, bad := range []string{"garbage", "windows-x86-64", "plan9/x86-64", "windows/sparc"} {
-		t.Setenv("BREWKIT_TARGET", bad)
+		t.Setenv("ZBK_TARGET", bad)
 		if _, _, _, err := Override(); err == nil {
 			t.Errorf("%q: expected error", bad)
 		}
@@ -136,7 +171,7 @@ func TestOverrideErrors(t *testing.T) {
 // machine whose platform it refused to be told about. The factory always tells
 // it (--platform linux/s390x), so the lane failed on a runner that was working.
 func TestOverrideS390x(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "linux/s390x")
+	t.Setenv("ZBK_TARGET", "linux/s390x")
 	tgt, err := Resolve()
 	if err != nil {
 		t.Fatalf("Resolve() = %v", err)
@@ -151,7 +186,7 @@ func TestOverrideS390x(t *testing.T) {
 // A bare refusal sends the reader looking for a port that is already present.
 func TestOverrideGoSpellingIsDiagnosed(t *testing.T) {
 	for goName, pkgxName := range map[string]string{"amd64": "x86-64", "arm64": "aarch64"} {
-		t.Setenv("BREWKIT_TARGET", "linux/"+goName)
+		t.Setenv("ZBK_TARGET", "linux/"+goName)
 		_, _, _, err := Override()
 		if err == nil {
 			t.Fatalf("Override() accepted linux/%s", goName)
@@ -167,7 +202,7 @@ func TestOverrideGoSpellingIsDiagnosed(t *testing.T) {
 // triple does not stop anything here -- it travels to whichever build step
 // first needs a compiler name, a long way from the decision that produced it.
 func TestWindowsArchWithoutTripleRefuses(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "windows/s390x")
+	t.Setenv("ZBK_TARGET", "windows/s390x")
 	tgt, err := Resolve()
 	if err == nil {
 		t.Fatalf("Resolve() = %+v, nil; want a refusal (triple was %q)", tgt, tgt.Triple)

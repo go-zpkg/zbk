@@ -80,7 +80,7 @@ func newFactoryHarness(t *testing.T) *factoryHarness {
 		factoryBuild, factoryHasPlatform, buildFactory, lookPath = bu, hp, bf, lp
 		factoryPlan = pl
 	})
-	for _, k := range []string{"BREWKIT_TARGET", "PLATFORM", "PANTRY", "RECIPES", "DIST", "MAX_VERSIONS", "FORCE", "SIGNING_KEY", "SOURCE_DATE_EPOCH"} {
+	for _, k := range []string{"ZBK_TARGET", "PLATFORM", "PANTRY", "RECIPES", "DIST", "MAX_VERSIONS", "FORCE", "SIGNING_KEY", "SOURCE_DATE_EPOCH"} {
 		t.Setenv(k, "")
 	}
 

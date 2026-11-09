@@ -4,7 +4,7 @@
 //
 // This entrypoint currently exposes the pieces implemented so far:
 //
-//	bk target            print the resolved build target (honours BREWKIT_TARGET / --platform)
+//	bk target            print the resolved build target (honours ZBK_TARGET / --platform)
 //	bk fixup <prefix>    run the post-build relocatability fix-ups on an install prefix
 //	bk versions          list a recipe's candidate versions
 //	bk build             build a recipe into a bottle
@@ -140,7 +140,7 @@ func printVersion(w io.Writer) {
 func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("bk", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	platform := fs.String("platform", "", "cross-build target, eg. windows/x86-64 (also BREWKIT_TARGET)")
+	platform := fs.String("platform", "", "cross-build target, eg. windows/x86-64 (also ZBK_TARGET)")
 	version := fs.Bool("version", false, "print the version this bk writes into every lock")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -164,7 +164,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if *platform != "" {
-		os.Setenv("BREWKIT_TARGET", *platform)
+		os.Setenv("ZBK_TARGET", *platform)
 	}
 	rest := fs.Args()
 	if len(rest) == 0 {
@@ -175,7 +175,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// The TARGET is resolved by the two subcommands that use one, not before
 	// the switch. Resolving it here meant `bk lint`, `bk overrides` and `bk
 	// tohcl` — none of which builds anything — refused to run on a machine
-	// whose BREWKIT_TARGET named a platform bk does not support:
+	// whose ZBK_TARGET named a platform bk does not support:
 	//
 	//	error: unsupported target platform: "plan9"
 	//

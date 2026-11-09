@@ -151,12 +151,12 @@ func TestOverridesDispatch(t *testing.T) {
 // A subcommand that builds nothing must not need a build target.
 //
 // Resolving one before the dispatch meant `bk overrides` — and `bk lint`, and
-// `bk tohcl` — refused to run on a machine whose BREWKIT_TARGET named a
+// `bk tohcl` — refused to run on a machine whose ZBK_TARGET named a
 // platform bk does not support, with an error about a platform the command
 // never asked about. The factory SETS that variable, so a CI lane checking
 // recipes beside a build inherits it.
 func TestOverridesNeedsNoBuildTarget(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "plan9/vax")
+	t.Setenv("ZBK_TARGET", "plan9/vax")
 	dir, pantryDir := ovTree(t, ovRecipe, `--- a/projects/acme.org/package.yml
 +++ b/projects/acme.org/package.yml
 @@ -1,4 +1,4 @@

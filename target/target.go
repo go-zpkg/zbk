@@ -15,7 +15,7 @@
 // Shell-environment decisions ("which TMPDIR does *this* host use") keep using
 // Host. The target is taken from (first match wins):
 //
-//  1. the BREWKIT_TARGET env var  (eg. "windows/x86-64" or "windows+x86-64")
+//  1. the ZBK_TARGET env var  (eg. "windows/x86-64" or "windows+x86-64")
 //  2. Host()  (native build — byte-for-byte unchanged behaviour)
 package target
 
@@ -35,7 +35,7 @@ type Target struct {
 	// Triple is the compiler triple — and for every target but windows it is
 	// the triple of the machine bk RUNS ON, not the one named here.
 	//
-	//	$ BREWKIT_TARGET=linux/s390x bk target        # on a Mac
+	//	$ ZBK_TARGET=linux/s390x bk target        # on a Mac
 	//	linux/s390x triple=aarch64-apple-darwin cross=true
 	//
 	// That is correct today and reads as a bug, which is why it is written
@@ -227,16 +227,33 @@ func Host() Target {
 	return Target{Platform: p, Arch: pkgxArch(runtime.GOARCH), Triple: nativeTriple()}
 }
 
-// Override parses & validates BREWKIT_TARGET, returning ok=false when unset.
+// Override parses & validates ZBK_TARGET, returning ok=false when unset.
 // It returns an error for a malformed or unsupported value.
+//
+// ⛔⛔ THE VARIABLE WAS `BREWKIT_TARGET`, AND NO ALIAS WAS KEPT. The command is
+// `zbk`; `BREWKIT_TARGET` is upstream brewkit's name, and upstream's brewkit can
+// sit on the same PATH as ours — which is the entire reason the binaries were
+// renamed. A variable read by both would be the same collision the rename
+// existed to remove, left in the place that decides what a build targets.
+//
+// An alias would be worse than the old name alone: a tree with both set would
+// take one of them by a precedence nobody could see, and every document would
+// have to explain two spellings forever. The old name is simply not read, and
+// `TestTheOldVariableNameIsNotRead` is the gate that says so — because "we
+// removed it" is a claim about code that nothing was asserting.
+//
+// It is a breaking change, below v1, in the same release line as the binaries'
+// own rename. Nothing in this organisation set it outside its own sources: the
+// only other mentions were two recipe comments, two READMEs and one docs page,
+// all updated with it.
 func Override() (platform, arch string, ok bool, err error) {
-	raw := strings.TrimSpace(os.Getenv("BREWKIT_TARGET"))
+	raw := strings.TrimSpace(os.Getenv("ZBK_TARGET"))
 	if raw == "" {
 		return "", "", false, nil
 	}
 	m := overrideRE.FindStringSubmatch(raw)
 	if m == nil {
-		return "", "", false, fmt.Errorf("invalid BREWKIT_TARGET: %q (expected eg. 'windows/x86-64')", raw)
+		return "", "", false, fmt.Errorf("invalid ZBK_TARGET: %q (expected eg. 'windows/x86-64')", raw)
 	}
 	platform, arch = m[1], m[2]
 	if !IsPlatform(platform) {
@@ -255,7 +272,7 @@ func Override() (platform, arch string, ok bool, err error) {
 	return platform, arch, true, nil
 }
 
-// IsCross reports whether a BREWKIT_TARGET override is set (a cross build).
+// IsCross reports whether a ZBK_TARGET override is set (a cross build).
 func IsCross() (bool, error) {
 	_, _, ok, err := Override()
 	return ok, err

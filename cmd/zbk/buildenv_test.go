@@ -294,7 +294,7 @@ func TestBuildEnvDefaultsToThisMachine(t *testing.T) {
 // ⛔ AND WHEN THE MACHINE CANNOT BE RESOLVED, it says so instead of reading
 // the registry for a platform it invented.
 //
-// No seam for this: target.Resolve() reads BREWKIT_TARGET, and a platform bk
+// No seam for this: target.Resolve() reads ZBK_TARGET, and a platform bk
 // does not support makes the real function fail — the same case that once made
 // `bk lint` refuse to run. A fake would test the fake.
 func TestBuildEnvRefusesAnUnsupportedTarget(t *testing.T) {
@@ -305,10 +305,10 @@ func TestBuildEnvRefusesAnUnsupportedTarget(t *testing.T) {
 		reached = true
 		return nil, nil
 	}
-	t.Setenv("BREWKIT_TARGET", "plan9/pdp11")
+	t.Setenv("ZBK_TARGET", "plan9/pdp11")
 
 	var out, errb strings.Builder
-	// Not through run2: it clears BREWKIT_TARGET on purpose, which is the
+	// Not through run2: it clears ZBK_TARGET on purpose, which is the
 	// right thing for every other test here and the wrong thing for this one.
 	code := runBuildEnv([]string{"a.org", "1.2.3"}, &out, &errb)
 	if code != 2 {
