@@ -153,15 +153,25 @@ const (
 	scanOverlap = 1 << 12
 )
 
-// scanFileStorePaths reports every match of one pattern in one file's bytes.
+// scanFile reports every match of each pattern in one file's bytes, in ONE
+// pass, returning one slice of hits per pattern in the order given.
 //
-// `groups` says how many submatches the pattern carries: 2 for the store
-// pattern (project, version), 0 for the staging and host patterns, which are
-// about the path as a whole.
-func scanFileStorePaths(r io.Reader, rel string, re *regexp.Regexp) ([]storePathHit, error) {
+// ⛔ ONE PASS RATHER THAN THREE, which started as a coverage finding and is a
+// correctness argument too. Opening the same file three times gave three
+// identical error paths — the gate counted them and none was reachable from a
+// test without three injected failures — and it also meant three reads of every
+// byte of every binary in a tree. The patterns differ in what they CAPTURE, not
+// in how the file is read.
+//
+// The store pattern carries (project, version); the staging and host patterns
+// are about the path as a whole and carry neither.
+func scanFile(r io.Reader, rel string, res []*regexp.Regexp) ([][]storePathHit, error) {
+	hits := make([][]storePathHit, len(res))
+	seen := make([]map[int64]bool, len(res))
+	for i := range seen {
+		seen[i] = map[int64]bool{}
+	}
 	var (
-		hits []storePathHit
-		seen = map[int64]bool{}
 		buf  = make([]byte, 0, scanChunk+scanOverlap)
 		base int64
 	)
@@ -170,20 +180,20 @@ func scanFileStorePaths(r io.Reader, rel string, re *regexp.Regexp) ([]storePath
 		n, err := io.ReadFull(r, window)
 		if n > 0 {
 			buf = append(buf, window[:n]...)
-			for _, m := range re.FindAllSubmatchIndex(buf, -1) {
-				off := base + int64(m[0])
-				if seen[off] {
-					continue
+			for i, re := range res {
+				for _, m := range re.FindAllSubmatchIndex(buf, -1) {
+					off := base + int64(m[0])
+					if seen[i][off] {
+						continue
+					}
+					seen[i][off] = true
+					h := storePathHit{File: rel, Path: string(buf[m[0]:m[1]]), Offset: off}
+					if len(m) >= 6 && m[2] >= 0 && m[4] >= 0 {
+						h.Project = string(buf[m[2]:m[3]])
+						h.Version = string(buf[m[4]:m[5]])
+					}
+					hits[i] = append(hits[i], h)
 				}
-				seen[off] = true
-				h := storePathHit{File: rel, Path: string(buf[m[0]:m[1]]), Offset: off}
-				// The store pattern carries (project, version); the staging and
-				// host patterns are about the whole path and carry neither.
-				if len(m) >= 6 && m[2] >= 0 && m[4] >= 0 {
-					h.Project = string(buf[m[2]:m[3]])
-					h.Version = string(buf[m[4]:m[5]])
-				}
-				hits = append(hits, h)
 			}
 			// Keep the tail as the next window's prefix.
 			if len(buf) > scanOverlap {
@@ -207,23 +217,34 @@ func scanFileStorePaths(r io.Reader, rel string, re *regexp.Regexp) ([]storePath
 // because a bottle's man pages and texinfo mention /usr/bin by the hundred,
 // and a census drowned in documentation is one nobody reads. Stated here so
 // the next person widens it on purpose rather than discovering the gap.
+//
+// ⛔ A FILE WHOSE MODE CANNOT BE READ IS NOT EXECUTABLE HERE, in one expression
+// rather than an unreachable branch: WalkDir's Info() fails only when the entry
+// has gone away between the walk and the question, and the walk's own error
+// path is what reports that.
 func runsThings(rel string, d fs.DirEntry) bool {
 	switch strings.Split(filepath.ToSlash(rel), "/")[0] {
 	case "bin", "sbin", "libexec":
 		return true
 	}
 	info, err := d.Info()
-	if err != nil {
-		return false
-	}
-	return info.Mode().Perm()&0o111 != 0
+	return err == nil && info.Mode().Perm()&0o111 != 0
 }
+
+// scanOneFile is the seam for the read itself.
+//
+// ⛔ IT EXISTS SO THE I/O FAILURE PATH CAN BE EXERCISED. Reading a regular file
+// off a local disk fails about as often as the disk does, so that branch cannot
+// be reached by arranging files — and an untested error path in a GATE is worse
+// than elsewhere: the one case it covers is "the check could not read this",
+// which must not be reported as "this is clean".
+var scanOneFile = scanFile
 
 // scanStorePaths walks a tree and answers all three rules in one pass.
 //
 // A file it cannot open is an ERROR, not a skip: see the chunking note.
 func scanStorePaths(root, store string) (bakedScan, error) {
-	storeRE := storePathPattern(store)
+	res := []*regexp.Regexp{storePathPattern(store), stagingPattern, hostToolPattern}
 	out := bakedScan{
 		ByProject: map[string][]storePathHit{},
 		Host:      map[string][]storePathHit{},
@@ -239,37 +260,27 @@ func scanStorePaths(root, store string) (bakedScan, error) {
 		}
 		rel, _ := filepath.Rel(root, p)
 
-		read := func(re *regexp.Regexp) ([]storePathHit, error) {
-			f, err := os.Open(p)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", p, err)
-			}
-			defer f.Close()
-			return scanFileStorePaths(f, rel, re)
-		}
-
-		hits, err := read(storeRE)
+		f, err := os.Open(p)
 		if err != nil {
 			return fmt.Errorf("%s: %w", rel, err)
 		}
+		hits, err := scanOneFile(f, rel, res)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("%s: %w", rel, err)
+		}
+
 		out.Files++
-		for _, h := range hits {
+		for _, h := range hits[0] {
 			out.ByProject[h.Project] = append(out.ByProject[h.Project], h)
 		}
+		out.Staging = append(out.Staging, hits[1]...)
 
-		staging, err := read(stagingPattern)
-		if err != nil {
-			return fmt.Errorf("%s: %w", rel, err)
-		}
-		out.Staging = append(out.Staging, staging...)
-
+		// Rule C's narrower scope is applied AFTER the read, not by skipping
+		// the read: the file is open once for all three questions.
 		if runsThings(rel, d) {
 			out.ExecFiles++
-			host, err := read(hostToolPattern)
-			if err != nil {
-				return fmt.Errorf("%s: %w", rel, err)
-			}
-			for _, h := range host {
+			for _, h := range hits[2] {
 				if hostToolAllowed[h.Path] || strings.HasPrefix(h.Path, store) {
 					continue
 				}

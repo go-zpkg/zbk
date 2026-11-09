@@ -2,10 +2,15 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 // stagedTree writes files into a temporary tree and returns its root.
@@ -280,10 +285,12 @@ func TestAMatchStraddlingTwoChunksIsStillSeen(t *testing.T) {
 	pad := strings.Repeat("A", scanChunk-10)
 	body := pad + path + "\x00" + strings.Repeat("B", 64)
 
-	hits, err := scanFileStorePaths(bytes.NewReader([]byte(body)), "bin/x", storePathPattern("/opt/zpkg"))
+	all, err := scanFile(bytes.NewReader([]byte(body)), "bin/x",
+		[]*regexp.Regexp{storePathPattern("/opt/zpkg")})
 	if err != nil {
 		t.Fatal(err)
 	}
+	hits := all[0]
 	if len(hits) != 1 {
 		t.Fatalf("%d hit(s) across the chunk boundary, want exactly 1: %+v", len(hits), hits)
 	}
@@ -292,6 +299,228 @@ func TestAMatchStraddlingTwoChunksIsStillSeen(t *testing.T) {
 	}
 	if want := int64(scanChunk - 10); hits[0].Offset != want {
 		t.Errorf("offset %d, want %d", hits[0].Offset, want)
+	}
+}
+
+// TestAReadThatFailsPartWayIsAnError: the scan must not report the hits it
+// managed to collect as if the file had ended.
+func TestAReadThatFailsPartWayIsAnError(t *testing.T) {
+	_, err := scanFile(iotest.TimeoutReader(bytes.NewReader(make([]byte, scanChunk*2))),
+		"bin/x", []*regexp.Regexp{storePathPattern("/opt/zpkg")})
+	if err == nil {
+		t.Fatal("a reader that fails mid-file was reported as a clean read")
+	}
+}
+
+// TestAFileThatCannotBeOpenedIsAnError, because a file nobody could read must
+// not be counted among the clean ones.
+func TestAFileThatCannotBeOpenedIsAnError(t *testing.T) {
+	root := stagedTree(t, map[string]string{"bin/secret": "nothing to see"})
+	p := filepath.Join(root, "bin", "secret")
+	if err := os.Chmod(p, 0); err != nil {
+		t.Skipf("cannot make a file unreadable here: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
+	if _, err := os.ReadFile(p); err == nil {
+		t.Skip("running as a user that can read a 0000 file")
+	}
+	if _, err := scanStorePaths(root, "/opt/zpkg"); err == nil {
+		t.Error("an unreadable file passed as a clean scan")
+	}
+}
+
+// TestADirectoryThatCannotBeWalkedIsAnError is the walk's own error path.
+func TestADirectoryThatCannotBeWalkedIsAnError(t *testing.T) {
+	root := stagedTree(t, map[string]string{"bin/sub/x": "x"})
+	d := filepath.Join(root, "bin", "sub")
+	if err := os.Chmod(d, 0); err != nil {
+		t.Skipf("cannot make a directory unwalkable here: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(d, 0o755) })
+	if _, err := os.ReadDir(d); err == nil {
+		t.Skip("running as a user that can read a 0000 directory")
+	}
+	if _, err := scanStorePaths(root, "/opt/zpkg"); err == nil {
+		t.Error("an unwalkable directory passed as a clean scan")
+	}
+}
+
+// TestAFileWhoseReadFailsIsAnError exercises the I/O path through the seam.
+//
+// "The check could not read this" must never be reported as "this is clean",
+// which is the one thing a gate may not get wrong.
+func TestAFileWhoseReadFailsIsAnError(t *testing.T) {
+	root := stagedTree(t, map[string]string{"bin/x": "x"})
+	orig := scanOneFile
+	t.Cleanup(func() { scanOneFile = orig })
+	scanOneFile = func(io.Reader, string, []*regexp.Regexp) ([][]storePathHit, error) {
+		return nil, errors.New("the disk said no")
+	}
+	_, err := scanStorePaths(root, "/opt/zpkg")
+	if err == nil {
+		t.Fatal("a read that failed was reported as a clean scan")
+	}
+	if !strings.Contains(err.Error(), "the disk said no") {
+		t.Errorf("the error loses what went wrong: %v", err)
+	}
+}
+
+// TestAMatchInsideTheOverlapIsCountedOnce is the other half of the straddling
+// property: the overlap re-reads bytes on purpose, so a match that sits wholly
+// inside it is SEEN TWICE and must be REPORTED once.
+//
+// A double count is not cosmetic here — the report's "N reference(s)" is what a
+// reader uses to judge how bad a bottle is.
+func TestAMatchInsideTheOverlapIsCountedOnce(t *testing.T) {
+	path := "/opt/zpkg/gnu.org/coreutils/v9.7.0/bin/sort"
+	// Wholly inside the retained tail of the first window.
+	at := scanChunk - 200
+	body := strings.Repeat("A", at) + path + "\x00" +
+		strings.Repeat("B", scanChunk-(scanChunk-at)-len(path)-1+scanChunk)
+
+	all, err := scanFile(bytes.NewReader([]byte(body)), "bin/x",
+		[]*regexp.Regexp{storePathPattern("/opt/zpkg")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all[0]) != 1 {
+		t.Fatalf("%d hit(s) for one path inside the overlap, want 1: %+v", len(all[0]), all[0])
+	}
+	if all[0][0].Offset != int64(at) {
+		t.Errorf("offset %d, want %d", all[0][0].Offset, at)
+	}
+}
+
+// TestManyReferencesToOneProjectAreCountedAndSampled: the per-project list is
+// truncated at three and must say how many it did not print.
+func TestManyReferencesToOneProjectAreCountedAndSampled(t *testing.T) {
+	files := map[string]string{}
+	for i := 0; i < 5; i++ {
+		files[fmt.Sprintf("lib/f%d.dat", i)] = "/opt/zpkg/gnu.org/coreutils/v9.7.0/bin/sort"
+	}
+	root := stagedTree(t, files)
+	scan, err := scanStorePaths(root, "/opt/zpkg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, ok := reportStorePaths(scan, "gnu.org/findutils", nil, 10)
+	if ok {
+		t.Fatalf("five references to another project passed:\n%s", report)
+	}
+	if !strings.Contains(report, "5 reference(s) (+2 more)") {
+		t.Errorf("the per-project truncation does not say what it hid:\n%s", report)
+	}
+}
+
+// TestTheCensusRanksByCount, so the worst offender is the one a reader sees
+// first — and the one with fewer occurrences is not the one that gets printed.
+func TestTheCensusRanksByCount(t *testing.T) {
+	root := stagedTree(t, map[string]string{
+		"bin/a": "/usr/bin/rare",
+		"bin/b": "/usr/bin/common",
+		"bin/c": "/usr/bin/common",
+	})
+	scan, err := scanStorePaths(root, "/opt/zpkg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, _ := reportStorePaths(scan, "a.org/b", nil, 10)
+	common := strings.Index(report, "/usr/bin/common")
+	rare := strings.Index(report, "/usr/bin/rare")
+	if common < 0 || rare < 0 {
+		t.Fatalf("the census is missing a path:\n%s", report)
+	}
+	if common > rare {
+		t.Errorf("the census put the 1x path above the 2x one:\n%s", report)
+	}
+}
+
+// TestADirectoryEntryIsNotRead covers the one thing a tree holds that has no
+// bytes of its own.
+func TestADirectoryEntryIsNotRead(t *testing.T) {
+	root := stagedTree(t, map[string]string{"share/doc/readme": "x"})
+	scan, err := scanStorePaths(root, "/opt/zpkg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan.Files != 1 {
+		t.Errorf("%d file(s) read, want 1 — directories are not files", scan.Files)
+	}
+}
+
+// TestTheTruncationSaysHowMuchItHid, in both directions.
+func TestTheTruncationSaysHowMuchItHid(t *testing.T) {
+	hits := make([]storePathHit, 5)
+	if got := len(firstFew(hits, 3)); got != 3 {
+		t.Errorf("firstFew kept %d of 5 with n=3", got)
+	}
+	if got := len(firstFew(hits, 9)); got != 5 {
+		t.Errorf("firstFew kept %d of 5 with n=9, want all 5", got)
+	}
+	s := []string{"a", "b", "c"}
+	if got := len(firstFewStrings(s, 2)); got != 2 {
+		t.Errorf("firstFewStrings kept %d of 3 with n=2", got)
+	}
+	if got := len(firstFewStrings(s, 7)); got != 3 {
+		t.Errorf("firstFewStrings kept %d of 3 with n=7, want all 3", got)
+	}
+}
+
+// TestTheCensusTruncationNamesWhatIsLeft is the regression for the bug that
+// hid /usr/bin/pr: a truncated census must say how many it did not print, and
+// how to see them.
+func TestTheCensusTruncationNamesWhatIsLeft(t *testing.T) {
+	files := map[string]string{}
+	for i := 0; i < 12; i++ {
+		files[fmt.Sprintf("bin/p%02d", i)] = fmt.Sprintf("/usr/bin/tool%02d", i)
+	}
+	root := stagedTree(t, files)
+	scan, err := scanStorePaths(root, "/opt/zpkg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, _ := reportStorePaths(scan, "a.org/b", nil, 10)
+	if !strings.Contains(report, "2 more distinct path(s)") ||
+		!strings.Contains(report, "--census-limit 0") {
+		t.Errorf("a truncated census does not say what it hid or how to see it:\n%s", report)
+	}
+	full, _ := reportStorePaths(scan, "a.org/b", nil, 0)
+	if strings.Contains(full, "more distinct path(s)") {
+		t.Errorf("--census-limit 0 still truncated:\n%s", full)
+	}
+}
+
+// TestAnUnknownFlagIsRefused rather than ignored.
+func TestAnUnknownFlagIsRefused(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := runBakedPaths([]string{"--no-such-flag"}, &out, &errb); code != 2 {
+		t.Errorf("exit %d, want 2", code)
+	}
+}
+
+// TestAnUnreadableTreeIsReportedByTheCommand, not just by the scan.
+func TestAnUnreadableTreeIsReportedByTheCommand(t *testing.T) {
+	var out, errb bytes.Buffer
+	code := runBakedPaths([]string{
+		"--dir", filepath.Join(t.TempDir(), "no-such-tree"),
+		"--store", "/opt/zpkg", "--project", "a.org/b",
+	}, &out, &errb)
+	if code != 2 {
+		t.Errorf("exit %d, want 2 (%s)", code, errb.String())
+	}
+	if !strings.Contains(errb.String(), "bakedpaths:") {
+		t.Errorf("the error does not name the command: %s", errb.String())
+	}
+}
+
+// TestTheDispatchReachesIt: `zbk bakedpaths` must actually route here.
+func TestTheDispatchReachesIt(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := run([]string{"bakedpaths"}, &out, &errb); code != 2 {
+		t.Errorf("exit %d, want 2 — the required flags are missing", code)
+	}
+	if !strings.Contains(errb.String(), "bakedpaths:") {
+		t.Errorf("`zbk bakedpaths` did not reach runBakedPaths: %s", errb.String())
 	}
 }
 
