@@ -51,6 +51,80 @@ func TestLintReadsBothFormats(t *testing.T) {
 	}
 }
 
+// ⛔⛔ THE EXACT LINE THREE SHIPPED RECIPES CARRIED, which could not have built.
+// `sha` is "where the expected SHA-256 is published" and the build FETCHES it;
+// a detached signature there fails every build, and nothing but a lint can see
+// it because linting is the only step that does not fetch.
+func TestLintRefusesASignatureInTheShaField(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		// gnu.org/grep's, verbatim, as it was merged.
+		"gnu.org/grep/package.hcl": `distributable {
+  url    = "https://ftp.gnu.org/gnu/grep/grep-{{version.raw}}.tar.xz"
+  sha256 = { "3.12" = "2649b27c0e90e632eadcd757be06c6e9a4f48d941de51e7c0f83ff76408a07b9" }
+  sha    = "https://ftp.gnu.org/gnu/grep/grep-{{version.raw}}.tar.xz.sig"
+}
+`,
+		// Armoured, and kernel.org's spelling, because the defect is the KIND of
+		// file and not one project's habit.
+		"a.org/package.hcl": "distributable {\n  url = \"http://x/y.tgz\"\n  sha = \"http://x/y.tgz.asc\"\n}\n",
+		"b.org/package.hcl": "distributable {\n  url = \"http://x/y.tar\"\n  sha = \"http://x/y.tar.sign\"\n}\n",
+		// A real checksum URL, which must still pass: a refusal wider than the
+		// defect is how a check earns the false positives that get it deleted.
+		"ok.org/package.hcl": "distributable {\n  url = \"http://x/y.tgz\"\n  sha = \"http://x/y.tgz.sha256\"\n}\n",
+	})
+	rc, _, errb := lint(t, "--dir", dir)
+	if rc != 1 {
+		t.Fatalf("rc = %d, want 1; stderr:\n%s", rc, errb)
+	}
+	if !strings.Contains(errb, "3 recipe(s) point `sha` at a detached SIGNATURE") {
+		t.Errorf("stderr does not count them: %q", errb)
+	}
+	for _, want := range []string{"gnu.org/grep", "a.org", "b.org"} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("stderr does not name %s: %q", want, errb)
+		}
+	}
+	if strings.Contains(errb, "ok.org") {
+		t.Errorf("a .sha256 URL was refused, which is the false positive that kills a check: %q", errb)
+	}
+}
+
+// And it is NOT behind a flag: a recipe that states something impossible is
+// refused by the plain run, because a flag is what somebody forgets at exactly
+// the wrong moment.
+func TestTheSignatureCheckNeedsNoFlag(t *testing.T) {
+	dir := lintTree(t, map[string]string{
+		"a.org/package.hcl": "distributable {\n  url = \"http://x/y.tgz\"\n  sha = \"http://x/y.tgz.sig\"\n}\n",
+	})
+	if rc, _, _ := lint(t, "--dir", dir); rc != 1 {
+		t.Errorf("rc = %d with no flags, want 1", rc)
+	}
+}
+
+func TestShaNamesASignature(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   any
+		want string
+	}{
+		{"binary signature", map[string]any{"sha": "http://x/y.tgz.sig"}, "http://x/y.tgz.sig"},
+		{"armoured", map[string]any{"sha": "http://x/y.tgz.asc"}, "http://x/y.tgz.asc"},
+		{"kernel.org's spelling", map[string]any{"sha": "http://x/y.tar.sign"}, "http://x/y.tar.sign"},
+		{"upper case", map[string]any{"sha": "http://x/y.tgz.SIG"}, "http://x/y.tgz.SIG"},
+		{"a real checksum", map[string]any{"sha": "http://x/y.tgz.sha256"}, ""},
+		{"no sha at all", map[string]any{"url": "http://x/y.tgz"}, ""},
+		{"sha is not a string", map[string]any{"sha": 7}, ""},
+		{"not a distributable", "nonsense", ""},
+		{"nil", nil, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shaNamesASignature(tc.in); got != tc.want {
+				t.Errorf("shaNamesASignature(%v) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 // A recipe that does not parse is named, and the run fails.
 func TestLintNamesWhatItCannotRead(t *testing.T) {
 	dir := lintTree(t, map[string]string{
