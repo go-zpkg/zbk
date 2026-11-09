@@ -58,7 +58,7 @@ func tempEnv(t *testing.T) {
 	t.Setenv("ZPKG_DIR", filepath.Join(t.TempDir(), "pkgx"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(t.TempDir(), "data"))
 	t.Setenv("ZPKG_PANTRY_DIR", "")
-	t.Setenv("BREWKIT_TARGET", "")
+	t.Setenv("ZBK_TARGET", "")
 }
 
 func TestBuildCommand(t *testing.T) {
@@ -128,14 +128,14 @@ func TestBuildCommandErrors(t *testing.T) {
 	if c, _, _ := run2(t, "build", "--recipe", bad, "p"); c != 1 {
 		t.Errorf("bad-recipe code=%d", c)
 	}
-	// invalid target (BREWKIT_TARGET) → Resolve error. Call runBuild directly:
-	// run2 unsets BREWKIT_TARGET for isolation, which would hide this path.
-	t.Setenv("BREWKIT_TARGET", "plan9/x86-64")
+	// invalid target (ZBK_TARGET) → Resolve error. Call runBuild directly:
+	// run2 unsets ZBK_TARGET for isolation, which would hide this path.
+	t.Setenv("ZBK_TARGET", "plan9/x86-64")
 	var o, e bytes.Buffer
 	if c := runBuild([]string{"--recipe", rec, "p"}, &o, &e); c != 1 {
 		t.Errorf("bad-target code=%d", c)
 	}
-	t.Setenv("BREWKIT_TARGET", "")
+	t.Setenv("ZBK_TARGET", "")
 	// Build error (factory whose PickVersion fails)
 	buildFactory = func(string) *build.Runner {
 		return &build.Runner{ResolveVersion: func(any, string) (string, string, error) { return "", "", os.ErrInvalid }}

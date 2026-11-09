@@ -11,9 +11,9 @@ import (
 
 func run2(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
-	// run() mutates BREWKIT_TARGET from --platform; clear it first so each
+	// run() mutates ZBK_TARGET from --platform; clear it first so each
 	// invocation is isolated from a previous call's override.
-	os.Unsetenv("BREWKIT_TARGET")
+	os.Unsetenv("ZBK_TARGET")
 	var out, errb bytes.Buffer
 	code := run(args, &out, &errb)
 	return code, out.String(), errb.String()
@@ -69,7 +69,7 @@ func TestUsageAndErrors(t *testing.T) {
 	if code, _, _ := run2(t, "-badflag"); code != 2 {
 		t.Errorf("bad-flag code=%d", code)
 	}
-	// invalid BREWKIT_TARGET → target.Resolve errors → exit 1
+	// invalid ZBK_TARGET → target.Resolve errors → exit 1
 	if code, _, _ := run2(t, "--platform", "plan9/x86-64", "target"); code != 1 {
 		t.Errorf("bad platform code=%d", code)
 	}

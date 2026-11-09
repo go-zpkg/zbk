@@ -228,7 +228,7 @@ func TestRunSourceReportsAnUnwritableTarget(t *testing.T) {
 // TestRunSourceReportsABadPlatform: target.Resolve is the first thing that can
 // fail, and its message is the only thing a user sees of it.
 func TestRunSourceReportsABadPlatform(t *testing.T) {
-	t.Setenv("BREWKIT_TARGET", "nonsense")
+	t.Setenv("ZBK_TARGET", "nonsense")
 	code, _, errs := runSourceIn(t, t.TempDir(), "p", "1")
 	if code != 1 || errs == "" {
 		t.Fatalf("code = %d, stderr = %q", code, errs)

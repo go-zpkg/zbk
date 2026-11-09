@@ -143,7 +143,7 @@ func TestRunTestSaysWhenThereIsNoTestBlock(t *testing.T) {
 
 func TestRunTestUnresolvableTarget(t *testing.T) {
 	testTestbed(t)
-	t.Setenv("BREWKIT_TARGET", "not-a-target")
+	t.Setenv("ZBK_TARGET", "not-a-target")
 	p := writeTestRecipe(t, okRecipe)
 	var out, errOut bytes.Buffer
 	if code := runTest([]string{"--recipe", p, "proj.org"}, &out, &errOut); code != exitCannotRun {
@@ -616,7 +616,7 @@ func TestNeedsCompilerAsksTheParserNotTheText(t *testing.T) {
 func TestRunTestGivesACompilingTestACompiler(t *testing.T) {
 	testTestbed(t)
 	got := stubRun(t, nil)
-	t.Setenv("BREWKIT_TARGET", "linux/x86-64")
+	t.Setenv("ZBK_TARGET", "linux/x86-64")
 	p := writeTestRecipe(t, "versions:\n  - 1.2.3\nbuild: make\ntest: cc test.c\n")
 	var out, errOut bytes.Buffer
 	if code := runTest([]string{"--recipe", p, "proj.org"}, &out, &errOut); code != 0 {

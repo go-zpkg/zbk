@@ -251,9 +251,9 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "factory: bad --platform %q (want os/arch)\n", *platform)
 		return 2
 	}
-	// target.Resolve reads BREWKIT_TARGET, and needs it set to get the full
+	// target.Resolve reads ZBK_TARGET, and needs it set to get the full
 	// target (triple included) for the requested platform.
-	os.Setenv("BREWKIT_TARGET", *platform)
+	os.Setenv("ZBK_TARGET", *platform)
 	tgt, err := target.Resolve()
 	if err != nil {
 		fmt.Fprintln(stderr, "factory:", err)
