@@ -13,14 +13,30 @@ import (
 // runCopy implements `zbk copy`: move published bottles from one OCI namespace
 // to another, with their signatures and attestations.
 //
-// ⛔⛔ A REGISTRY NAMESPACE CANNOT BE RENAMED, AND THAT IS WHY THIS EXISTS.
-// GitHub's container packages are org-scoped and did not follow the repository
-// transfer: when every repository moved from go-pkgx to go-zpkg, every bottle
-// stayed. `DistBase` was rewritten to match and v0.64.0 through v0.68.0 shipped
-// a fleet pointing at an EMPTY registry — bottle's
-// TestTheDefaultRegistryHoldsBottles is the gate that came out of it. So the
-// bottles must BE in the new namespace before anything may name it, and this is
-// the command that puts them there (go-zpkg/packages#440).
+// ⛔⛔ IT IS NOT HOW A REGISTRY NAMESPACE IS MOVED, AND IT WAS WRITTEN
+// BELIEVING IT WAS.
+//
+// The premise was sound as far as it went: GitHub's container packages are
+// org-scoped and did not follow the repository transfer — every repository went
+// from go-pkgx to go-zpkg and every bottle stayed, `DistBase` was rewritten to
+// match, and v0.64.0 through v0.68.0 shipped a fleet pointing at an EMPTY
+// registry (bottle's TestTheDefaultRegistryHoldsBottles is the gate that came
+// out of it). So the new namespace has to be POPULATED.
+//
+// It is populated by BUILDING CORRECT RECIPES INTO IT. Every bottle in the old
+// namespace was built from `pkgxdev/pantry`'s recipes, which go-zpkg/packages
+// #431 established can be neither read nor copied — its `git ls-files` over
+// 2453 upstream files finds no LICENSE and no COPYING — and that issue's own
+// item 1 drew the consequence: "the sovereign pantry is WRITTEN, not converted,
+// and the order of work changes completely". Transplanting those bottles would
+// carry their measured defects forward by digest, and
+// go-zpkg/packages/.github/workflows/wasip1.yml:201 states the rest: "Nothing
+// in go-pkgx carries a build identity — it predates them."
+//
+// go-zpkg/packages#440 carries the corrected order. What is left for this verb
+// is the case where republishing verbatim is the POINT rather than a shortcut:
+// a mirror (go-zpkg/mirror; `zbk mirroraudit` opens with "A mirrored bottle is
+// republished verbatim"). It has no caller in the migration.
 //
 // ⛔ IT VERIFIES AT THE DESTINATION BY DEFAULT, because "the bytes arrived" is
 // not the question. A cosign signature is a REFERRER of a platform manifest,
