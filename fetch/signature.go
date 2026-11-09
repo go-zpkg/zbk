@@ -138,6 +138,16 @@ func DigestVerified(url string, sigURLs []string, keyring []byte, wantFPR string
 		return SourcePin{}, fmt.Errorf("fetch: %s: an empty keyring verifies nothing — "+
 			"pass the author's public key, and never let a keyserver choose it", url)
 	}
+	// ⛔ THE SELECTOR IS JUDGED BEFORE THE FILE IS READ. A malformed one that
+	// simply fails to match looks exactly like "the key is not in this keyring",
+	// and against the GNU keyring it looks like "the keyring is broken" — which
+	// is what a 16-digit long id did on 2026-11-09, twice, before this check
+	// existed.
+	if wantFPR != "" {
+		if _, err := NormaliseKeySelector(wantFPR); err != nil {
+			return SourcePin{}, err
+		}
+	}
 	keys, scanned, err := readKeyring(keyring, wantFPR)
 	if err != nil {
 		return SourcePin{}, err
@@ -182,7 +192,7 @@ func DigestVerified(url string, sigURLs []string, keyring []byte, wantFPR string
 	// fingerprint mismatch is not a lesser failure than a bad signature: the
 	// bytes are correctly signed, by somebody the author did not name, which is
 	// precisely the case a keyring of many keys creates.
-	if wantFPR != "" && !sameFingerprint(got, wantFPR) {
+	if wantFPR != "" && !keyMatches(got, wantFPR) {
 		return SourcePin{}, fmt.Errorf("fetch: %s is signed by %s (%s), not by the %s you "+
 			"named — the signature is VALID and made by a key in your keyring, which is why "+
 			"this is checked separately; a keyring holding many keys answers \"somebody in "+
@@ -205,6 +215,97 @@ func DigestVerified(url string, sigURLs []string, keyring []byte, wantFPR string
 // case varies. Only the hex digits are compared.
 func sameFingerprint(a, b string) bool {
 	return strings.EqualFold(hexOnly(a), hexOnly(b))
+}
+
+// KeySelectorError says why a --fingerprint value cannot be used.
+type KeySelectorError struct{ Why string }
+
+func (e *KeySelectorError) Error() string { return e.Why }
+
+// NormaliseKeySelector turns what an author pasted into the hex digits to
+// compare, and refuses what must not be trusted.
+//
+// ⛔⛔ A FULL FINGERPRINT IS NOT ALWAYS PUBLISHED, AND THAT BLOCKED REAL WORK.
+// gnu.org/m4's release announcement prints a `pub` block with
+// `Key fingerprint = 71C2 CC22 …`, so it can be named. GNU tar's does not: it
+// says only "Here are the GPG detached signatures:". Its maintainer publishes
+// the key as a LONG KEY ID instead, verbatim in the mailutils-3.17 and
+// cpio-2.15 announcements:
+//
+//	gpg --recv-keys 3602B07F55D0C732
+//
+// Sixteen hex digits, which are the last sixteen of the fingerprint — that is
+// how GnuPG resolves it. Refusing that form does not make anything safer; it
+// makes gnu.org/tar, gnu.org/cpio and every project whose maintainer documents
+// a key ID unpinnable, which is strictly worse than pinning them by the
+// strongest identifier their author actually published.
+//
+// ⛔ EIGHT DIGITS ARE REFUSED, and that refusal is the security content here. A
+// 32-bit key ID is trivially collided — the demonstration is public and the
+// colliding keys were uploaded to the keyservers — so a short ID identifies a
+// key only until somebody wants it not to. Sixty-four bits is weaker than a
+// fingerprint and is what the author published; thirty-two is not an
+// identifier.
+//
+// ⭐ And whichever form went in, the caller reports the FULL fingerprint of the
+// key it found, so a recipe records the strong form even when the source
+// published the weak one. The weakness belongs in `--key-source`, which says
+// where the value came from, not in the pin.
+// ⛔⛔ VALIDATION NORMALISES AND THEN REQUIRES; IT DOES NOT EXTRACT. hexOnly is
+// right for COMPARING a fingerprint `gpg --fingerprint` printed, where the
+// groups and separators are noise. It is wrong for judging what an author
+// pasted, and its own tests said so:
+//
+//	"0x55D0C732"             → kept the 0 and dropped the x, so nine digits,
+//	                           reported as "has 9 hex digits" rather than as
+//	                           the short id it plainly is
+//	"the key on his website" → the e's, a's and b's of ordinary English are
+//	                           hex digits, so prose became a selector
+//
+// So: strip the separators a person types — spaces, colons, a leading 0x — and
+// then every remaining character must BE a hex digit.
+func NormaliseKeySelector(s string) (string, error) {
+	t := strings.TrimSpace(s)
+	t = strings.TrimPrefix(strings.TrimPrefix(t, "0x"), "0X")
+	t = strings.NewReplacer(" ", "", ":", "", "\t", "").Replace(t)
+	for _, r := range t {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+		default:
+			return "", &KeySelectorError{Why: "fetch: " + s + " is not a key fingerprint or key " +
+				"id: " + string(r) + " is not a hex digit. Spaces, colons and a leading 0x are " +
+				"allowed; nothing else is"}
+		}
+	}
+	h := t
+	switch len(h) {
+	case 40:
+		return h, nil
+	case 16:
+		return h, nil
+	case 8:
+		return "", &KeySelectorError{Why: "fetch: " + s + " is a SHORT (32-bit) key id, and a " +
+			"short id is not an identifier: colliding keys for a chosen short id have been " +
+			"made and uploaded to the keyservers. Give the full fingerprint, or the 16-digit " +
+			"long id the author published (`gpg --recv-keys <16 hex>`)"}
+	case 0:
+		return "", &KeySelectorError{Why: "fetch: " + s + " holds no hex digits — a fingerprint " +
+			"or a 16-digit long key id was expected"}
+	default:
+		return "", &KeySelectorError{Why: fmt.Sprintf("fetch: %s has %d hex digits; a fingerprint "+
+			"has 40 and a long key id has 16", s, len(h))}
+	}
+}
+
+// keyMatches reports whether a key's fingerprint answers to the selector: the
+// whole fingerprint, or its last sixteen digits for a long key id — which is
+// what the final 64 bits of a fingerprint ARE.
+func keyMatches(fingerprint, selector string) bool {
+	f, s := hexOnly(fingerprint), hexOnly(selector)
+	if len(s) == 16 {
+		return len(f) >= 16 && strings.EqualFold(f[len(f)-16:], s)
+	}
+	return strings.EqualFold(f, s)
 }
 
 func hexOnly(s string) string {
@@ -323,15 +424,24 @@ func keyByFingerprint(body []byte, wantFPR string) (*openpgp.Entity, int, error)
 			// there the PACKETS all read and one ENTITY would not assemble, and
 			// entities are assembled here only for the key that matched.
 			// Measured 2026-11-08: 326 primary keys walked, none refused.
-			return nil, scanned, fmt.Errorf("fetch: the key file's packet stream stops "+
-				"being readable after %d primary key(s): %w", scanned, err)
+			// ⛔⛔ AND IT MUST SAY BOTH THINGS. This used to report only the
+			// stream break, which reads as "your keyring is broken" — and on
+			// 2026-11-09 that is exactly what I concluded, twice, when the real
+			// answer was "the selector you gave matched none of the keys I could
+			// read". The GNU keyring breaks at its 402nd primary key, so EVERY
+			// unmatched search against it ends here rather than at EOF, and the
+			// message that blames the file is the one a reader always gets.
+			return nil, scanned, fmt.Errorf("fetch: no key matching %s among the %d primary "+
+				"key(s) that could be read, and the packet stream stops being readable after "+
+				"them: %w — so either the key is beyond that point in this file, or the "+
+				"selector is wrong", wantFPR, scanned, err)
 		}
 		pk, isKey := p.(*packet.PublicKey)
 		if !isKey || pk.IsSubkey {
 			continue
 		}
 		scanned++
-		if !sameFingerprint(fmt.Sprintf("%X", pk.Fingerprint), wantFPR) {
+		if !keyMatches(fmt.Sprintf("%X", pk.Fingerprint), wantFPR) {
 			continue
 		}
 		// Found it. Hand the key packet back so ReadEntity sees the entity from
