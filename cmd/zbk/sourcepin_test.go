@@ -165,7 +165,10 @@ func TestSourcePinSignedPrintsTheProvenanceToPaste(t *testing.T) {
 	for _, want := range []string{
 		aPin.Fingerprint,
 		aPin.Identity,
-		`sig    = "https://x/y.tar.gz.asc"`,
+		// The signature URL is still printed — it is the thing being reported —
+		// but as a COMMENT, and the comment says where it belongs.
+		`  #   https://x/y.tar.gz.asc`,
+		"is NOT a recipe field",
 		`"5.8.4" = "` + aDigest + `"`,
 		"provenance {",
 		"fingerprint came from: https://upstream.example/keys",
@@ -173,6 +176,21 @@ func TestSourcePinSignedPrintsTheProvenanceToPaste(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the output does not carry %q:\n%s", want, out)
+		}
+	}
+
+	// ⛔⛔ AND NOT AS A FIELD. This printed `sig    = "…"` directly under the
+	// `sha256 = {…}` block, in output that reads as HCL to paste, and `sig` is
+	// read by nothing (#282). Three signed recipes moved it to the nearest key
+	// that did exist — `sha`, which means "where the expected SHA-256 is
+	// published" and which the build FETCHES — and would have failed at the
+	// fetch on every build (go-zpkg/pantry-overlay#89).
+	//
+	// A comment cannot be pasted as a field, which is the whole repair.
+	for _, forbidden := range []string{"sig    =", "sig =", "sig  ="} {
+		if strings.Contains(out, forbidden) {
+			t.Errorf("the output still offers %q as a field, which no reader honours:\n%s",
+				forbidden, out)
 		}
 	}
 }
