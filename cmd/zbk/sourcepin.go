@@ -182,7 +182,31 @@ func pinSigned(url, sig, keyFile, keySource, fingerprint, version string, stdout
 	} else {
 		fmt.Fprintf(stdout, "\n  sha256 = { \"<version>\" = %q }\n", pin.SHA256)
 	}
-	fmt.Fprintf(stdout, "  sig    = %q\n", pin.SigURL)
+	// ⛔⛔ NOT `sig = …`, WHICH IS WHAT THIS PRINTED AND WHAT IT COST.
+	//
+	// It sat directly under the `sha256 = {…}` block above, in output that reads
+	// as HCL to paste — and `sig` is read by NOTHING (go-zpkg/zbk#282). So the
+	// three signed recipes written against this output moved it to the nearest
+	// key that did exist, `sha`, which means "where the expected SHA-256 of the
+	// archive is published" (schema/package.schema.json:141) and which the build
+	// FETCHES and compares. Measured with this repository's own reader:
+	//
+	//	fetch.DeclaredSHA256(".../grep-3.12.tar.xz.sig", "grep-3.12.tar.xz")
+	//	→ no line names grep-3.12.tar.xz — the server returned text, not an
+	//	  archive: "-----BEGIN PGP SIGNATURE----- …"
+	//
+	// and an unreadable checksum file is a build failure by design
+	// (build/runner.go:746-749). All three would have failed at the fetch, and
+	// `zbk lint` cannot see it because linting does not fetch
+	// (go-zpkg/pantry-overlay#89 removed them).
+	//
+	// So it is printed as a COMMENT, which cannot be pasted as a field, and it
+	// says where the URL does belong. When #282 gives the signature a field this
+	// becomes that field's name — and not before.
+	fmt.Fprintf(stdout, "  # the signature URL is NOT a recipe field: `sig` is read by nothing\n"+
+		"  # (go-zpkg/zbk#282), and `sha` means \"where the expected SHA-256 is\n"+
+		"  # published\" — a .sig there FAILS the build. It belongs in provenance:\n"+
+		"  #   %s\n", pin.SigURL)
 
 	// The block to paste. The fingerprint is uppercase hex with no separators,
 	// which is Arch's documented rule and the strictest of the three read.

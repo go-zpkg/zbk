@@ -118,7 +118,7 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	var bad, unrecorded, fragments []string
+	var bad, unrecorded, fragments, signedSha []string
 	for _, proj := range projects {
 		// The project's DIRECTORY rather than (dir, project): the loader that
 		// takes a pantry and a project joins `projects/` in, which is right for
@@ -142,8 +142,25 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 			fragments = append(fragments, fmt.Sprintf("  %s: states no %s",
 				proj, strings.Join(miss, ", no ")))
 		}
+		if u := shaNamesASignature(r.Distributable); u != "" {
+			signedSha = append(signedSha, fmt.Sprintf("  %s: sha = %q", proj, u))
+		}
 	}
 	fmt.Fprintf(stdout, "%d recipe(s) read from %s\n", len(projects), root)
+	// ⛔⛔ UNCONDITIONAL, AND THE ONLY CHECK HERE THAT IS. The others ask about
+	// a tree's completeness, which is a campaign; this one asks whether a
+	// recipe states something that CANNOT be true, and a flag for it would be
+	// a flag somebody forgets at exactly the wrong moment.
+	if len(signedSha) > 0 {
+		sort.Strings(signedSha)
+		fmt.Fprintf(stderr, "%d recipe(s) point `sha` at a detached SIGNATURE, and `sha` is "+
+			"where the expected SHA-256 is PUBLISHED — the build fetches it and compares "+
+			"(build/runner.go), so a .sig there fails every build and `zbk lint` is the only "+
+			"thing that can see it, because linting does not fetch. The signature belongs in "+
+			"`provenance` until go-zpkg/zbk#282 gives it a field:\n", len(signedSha))
+		fmt.Fprintln(stderr, strings.Join(signedSha, "\n"))
+		return 1
+	}
 	if len(unrecorded) > 0 {
 		sort.Strings(unrecorded)
 		fmt.Fprintf(stderr, "%d of %d recipe(s) record no provenance — each must say which of "+
@@ -202,6 +219,51 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 // would be unusual: these are the three keys the factory reads to produce a
 // bottle, and a list that held two of them would answer a narrower question
 // than the one asked.
+// signatureExts are the names a DETACHED SIGNATURE goes by. `.sig` and `.asc`
+// are OpenPGP's two spellings (binary and armoured) and `.sign` is kernel.org's.
+var signatureExts = []string{".sig", ".asc", ".sign"}
+
+// shaNamesASignature returns a recipe's `distributable.sha` when it points at a
+// detached signature instead of a published checksum.
+//
+// ⛔⛔ THREE RECIPES SHIPPED THIS AND NONE OF THEM COULD HAVE BUILT.
+// `schema/package.schema.json:141` defines `sha` as "where the expected SHA-256
+// of the archive is published, usually ${{url}}.sha256 — the build fetches it
+// and refuses a mismatch", and `build/runner.go:769-781` does exactly that.
+// Measured with this repository's own reader on gnu.org/grep's:
+//
+//	fetch.DeclaredSHA256(".../grep-3.12.tar.xz.sig", "grep-3.12.tar.xz")
+//	→ no line names grep-3.12.tar.xz — the server returned text, not an
+//	  archive: "-----BEGIN PGP SIGNATURE----- …"
+//
+// and a checksum file that cannot be READ is a build failure on purpose
+// (runner.go:746-749). gnu.org/gzip, gnu.org/grep and gnu.org/bash each carried
+// one, bash being a base-toolchain member, and the lane stayed green because
+// linting does not fetch (go-zpkg/pantry-overlay#89).
+//
+// The author's error was not careless: `zbk sourcepin` PRINTED a `sig = …` line
+// under the `sha256` block it offers for pasting, and `sig` is read by nothing
+// (#282), so the nearest key that existed was `sha`. That output is now a
+// comment; this is the half that catches a recipe whatever suggested it.
+//
+// It matches on the extension and not on fetching anything: a URL ending `.sig`
+// is never a checksum file, whatever it contains, and a check that had to
+// download would be a check the lane cannot run offline.
+func shaNamesASignature(distributable any) string {
+	m, ok := distributable.(map[string]any)
+	if !ok {
+		return ""
+	}
+	s, _ := m["sha"].(string)
+	lower := strings.ToLower(s)
+	for _, ext := range signatureExts {
+		if strings.HasSuffix(lower, ext) {
+			return s
+		}
+	}
+	return ""
+}
+
 var essentials = []string{"versions", "distributable", "build"}
 
 // missingEssentials names the essential keys a recipe document does not state,
