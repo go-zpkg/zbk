@@ -280,6 +280,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runReproduce(rest[1:], stdout, stderr)
 	case "sign":
 		return runSign(rest[1:], stdout, stderr)
+	case "copy":
+		return runCopy(rest[1:], stdout, stderr)
 	default:
 		fmt.Fprintln(stderr, "unknown command:", rest[0])
 		return 2

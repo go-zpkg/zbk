@@ -62,6 +62,8 @@ github.com/go-versions/semver v0.3.0 h1:pAMC8MYt3qGYZVkqUrC7ab3gWONUY3YCNB+KDbwF
 github.com/go-versions/semver v0.3.0/go.mod h1:DQNmFQUtUvQuALNKXYIlHQgYJQOzqeE5ncVdKTzBX8c=
 github.com/go-zpkg/bottle v0.85.0 h1:ViZwf6ZeNbCYNq4PL3mzqSaMQf1/Reg8wqXn/+kwLyo=
 github.com/go-zpkg/bottle v0.85.0/go.mod h1:V+Yz90wZO//k+jIygs/srDHr5pyBLFfD5Xnl6ShtPbg=
+github.com/go-zpkg/bottle v0.86.0 h1:6+LszVo8S1p96EZSYGJW4YLLhMcwtyCDT8O8jBfxgy4=
+github.com/go-zpkg/bottle v0.86.0/go.mod h1:V+Yz90wZO//k+jIygs/srDHr5pyBLFfD5Xnl6ShtPbg=
 github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 h1:f+oWsMOmNPc8JmEHVZIycC7hBoQxHH9pNKQORJNozsQ=
 github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8/go.mod h1:wcDNUvekVysuuOpQKo3191zZyTpiI6se1N1ULghS0sw=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
