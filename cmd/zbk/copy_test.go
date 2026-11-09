@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-zpkg/bottle"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // tagsRegistry answers the two requests `zbk copy --dry-run` makes: the /v2/
@@ -122,6 +126,203 @@ func TestCopyRefusesTheSameNamespace(t *testing.T) {
 	}
 }
 
+// stubVerifier answers the destination's verification surface.
+type stubVerifier struct {
+	platforms []string
+	platErr   error
+	digest    string
+	digestErr error
+	verifyErr error
+}
+
+func (s stubVerifier) Platforms(string, string) ([]string, error) {
+	return s.platforms, s.platErr
+}
+func (s stubVerifier) BottleDigest(string, string, string, string) (string, error) {
+	return s.digest, s.digestErr
+}
+func (s stubVerifier) VerifyBottleDigest(string, string, string, string, string) error {
+	return s.verifyErr
+}
+
+// ⛔ ZERO PLATFORMS IS THE ONE THAT MATTERS. A version whose index arrived
+// without the manifests it names would otherwise report "0 platform(s)
+// verified" and exit 0 — the shape of a copy that moved an index and left the
+// bottles behind, reported as a success.
+func TestVerifyCopied(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		v    stubVerifier
+		want string // "" means it must succeed
+		n    int
+	}{
+		{"two platforms", stubVerifier{platforms: []string{"linux/x86-64", "darwin/aarch64"}, digest: "sha256:ab"}, "", 2},
+		{"the index cannot be read", stubVerifier{platErr: errBoom}, "boom", 0},
+		{"the index names no platform", stubVerifier{}, "names no platform", 0},
+		{"a platform with no slash", stubVerifier{platforms: []string{"nonsense"}}, "unreadable platform", 0},
+		{"the digest cannot be read", stubVerifier{platforms: []string{"linux/x86-64"}, digestErr: errBoom}, "linux/x86-64", 0},
+		{"the signature does not verify", stubVerifier{platforms: []string{"linux/x86-64"}, verifyErr: errBoom}, "linux/x86-64", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			n, err := verifyCopied(tc.v, "gnu.org/bash", "5.3")
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if n != tc.n {
+					t.Errorf("verified %d platform(s), want %d", n, tc.n)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("accepted")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not mention %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// stubCopy replaces the two seams for one test and restores them after.
+func stubCopy(t *testing.T, copyErr error, n int, verifyErr error) *int {
+	t.Helper()
+	oldCopy, oldVerify := copyPublished, verifyAtDestination
+	t.Cleanup(func() { copyPublished, verifyAtDestination = oldCopy, oldVerify })
+	verified := 0
+	copyPublished = func(context.Context, *bottle.OCIClient, *bottle.OCIClient, string, string) (ocispec.Descriptor, error) {
+		return ocispec.Descriptor{}, copyErr
+	}
+	verifyAtDestination = func(copyVerifier, string, string) (int, error) {
+		verified++
+		return n, verifyErr
+	}
+	return &verified
+}
+
+func TestCopyRunsAndVerifies(t *testing.T) {
+	reg := newTagsRegistry(t, []string{"5.3"})
+	verified := stubCopy(t, nil, 3, nil)
+
+	var out, errb bytes.Buffer
+	code := runCopy([]string{
+		"--from", reg.base("go-pkgx/packages"),
+		"--to", reg.base("go-zpkg/packages"),
+		"--project", "gnu.org/bash",
+	}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errb.String())
+	}
+	if want := "copied gnu.org/bash 5.3, 3 platform(s) verified"; !strings.Contains(out.String(), want) {
+		t.Errorf("output does not say %q:\n%s", want, out.String())
+	}
+	if *verified != 1 {
+		t.Errorf("verified %d time(s), want 1", *verified)
+	}
+}
+
+// --no-verify says what it gives up, and must actually skip the check rather
+// than run it quietly: a flag that does nothing is worse than no flag.
+func TestCopyNoVerifySkipsTheCheck(t *testing.T) {
+	reg := newTagsRegistry(t, []string{"5.3"})
+	verified := stubCopy(t, nil, 1, nil)
+
+	var out, errb bytes.Buffer
+	code := runCopy([]string{
+		"--from", reg.base("go-pkgx/packages"),
+		"--to", reg.base("go-zpkg/packages"),
+		"--project", "gnu.org/bash",
+		"--no-verify",
+	}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "(not verified)") {
+		t.Errorf("output does not say the bottle was not verified:\n%s", out.String())
+	}
+	if *verified != 0 {
+		t.Errorf("--no-verify still verified %d time(s)", *verified)
+	}
+}
+
+func TestCopyReportsAFailedCopy(t *testing.T) {
+	reg := newTagsRegistry(t, []string{"5.3"})
+	stubCopy(t, errBoom, 0, nil)
+
+	var out, errb bytes.Buffer
+	if code := runCopy([]string{
+		"--from", reg.base("go-pkgx/packages"),
+		"--to", reg.base("go-zpkg/packages"),
+		"--project", "gnu.org/bash",
+	}, &out, &errb); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(errb.String(), "boom") {
+		t.Errorf("stderr does not carry the cause: %q", errb.String())
+	}
+}
+
+// ⛔ A COPY THAT ARRIVED AND DOES NOT VERIFY IS A FAILURE, and the message has
+// to say both things: it was copied, and it cannot be trusted there. Reporting
+// only "verification failed" would read as "nothing happened", and something
+// did.
+func TestCopyReportsAnUnverifiableCopy(t *testing.T) {
+	reg := newTagsRegistry(t, []string{"5.3"})
+	stubCopy(t, nil, 0, errBoom)
+
+	var out, errb bytes.Buffer
+	if code := runCopy([]string{
+		"--from", reg.base("go-pkgx/packages"),
+		"--to", reg.base("go-zpkg/packages"),
+		"--project", "gnu.org/bash",
+	}, &out, &errb); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	for _, want := range []string{"copied but does not verify", "gnu.org/bash", "boom"} {
+		if !strings.Contains(errb.String(), want) {
+			t.Errorf("stderr does not mention %q: %q", want, errb.String())
+		}
+	}
+}
+
+// A registry that will not list tags is not an empty registry, and the two must
+// not print the same thing.
+func TestCopyReportsATagListingFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v2/" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+	base := "oci://" + strings.TrimPrefix(srv.URL, "http://") + "/"
+
+	var out, errb bytes.Buffer
+	if code := runCopy([]string{
+		"--from", base + "go-pkgx/packages",
+		"--to", base + "go-zpkg/packages",
+		"--project", "gnu.org/bash",
+		"--dry-run",
+	}, &out, &errb); code != 1 {
+		t.Fatalf("exit %d, want 1", code)
+	}
+	if !strings.Contains(errb.String(), "list the tags") {
+		t.Errorf("stderr does not say the listing failed: %q", errb.String())
+	}
+}
+
+// The dispatch line itself: `zbk copy` reaches runCopy.
+func TestCopyThroughTheDispatcher(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := run([]string{"copy"}, &out, &errb); code != 2 {
+		t.Fatalf("exit %d, want 2 (usage)", code)
+	}
+	if !strings.Contains(errb.String(), "are all required") {
+		t.Errorf("stderr is not runCopy's usage: %q", errb.String())
+	}
+}
+
 // The arguments that cannot produce a copy are refused with a usage status,
 // before a client is built, so a mistyped invocation costs no request.
 func TestCopyArgumentRefusals(t *testing.T) {
@@ -130,6 +331,9 @@ func TestCopyArgumentRefusals(t *testing.T) {
 		args []string
 		want string
 	}{
+		// flag.ContinueOnError prints to the flagset's output, which is stderr
+		// here, so an unknown flag names itself rather than ending the process.
+		{"a flag that does not exist", []string{"--nope"}, "not defined"},
 		{"nothing at all", nil, "are all required"},
 		{"no project", []string{"--from", "oci://a/b", "--to", "oci://c/d"}, "are all required"},
 		{"no destination", []string{"--from", "oci://a/b", "--project", "p"}, "are all required"},

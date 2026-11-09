@@ -84,7 +84,7 @@ func runCopy(args []string, stdout, stderr io.Writer) int {
 
 	ctx := context.Background()
 	for _, v := range versions {
-		if _, err := bottle.CopyPublished(ctx, src, dst, *project, v); err != nil {
+		if _, err := copyPublished(ctx, src, dst, *project, v); err != nil {
 			fmt.Fprintln(stderr, "zbk copy:", err)
 			return 1
 		}
@@ -92,7 +92,7 @@ func runCopy(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "copied %s %s (not verified)\n", *project, v)
 			continue
 		}
-		n, err := verifyCopied(dst, *project, v)
+		n, err := verifyAtDestination(dst, *project, v)
 		if err != nil {
 			fmt.Fprintf(stderr, "zbk copy: %s %s copied but does not verify at %s: %v\n", *project, v, *to, err)
 			return 1
@@ -127,6 +127,24 @@ func copyVersions(src *bottle.OCIClient, project, one string) ([]string, error) 
 	return out, nil
 }
 
+// The two seams. Both halves of this command talk to a registry, so without
+// them every branch below would need a registry to reach — and bottle already
+// owns the fixture that proves the COPY works. These let the verb's own
+// decisions (which versions, what to print, what to exit with) be driven
+// without one, which is the only part that lives here.
+var (
+	copyPublished       = bottle.CopyPublished
+	verifyAtDestination = verifyCopied
+)
+
+// copyVerifier is the destination's verification surface, as an interface so a
+// test can answer it. *bottle.OCIClient satisfies it.
+type copyVerifier interface {
+	Platforms(project, ver string) ([]string, error)
+	BottleDigest(project, ver, osn, arch string) (string, error)
+	VerifyBottleDigest(project, ver, osn, arch, digest string) error
+}
+
 // verifyCopied checks every platform of a version AT THE DESTINATION with the
 // install path's own signature check, and returns how many it checked.
 //
@@ -137,7 +155,7 @@ func copyVersions(src *bottle.OCIClient, project, one string) ([]string, error) 
 // manifests it names would otherwise report "0 platform(s) verified" and a
 // zero exit, which is the shape of a copy that moved an index and left the
 // bottles behind.
-func verifyCopied(dst *bottle.OCIClient, project, ver string) (int, error) {
+func verifyCopied(dst copyVerifier, project, ver string) (int, error) {
 	platforms, err := dst.Platforms(project, ver)
 	if err != nil {
 		return 0, err
