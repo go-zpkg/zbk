@@ -266,6 +266,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runTools(rest[1:], stdout, stderr)
 	case "sonames":
 		return runSonames(rest[1:], stdout, stderr)
+	case "bakedpaths":
+		return runBakedPaths(rest[1:], stdout, stderr)
 	case "weather":
 		return runWeather(rest[1:], stdout, stderr)
 	case "builder":
