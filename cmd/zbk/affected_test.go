@@ -244,6 +244,81 @@ func TestACycleTerminates(t *testing.T) {
 	}
 }
 
+// TestRecipesOutsideProjectsAreNotAPantry.
+//
+// ⛔ A draft of everyProject fell back to reading recipes at the pantry root
+// when `projects/` held none. That is not a layout the GRAPH LOADER supports,
+// so the fallback made things worse rather than better: enumeration found the
+// projects, `load` could not open one of them, and all of them came back as
+// HOLES — the command refused with "named as a dependency and have no recipe
+// here" about a directory that was simply not a pantry.
+//
+// So the refusal has to be the empty-pantry one, which names the real cause.
+func TestRecipesOutsideProjectsAreNotAPantry(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "a.org", "leaf")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.hcl"), []byte(dep()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	code := runAffected([]string{"-pantry", root, "a.org/leaf"}, &out, &errb)
+	if code != 2 {
+		t.Fatalf("code=%d, want 2\n%s%s", code, out.String(), errb.String())
+	}
+	if !strings.Contains(errb.String(), "no recipe found") {
+		t.Errorf("the refusal names the wrong cause:\n%s", errb.String())
+	}
+}
+
+// TestAnUnknownFlagIsRefused rather than ignored.
+func TestAffectedRefusesAnUnknownFlag(t *testing.T) {
+	var out, errb bytes.Buffer
+	if code := runAffected([]string{"--no-such-flag", "a.org/x"}, &out, &errb); code != 2 {
+		t.Errorf("code=%d, want 2", code)
+	}
+}
+
+// TestUnreadableOverridesAreAnError: the overrides change what a recipe SAYS,
+// so proceeding without them would answer about a different pantry.
+func TestUnreadableOverridesAreAnError(t *testing.T) {
+	p := pantryOf(t, map[string]string{"a.org/leaf": dep()})
+	bad := filepath.Join(t.TempDir(), "overrides")
+	if err := os.MkdirAll(bad, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bad, "broken.hcl"), []byte("this is not hcl {{{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := runAffected([]string{"-pantry", p, "-overrides", bad, "a.org/leaf"}, &out, &errb); code != 2 {
+		t.Errorf("code=%d with unreadable overrides, want 2\n%s", code, errb.String())
+	}
+}
+
+// TestAnOverlayThatIsNotThereContributesNothing — and must not stop the pantry
+// being read, because the overlay is optional.
+func TestAnOverlayThatIsNotThereContributesNothing(t *testing.T) {
+	p := pantryOf(t, map[string]string{
+		"a.org/leaf": dep(),
+		"a.org/mid":  dep("a.org/leaf"),
+	})
+	var out, errb bytes.Buffer
+	code := runAffected([]string{
+		"-pantry", p,
+		"-overlay", filepath.Join(t.TempDir(), "no-such-overlay"),
+		"a.org/leaf",
+	}, &out, &errb)
+	if code != 0 {
+		t.Fatalf("code=%d with a missing overlay\n%s%s", code, out.String(), errb.String())
+	}
+	if !strings.Contains(out.String(), "2 project(s) to rebuild") {
+		t.Errorf("the pantry was not read when the overlay was absent:\n%s", out.String())
+	}
+}
+
 // TestTheDispatchReachesIt.
 func TestAffectedIsReachableFromTheDispatch(t *testing.T) {
 	var out, errb bytes.Buffer

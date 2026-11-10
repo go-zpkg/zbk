@@ -67,11 +67,12 @@ func runAffected(args []string, stdout, stderr io.Writer) int {
 	osn, arch, _ := strings.Cut(*platform, "/")
 	tgt := target.Target{Platform: osn, Arch: arch}
 
-	every, err := everyProject(*pantryDir, *overlayDir)
-	if err != nil {
-		fmt.Fprintln(stderr, "affected:", err)
-		return 2
-	}
+	// ⛔ everyProject RETURNS NO ERROR, and the first version of this had an
+	// error arm for it that nothing could reach: a directory it cannot read is
+	// simply a directory with no recipes, and the one case that matters —
+	// NOTHING found anywhere — is checked below on its own. A dead error path
+	// is worse than none: it reads as handled.
+	every := everyProject(*pantryDir, *overlayDir)
 	if len(every) == 0 {
 		// ⛔ A pantry that could not be read yields an empty graph, whose
 		// reverse closure is "nothing to rebuild" — the most dangerous answer
@@ -172,22 +173,28 @@ func reverseClosure(edges map[string][]string, named []string) map[string]bool {
 }
 
 // everyProject names each project the pantry or the overlay holds a recipe for.
-func everyProject(pantry, overlay string) ([]string, error) {
+//
+// A root it cannot read contributes nothing, which is why this returns no
+// error: "that directory has no recipes" and "that directory is not there" lead
+// to the same list, and the case that must not pass silently — nothing found in
+// EITHER — is the caller's own check.
+func everyProject(pantry, overlay string) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, root := range []string{overlay, pantry} {
 		if root == "" {
 			continue
 		}
-		ps, err := lintProjects(filepath.Join(root, "projects"))
-		if err != nil {
-			// A pantry laid out without `projects/` is read at its root, which
-			// is how the overlay's own tests arrange one.
-			ps, err = lintProjects(root)
-			if err != nil {
-				continue
-			}
-		}
+		// ⛔⛔ `<root>/projects/<project>/package.hcl` AND NOTHING ELSE, because
+		// that is the layout the GRAPH LOADER reads. A first draft fell back to
+		// reading recipes at the root when `projects/` held none — and the
+		// result was worse than not supporting it: enumeration found the
+		// projects, `load` could not open any of them, and every one came back
+		// as a HOLE. The command then refused with "2 projects are named as a
+		// dependency and have no recipe here" for a pantry that simply was not
+		// one. Enumeration and loading have to agree about the layout, and the
+		// loader is the one that decides.
+		ps, _ := lintProjects(filepath.Join(root, "projects"))
 		for _, p := range ps {
 			if !seen[p] {
 				seen[p] = true
@@ -196,7 +203,7 @@ func everyProject(pantry, overlay string) ([]string, error) {
 		}
 	}
 	sort.Strings(out)
-	return out, nil
+	return out
 }
 
 func dedupe(in []string) []string {
