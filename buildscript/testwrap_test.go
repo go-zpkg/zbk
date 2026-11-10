@@ -334,9 +334,9 @@ func TestATestThatCallsCcByNameGetsTheShims(t *testing.T) {
 	if !strings.Contains(got, `export PATH="/box.shims":"$PATH"`) {
 		t.Error("the shim dir is appended rather than prepended")
 	}
-	// The flags live in BK_CC, which is what the shim re-execs — one place,
+	// The flags live in ZBK_CC, which is what the shim re-execs — one place,
 	// so no invocation gets the sysroot twice.
-	for _, want := range []string{`export BK_CC="clang --sysroot=`, `export BK_CXX="clang++ `} {
+	for _, want := range []string{`export ZBK_CC="clang --sysroot=`, `export ZBK_CXX="clang++ `} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the shims have nothing to re-exec: %q missing", want)
 		}
@@ -368,13 +368,13 @@ func TestWithoutAShimDirTheFlagsGoBackIntoCC(t *testing.T) {
 	}
 }
 
-// clang and clang++ must NOT be shimmed: $BK_CC's driver IS clang, so a shim
+// clang and clang++ must NOT be shimmed: $ZBK_CC's driver IS clang, so a shim
 // of that name would re-exec itself forever. This is the test that keeps
 // somebody from "completing" the list.
 // clang IS shimmed now, and this test replaces the one that asserted the
 // opposite.
 //
-// The old test said: "$BK_CC starts with clang, so a shim of that name is
+// The old test said: "$ZBK_CC starts with clang, so a shim of that name is
 // an exec loop" — true, and the reason the two names were left out. The
 // cost of leaving them out was then measured: 77 pantry recipes set CC or
 // CXX in an `env:` block, mostly to the bare words, and a recipe's env is

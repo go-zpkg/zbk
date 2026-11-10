@@ -818,7 +818,7 @@ func TestRunTestMaterialisesTheCompilerShims(t *testing.T) {
 		}
 	}
 	// clang IS shimmed since #305. It was excluded while the shim looked
-	// its driver up on PATH — $BK_CC's driver is clang and the shim dir is
+	// its driver up on PATH — $ZBK_CC's driver is clang and the shim dir is
 	// first, so the shim found itself — and it is included now that the
 	// shim skips its own directory. 77 recipes name a compiler in `env:`
 	// and lost the sysroot for want of it.

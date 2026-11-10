@@ -29,7 +29,7 @@ func shimDir(t *testing.T, shim string, onPath ...string) (self string) {
 
 // ⛔⛔ A SHIM DRIVES THE NAME IT WAS INVOKED AS.
 //
-// bk sets no $BK_CC for a windows cross build — the compiler comes from the
+// bk sets no $ZBK_CC for a windows cross build — the compiler comes from the
 // recipe's llvm-mingw dep — and compilerShimsFor shims the triple-prefixed
 // spellings, which go FIRST on PATH. shimBase reduced
 // `x86_64-w64-mingw32-gcc` to `gcc`, so the shim shadowed llvm-mingw's real
@@ -39,7 +39,7 @@ func shimDir(t *testing.T, shim string, onPath ...string) (self string) {
 //
 // Measured on go-zpkg/packages' windows-c lane building zlib.net 1.3.2.
 func TestAWindowsCrossShimDrivesTheTriplePrefixedCompiler(t *testing.T) {
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	const shim = "x86_64-w64-mingw32-gcc"
 	self := shimDir(t, shim, shim) // llvm-mingw ships exactly this name
 	if got := fallbackDriver(shim, self); got != shim {
@@ -54,7 +54,7 @@ func TestAWindowsCrossShimDrivesTheTriplePrefixedCompiler(t *testing.T) {
 // `x86_64-pc-linux-gnu-gcc`, nothing installs it, and reducing to `gcc` is
 // what makes libisl's configure find a compiler at all.
 func TestATripleNobodyShipsStillFallsBackToTheBareCompiler(t *testing.T) {
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	const shim = "x86_64-pc-linux-gnu-gcc"
 	self := shimDir(t, shim, "gcc") // only the bare compiler exists
 	if got := fallbackDriver(shim, self); got != "gcc" {
@@ -65,7 +65,7 @@ func TestATripleNobodyShipsStillFallsBackToTheBareCompiler(t *testing.T) {
 // An unprefixed shim is unaffected either way: it already named its own
 // compiler, and both candidates are the same string.
 func TestABareShimIsUnchanged(t *testing.T) {
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	self := shimDir(t, "cc", "cc")
 	if got := fallbackDriver("cc", self); got != "cc" {
 		t.Errorf("fallbackDriver(cc) = %q", got)
@@ -75,7 +75,7 @@ func TestABareShimIsUnchanged(t *testing.T) {
 // When NEITHER name is installed the fallback still names the base, so the
 // error the caller prints is about a real lookup rather than a half-choice.
 func TestNeitherNameInstalledFallsBackToTheBase(t *testing.T) {
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	const shim = "x86_64-w64-mingw32-gcc"
 	self := shimDir(t, shim) // nothing but the shim itself
 	if got := fallbackDriver(shim, self); got != "gcc" {
@@ -86,13 +86,13 @@ func TestNeitherNameInstalledFallsBackToTheBase(t *testing.T) {
 // ⛔ AND THE MESSAGE NAMES BOTH CANDIDATES, because with a prefixed shim the
 // two are different and reporting only one hides half the lookup.
 //
-// The old wording blamed $BK_CC for a build where $BK_CC was UNSET, which is
+// The old wording blamed $ZBK_CC for a build where $ZBK_CC was UNSET, which is
 // what sent a Windows cross build looking at the wrong thing. A prefixed name
 // with nothing installed is the case that wording was rewritten for, so it is
 // the case asserted: TestCCShimFailures drives the BARE `cc`, where both
 // candidates are one string and this branch never runs.
 func TestTheNoStencilFailureNamesBothCandidates(t *testing.T) {
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	const shim = "x86_64-w64-mingw32-gcc"
 	self := shimDir(t, shim) // neither the triple nor the bare gcc exists
 	old := os.Args
@@ -103,13 +103,13 @@ func TestTheNoStencilFailureNamesBothCandidates(t *testing.T) {
 	if code := ccShim(shim, nil, &errb); code != 127 {
 		t.Fatalf("code = %d, stderr = %q", code, errb.String())
 	}
-	for _, want := range []string{"neither " + shim, "nor gcc", "$BK_CC is unset"} {
+	for _, want := range []string{"neither " + shim, "nor gcc", "$ZBK_CC is unset"} {
 		if !strings.Contains(errb.String(), want) {
 			t.Errorf("stderr = %q, want it to contain %q", errb.String(), want)
 		}
 	}
 	// And it must NOT say what the old message said, which is the defect.
 	if strings.Contains(errb.String(), "names a compiler that is not installed") {
-		t.Error("the message still blames $BK_CC, which is unset here")
+		t.Error("the message still blames $ZBK_CC, which is unset here")
 	}
 }

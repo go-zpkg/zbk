@@ -42,7 +42,7 @@ var (
 // sovereign mode depends on. Named first on PATH, these shims re-exec the real
 // driver with them.
 //
-// `clang` and `clang++` ARE in this list, and used not to be. $BK_CC's
+// `clang` and `clang++` ARE in this list, and used not to be. $ZBK_CC's
 // driver is clang and this directory is first on PATH, so a shim of that
 // name once found itself; the shim now resolves its driver while skipping
 // its own directory (see resolveDriver), which removes the loop.
@@ -135,8 +135,8 @@ func WriteLibexecFor(dir string, libcPkgx bool, triple, platform, arch string) e
 		}
 	}
 	// EVERY target gets the compiler shims. In pkgx-libc and wasip1 modes they
-	// carry $BK_CC's sovereign flags; in every mode they append
-	// -ffile-prefix-map=$BK_FILE_PREFIX_MAP, the one setting a recipe's own
+	// carry $ZBK_CC's sovereign flags; in every mode they append
+	// -ffile-prefix-map=$ZBK_FILE_PREFIX_MAP, the one setting a recipe's own
 	// CFLAGS/CXXFLAGS/CC cannot drop (go-zpkg/bk#387). libcPkgx no longer gates
 	// the shims; it is kept for the callers' signature.
 	_ = libcPkgx

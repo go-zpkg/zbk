@@ -37,25 +37,25 @@ func TestPrefixMapFor(t *testing.T) {
 
 func TestWrapExportsPrefixMap(t *testing.T) {
 	o := WrapOptions{UserScript: "true", Home: "/h", SrcRoot: "/r/b", PrefixMap: "/r=/build"}
-	if s := Wrap(o); !strings.Contains(s, "export BK_FILE_PREFIX_MAP=\"/r=/build\"\n") {
+	if s := Wrap(o); !strings.Contains(s, "export ZBK_FILE_PREFIX_MAP=\"/r=/build\"\n") {
 		t.Errorf("map not exported:\n%s", s)
 	}
 	o.PrefixMap = ""
-	if s := Wrap(o); strings.Contains(s, "BK_FILE_PREFIX_MAP") {
+	if s := Wrap(o); strings.Contains(s, "ZBK_FILE_PREFIX_MAP") {
 		t.Errorf("exported without a map:\n%s", s)
 	}
 }
 
-// BK_OSO_PREFIX is exported for darwin targets only, from the same derived root
+// ZBK_OSO_PREFIX is exported for darwin targets only, from the same derived root
 // as the prefix map, with a trailing slash so the recorded path becomes relative.
 func TestWrapExportsTheOSOPrefixOnDarwinOnly(t *testing.T) {
 	o := WrapOptions{UserScript: "true", Home: "/h", SrcRoot: "/r/b", PrefixMap: "/r=/build"}
 	o.Target.Platform = "darwin"
-	if s := Wrap(o); !strings.Contains(s, "export BK_OSO_PREFIX=\"/r/\"\n") {
+	if s := Wrap(o); !strings.Contains(s, "export ZBK_OSO_PREFIX=\"/r/\"\n") {
 		t.Errorf("darwin: no OSO prefix:\n%s", s)
 	}
 	o.Target.Platform = "linux"
-	if s := Wrap(o); strings.Contains(s, "BK_OSO_PREFIX") {
+	if s := Wrap(o); strings.Contains(s, "ZBK_OSO_PREFIX") {
 		t.Errorf("linux exports an OSO prefix:\n%s", s)
 	}
 }

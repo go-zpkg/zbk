@@ -50,8 +50,8 @@ func TestCCShim(t *testing.T) {
 		return exec.Command("true")
 	}
 
-	t.Setenv("BK_CC", "clang --sysroot=/pkgx/glibc -fuse-ld=lld")
-	t.Setenv("BK_CXX", "clang++ -stdlib=libc++")
+	t.Setenv("ZBK_CC", "clang --sysroot=/pkgx/glibc -fuse-ld=lld")
+	t.Setenv("ZBK_CXX", "clang++ -stdlib=libc++")
 
 	var errb bytes.Buffer
 	if code := ccShim("cc", []string{"-c", "x.c"}, &errb); code != 0 {
@@ -88,15 +88,15 @@ func TestCCShimFailures(t *testing.T) {
 	old := execCommand
 	defer func() { execCommand = old }()
 
-	t.Setenv("BK_CC", "")
+	t.Setenv("ZBK_CC", "")
 	var errb bytes.Buffer
-	// No BK_CC: the shim drives the compiler of the same name (`cc` here), and
+	// No ZBK_CC: the shim drives the compiler of the same name (`cc` here), and
 	// there is none on this PATH, so it says so.
 	if code := ccShim("cc", nil, &errb); code != 127 || !strings.Contains(errb.String(), "is not on PATH") {
 		t.Fatalf("code = %d, stderr = %q", code, errb.String())
 	}
 
-	t.Setenv("BK_CC", "clang")
+	t.Setenv("ZBK_CC", "clang")
 	// /bin/sh by absolute path: PATH is the fake-driver dir only.
 	execCommand = func(string, ...string) *exec.Cmd { return exec.Command("/bin/sh", "-c", "exit 3") }
 	errb.Reset()
@@ -133,7 +133,7 @@ func TestCCShimDispatch(t *testing.T) {
 	osExit = func(c int) { got = c }
 	var ran string
 	execCommand = func(name string, args ...string) *exec.Cmd { ran = name; return exec.Command("true") }
-	t.Setenv("BK_CC", "clang --sysroot=/pkgx/glibc")
+	t.Setenv("ZBK_CC", "clang --sysroot=/pkgx/glibc")
 
 	os.Args = []string{"/build/libexec/cc", "-c", "x.c"}
 	main()
@@ -182,7 +182,7 @@ func TestCCShimKeepsLinkFlagsWhenLinking(t *testing.T) {
 		gotArgs = args
 		return exec.Command("true")
 	}
-	t.Setenv("BK_CC", "clang --sysroot=/pkgx/glibc -L/pkgx/lib --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none")
+	t.Setenv("ZBK_CC", "clang --sysroot=/pkgx/glibc -L/pkgx/lib --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none")
 	var errb bytes.Buffer
 	if code := ccShim("cc", []string{"a.o", "-o", "a.out"}, &errb); code != 0 {
 		t.Fatalf("code = %d, %s", code, errb.String())
@@ -204,7 +204,7 @@ func TestCCShimCompileOnlyForms(t *testing.T) {
 		gotArgs = args
 		return exec.Command("true")
 	}
-	t.Setenv("BK_CC", "clang --sysroot=/pkgx/glibc -L/pkgx/lib --rtlib=compiler-rt")
+	t.Setenv("ZBK_CC", "clang --sysroot=/pkgx/glibc -L/pkgx/lib --rtlib=compiler-rt")
 	var errb bytes.Buffer
 	for _, form := range []string{"-S", "-E"} {
 		if code := ccShim("cc", []string{form, "x.c"}, &errb); code != 0 {

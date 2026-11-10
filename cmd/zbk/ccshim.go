@@ -19,11 +19,11 @@ import (
 // sysroot, crt and runtime flags the sovereign mode depends on, so it either
 // fails outright or, worse, quietly links against whatever the build container
 // happens to provide. The shim re-execs the real driver WITH those flags, which
-// wrapper.go exported as BK_CC / BK_CXX.
+// wrapper.go exported as ZBK_CC / ZBK_CXX.
 func ccShim(name string, args []string, stderr io.Writer) int {
-	varName := "BK_CC"
+	varName := "ZBK_CC"
 	if isCXXShim(name) {
-		varName = "BK_CXX"
+		varName = "ZBK_CXX"
 	}
 	driver := strings.Fields(os.Getenv(varName))
 	stencil := len(driver) > 0
@@ -45,9 +45,9 @@ func ccShim(name string, args []string, stderr io.Writer) int {
 	bin, err := resolveDriver(driver[0], os.Args[0])
 	if err != nil {
 		if !stencil {
-			// $BK_CC is EMPTY here, so blaming it sends the reader to a
-			// variable that is doing nothing. The old wording said "$BK_CC
-			// names a compiler that is not installed" while $BK_CC was unset
+			// $ZBK_CC is EMPTY here, so blaming it sends the reader to a
+			// variable that is doing nothing. The old wording said "$ZBK_CC
+			// names a compiler that is not installed" while $ZBK_CC was unset
 			// and the name asked for was the shim's own.
 			tried := name + " is not"
 			if base := shimBase(name); base != name {
@@ -91,11 +91,11 @@ func ccShim(name string, args []string, stderr io.Writer) int {
 
 // prefixMapEnv carries OLD=NEW for -ffile-prefix-map; buildscript.Wrap exports
 // it from the build's actual cache root.
-const prefixMapEnv = "BK_FILE_PREFIX_MAP"
+const prefixMapEnv = "ZBK_FILE_PREFIX_MAP"
 
 // osoPrefixEnv carries the cache root for ld64's -oso_prefix; Wrap exports it
 // for darwin targets only.
-const osoPrefixEnv = "BK_OSO_PREFIX"
+const osoPrefixEnv = "ZBK_OSO_PREFIX"
 
 // shimBase strips a triple prefix: x86_64-pc-linux-gnu-gcc -> gcc.
 func shimBase(name string) string {
@@ -110,11 +110,11 @@ func shimBase(name string) string {
 }
 
 // fallbackDriver is the compiler a shim drives when no sovereign stencil set
-// $BK_CC: the EXACT name it was invoked as when that exists on PATH, and the
+// $ZBK_CC: the EXACT name it was invoked as when that exists on PATH, and the
 // bare base otherwise.
 //
 // ⛔⛔ THE EXACT NAME FIRST, BECAUSE FOR A WINDOWS CROSS BUILD IT IS THE ONLY
-// COMPILER THERE. bk sets no $BK_CC for windows — "its compiler comes from the
+// COMPILER THERE. bk sets no $ZBK_CC for windows — "its compiler comes from the
 // recipe's llvm-mingw dep" (buildscript/wrapper.go) — and compilerShimsFor
 // shims the TRIPLE-PREFIXED spellings, which this shim dir then puts FIRST on
 // PATH. So `x86_64-w64-mingw32-gcc` reached the shim, shimBase reduced it to
@@ -211,7 +211,7 @@ func isCompilerShim(name string) bool {
 
 // isCXXShim picks the C++ driver. By SUFFIX, so a triple-prefixed name is
 // routed like its bare one: `s390x-ibm-linux-gnu-g++` is a C++ compiler and
-// used to fall through to BK_CC, which would have handed a C++ build the C
+// used to fall through to ZBK_CC, which would have handed a C++ build the C
 // driver with no libc++ headers.
 func isCXXShim(name string) bool {
 	for _, base := range []string{"c++", "g++", "clang++"} {
@@ -233,7 +233,7 @@ var compilerShimBases = []string{"cc", "gcc", "c++", "g++", "clang", "clang++"}
 //
 // # WHY A SHIM CANNOT JUST EXEC ITS DRIVER BY NAME
 //
-// $BK_CC is `clang <sovereign flags>`, and the shim dir is FIRST on PATH.
+// $ZBK_CC is `clang <sovereign flags>`, and the shim dir is FIRST on PATH.
 // So a shim named `clang` that exec'd "clang" would find itself, forever.
 // That is the whole reason `clang` and `clang++` were kept out of the shim
 // set — and the cost of keeping them out is measurable: of the pantry's
@@ -273,7 +273,7 @@ func resolveDriver(driver, self string) (string, error) {
 			return cand, nil
 		}
 	}
-	return "", fmt.Errorf("%s is not on PATH outside %s — $BK_CC names a compiler that is not installed", driver, selfDir)
+	return "", fmt.Errorf("%s is not on PATH outside %s — $ZBK_CC names a compiler that is not installed", driver, selfDir)
 }
 
 // osStat is a seam.

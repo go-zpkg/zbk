@@ -154,13 +154,13 @@ func Wrap(o WrapOptions) string {
 		// Read by bk's compiler shims, which append -ffile-prefix-map=$value to
 		// every compiler call. Not put in CFLAGS: a recipe's env replaces those
 		// whole.
-		fmt.Fprintf(&b, "export BK_FILE_PREFIX_MAP=%q\n", o.PrefixMap)
+		fmt.Fprintf(&b, "export ZBK_FILE_PREFIX_MAP=%q\n", o.PrefixMap)
 		if o.Target.Platform == "darwin" {
 			// ld64 writes the object paths of the debug map (OSO stabs) itself, so
 			// -ffile-prefix-map never reaches them. The same root, handed to the
 			// linker as -oso_prefix by the shim at link time only (go-zpkg/bk#400).
 			old, _, _ := strings.Cut(o.PrefixMap, "=")
-			fmt.Fprintf(&b, "export BK_OSO_PREFIX=%q\n", old+"/")
+			fmt.Fprintf(&b, "export ZBK_OSO_PREFIX=%q\n", old+"/")
 		}
 	}
 	b.WriteString(toolVars(o.Project))
@@ -475,7 +475,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		// compiler-rt.llvm.org/wasi and github.com/WebAssembly/wasi-libc in the
 		// pantry overlay). Nothing comes from the host distribution.
 		//
-		// The setting that must hold for EVERY recipe is in $BK_CC/$BK_CXX, the
+		// The setting that must hold for EVERY recipe is in $ZBK_CC/$ZBK_CXX, the
 		// stencil the cc/gcc/clang shims re-exec (cmd/bk/ccshim.go), and not in
 		// CFLAGS/LDFLAGS, which a recipe's env replaces whole. $CC/$CXX default to
 		// it for the recipes that do read them, as the sovereign linux mode does.
@@ -548,7 +548,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		// -Werror probe several configure scripts run, and xz then refuses to
 		// configure at all ("CFLAGS contains something that makes -Werror
 		// complain").
-		// ${BK_LIBGCC:+…}: rustc emits a bare `-lgcc` of its own — the unwind
+		// ${ZBK_LIBGCC:+…}: rustc emits a bare `-lgcc` of its own — the unwind
 		// and compiler_builtins crates name it in `#[link]` on *-linux-gnu —
 		// which --rtlib=compiler-rt does NOT remove. It is a SEARCH PATH that is
 		// missing, so it belongs with the other driver flags rather than in
@@ -563,7 +563,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		// found first — so the libc++ -isystem goes BEFORE base's glibc/kernel ones.
 		// ${VAR:+…} so an ABSENT libcxx bottle contributes nothing at all rather
 		// than an unmatched pattern.
-		glibcCXX = `${BK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${BK_LIBCXX_PREFIX}include/c++/v1"} ` + base + ` ${BK_LIBCXX_PREFIX:+--unwindlib=libunwind}`
+		glibcCXX = `${ZBK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${ZBK_LIBCXX_PREFIX}include/c++/v1"} ` + base + ` ${ZBK_LIBCXX_PREFIX:+--unwindlib=libunwind}`
 		// PT_INTERP = the bottle's loader; search paths for glibc + libc++/libunwind
 		// libs (the $ORIGIN rewrite by fixup drops these, so at deploy libc.so.6 /
 		// libc++.so.1 come from their bottles via LD_LIBRARY_PATH — the mkscratch
@@ -577,9 +577,9 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		//   'iconv_ostream_create' failed: symbol not defined
 		// because libtextstyle's script exports symbols its configure left out.
 		// Distros switching to lld restore the permissive behaviour the same way.
-		glibcLD = `-Wl,-rpath,"$BK_GLIBC_LIB" ${BK_LIBCXX_PREFIX:+-L"${BK_LIBCXX_PREFIX}lib" -Wl,-rpath,"${BK_LIBCXX_PREFIX}lib"} -Wl,--disable-new-dtags -Wl,--undefined-version`
+		glibcLD = `-Wl,-rpath,"$ZBK_GLIBC_LIB" ${ZBK_LIBCXX_PREFIX:+-L"${ZBK_LIBCXX_PREFIX}lib" -Wl,-rpath,"${ZBK_LIBCXX_PREFIX}lib"} -Wl,--disable-new-dtags -Wl,--undefined-version`
 		if loader, ok := glibcLoader(tgt.Arch); ok {
-			glibcLD = `-Wl,--dynamic-linker="${BK_GLIBC_LIB}` + loader + `" ` + glibcLD
+			glibcLD = `-Wl,--dynamic-linker="${ZBK_GLIBC_LIB}` + loader + `" ` + glibcLD
 		}
 		// No --dynamic-linker for an arch glibcLoader does not know: the link
 		// then keeps lld's own default, which for the native build this always
@@ -613,8 +613,8 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 			// compiler by name instead of through $CC (sqlite's autosetup: "No
 			// working C compiler found. Tried cc and gcc") then still gets the
 			// sovereign driver.
-			`export BK_CC="clang `+glibcCC+`"`,
-			`export BK_CXX="clang++ `+glibcCXX+`"`,
+			`export ZBK_CC="clang `+glibcCC+`"`,
+			`export ZBK_CXX="clang++ `+glibcCXX+`"`,
 			// What bindgen reads, because it never asks the driver. APPENDED
 			// to whatever a recipe set, not substituted for it: a recipe
 			// naming an extra -I has a reason, and the sysroot is not ours to
@@ -658,13 +658,13 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 			// kbuild assigns CC in the makefile, which beats the environment, so a
 			// kernel otherwise compiles through the `gcc` shim and back into the
 			// hosted driver.
-			`export BK_CC_FREESTANDING="clang"`,
+			`export ZBK_CC_FREESTANDING="clang"`,
 			// rustc does NOT go through $CC: it invokes `cc` itself as the
 			// linker driver, with its own arguments. That is survivable only
-			// because `cc` on PATH is bk's own shim, which re-execs $BK_CC — so
+			// because `cc` on PATH is bk's own shim, which re-execs $ZBK_CC — so
 			// everything above (sysroot, crt and lib search paths, the runtime
 			// choice, and now the libgcc search path) reaches rustc's link after
-			// all. Anything NOT in $BK_CC does not.
+			// all. Anything NOT in $ZBK_CC does not.
 			//
 			// rustc emits a bare `-lgcc` of its own on *-linux-gnu, which
 			// --rtlib=compiler-rt does not remove, and a tree with no
@@ -700,7 +700,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 	// -Wl,-rpath just put in LDFLAGS never reaches a Rust link.
 	//
 	// On linux that is survivable: `cc` on PATH is bk's own shim, which re-execs
-	// $BK_CC with every sovereign flag. On DARWIN there is no shim — they are
+	// $ZBK_CC with every sovereign flag. On DARWIN there is no shim — they are
 	// materialised only in pkgx-libc mode — so a Rust package that links a pkgx
 	// dylib publishes a binary with NO LC_RPATH at all, and `@rpath/...` can
 	// never resolve:
@@ -795,7 +795,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 // sqlite3, wasip1-c run 40369903497). wasi-sdk builds its clang with
 // CLANG_DEFAULT_RTLIB=compiler-rt; we state it in the stencil instead, as the
 // linux sovereign mode does.
-const wasiFlags = `--target=wasm32-wasip1 --sysroot="$BK_WASI_SYSROOT" -resource-dir="$BK_WASI_RT" -mcpu=lime1 --rtlib=compiler-rt -Wno-unused-command-line-argument`
+const wasiFlags = `--target=wasm32-wasip1 --sysroot="$ZBK_WASI_SYSROOT" -resource-dir="$ZBK_WASI_RT" -mcpu=lime1 --rtlib=compiler-rt -Wno-unused-command-line-argument`
 
 // wasiResolve locates the two wasip1 toolchain bottles and exports the stencil.
 // It fails the build when either is absent: a missing sysroot would not stop
@@ -803,10 +803,10 @@ const wasiFlags = `--target=wasm32-wasip1 --sysroot="$BK_WASI_SYSROOT" -resource
 // failure would surface as an undeclared stdio.h a thousand lines later.
 var wasiResolve = []string{
 	sysrootResolve[0],
-	`export BK_WASI_SYSROOT="$(bkresolve "$ZPKG_DIR/github.com/WebAssembly/wasi-libc/v[0-9]*")"`,
-	`export BK_WASI_RT="$(bkresolve "$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*")"`,
-	`[ -n "$BK_WASI_SYSROOT" ] && [ -n "$BK_WASI_RT" ] || { echo "zbk: the wasip1 toolchain is not installed (github.com/WebAssembly/wasi-libc, compiler-rt.llvm.org/wasi)" >&2; exit 1; }`,
-	`export BK_CC="clang ` + wasiFlags + `"`,
+	`export ZBK_WASI_SYSROOT="$(bkresolve "$ZPKG_DIR/github.com/WebAssembly/wasi-libc/v[0-9]*")"`,
+	`export ZBK_WASI_RT="$(bkresolve "$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*")"`,
+	`[ -n "$ZBK_WASI_SYSROOT" ] && [ -n "$ZBK_WASI_RT" ] || { echo "zbk: the wasip1 toolchain is not installed (github.com/WebAssembly/wasi-libc, compiler-rt.llvm.org/wasi)" >&2; exit 1; }`,
+	`export ZBK_CC="clang ` + wasiFlags + `"`,
 	// libc++/libc++abi are a separate bottle (libcxx.llvm.org/wasi), present only
 	// when the recipe asked for it. A sysroot cannot carry it — it is wasi-libc's —
 	// so the C++ stencil names its headers and its libraries itself. -nostdinc++
@@ -816,20 +816,20 @@ var wasiResolve = []string{
 	// default to it for wasm32-wasip1, and a TU that throws needs __cxa_throw,
 	// which this libc++abi (exceptions off, no unwinder) does not provide
 	// ("undefined symbol: __cxa_allocate_exception", simdjson, run 40389842826).
-	`export BK_WASI_CXX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/wasi/v[0-9]*")"`,
-	`export BK_CXX="clang++ ` + wasiFlags + `${BK_WASI_CXX:+ -fno-exceptions -stdlib=libc++ -nostdinc++ -isystem $BK_WASI_CXX/include/wasm32-wasip1/c++/v1 -L$BK_WASI_CXX/lib/wasm32-wasip1}"`,
-	`export CC="${CC:-$BK_CC}" CXX="${CXX:-$BK_CXX}"`,
+	`export ZBK_WASI_CXX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/wasi/v[0-9]*")"`,
+	`export ZBK_CXX="clang++ ` + wasiFlags + `${ZBK_WASI_CXX:+ -fno-exceptions -stdlib=libc++ -nostdinc++ -isystem $ZBK_WASI_CXX/include/wasm32-wasip1/c++/v1 -L$ZBK_WASI_CXX/lib/wasm32-wasip1}"`,
+	`export CC="${CC:-$ZBK_CC}" CXX="${CXX:-$ZBK_CXX}"`,
 	`export AR=llvm-ar RANLIB=llvm-ranlib NM=llvm-nm STRIP=llvm-strip`,
 }
 
-const baseSysrootFlags = `--sysroot="$BK_GLIBC_PREFIX" -isystem "${BK_GLIBC_PREFIX}include" -isystem "${BK_KHDR_PREFIX}include" -B "$BK_GLIBC_LIB" -L"$BK_GLIBC_LIB"${BK_LIBGCC:+ -L"$BK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument`
+const baseSysrootFlags = `--sysroot="$ZBK_GLIBC_PREFIX" -isystem "${ZBK_GLIBC_PREFIX}include" -isystem "${ZBK_KHDR_PREFIX}include" -B "$ZBK_GLIBC_LIB" -L"$ZBK_GLIBC_LIB"${ZBK_LIBGCC:+ -L"$ZBK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument`
 
 // bindgenSysrootFlags is the HEADER-FINDING half of the flags above, for a
 // tool that never links.
 //
 // ⛔ BINDGEN DOES NOT GO THROUGH THE COMPILER DRIVER. Everything sovereign
 // about this environment reaches a build through `cc` — the shim that
-// re-execs $BK_CC — or through $CC. bindgen drives **libclang** in-process
+// re-execs $ZBK_CC — or through $CC. bindgen drives **libclang** in-process
 // instead, so it sees none of it, and parsing openssl's headers died on
 //
 //	/pkgx/openssl.org/v3.6.4/include/openssl/asn1.h:27:10:
@@ -846,22 +846,22 @@ const baseSysrootFlags = `--sysroot="$BK_GLIBC_PREFIX" -isystem "${BK_GLIBC_PREF
 // Only the flags that find headers. --rtlib, -fuse-ld and -L are link-time
 // options for a tool that produces no binary, and handing them to libclang
 // is noise at best.
-const bindgenSysrootFlags = `--sysroot="$BK_GLIBC_PREFIX" -isystem "${BK_GLIBC_PREFIX}include" -isystem "${BK_KHDR_PREFIX}include"`
+const bindgenSysrootFlags = `--sysroot="$ZBK_GLIBC_PREFIX" -isystem "${ZBK_GLIBC_PREFIX}include" -isystem "${ZBK_KHDR_PREFIX}include"`
 
 // sysrootResolve locates the bottles a pkgx-supplied libc toolchain needs and
 // exports their prefixes. Shared with the TEST wrapper, which needs the same
 // sysroot for the same reason and must not grow a second copy that drifts.
 var sysrootResolve = []string{
 	`bkresolve() { set +f; for d in $1; do case "$d" in *'*'*|*'['*) continue;; esac; printf '%s\n' "$d"; done | sort -V | tail -n1; }`,
-	`export BK_GLIBC_PREFIX="$(bkresolve "$ZPKG_DIR/gnu.org/glibc/v[0-9]*")"`,
-	`[ -n "$BK_GLIBC_PREFIX" ] && export BK_GLIBC_PREFIX="$BK_GLIBC_PREFIX/"`,
-	`export BK_GLIBC_LIB="$(bkresolve "${BK_GLIBC_PREFIX}lib/glibc-[0-9]*")"`,
-	`[ -n "$BK_GLIBC_LIB" ] && export BK_GLIBC_LIB="$BK_GLIBC_LIB/"`,
-	`export BK_KHDR_PREFIX="$(bkresolve "$ZPKG_DIR/kernel.org/linux-headers/v[0-9]*")"`,
-	`[ -n "$BK_KHDR_PREFIX" ] && export BK_KHDR_PREFIX="$BK_KHDR_PREFIX/"`,
-	`export BK_LIBCXX_PREFIX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/v[0-9]*")"`,
-	`[ -n "$BK_LIBCXX_PREFIX" ] && export BK_LIBCXX_PREFIX="$BK_LIBCXX_PREFIX/"`,
-	`export BK_LIBGCC="$(bkresolve "$ZPKG_DIR/gnu.org/gcc/v[0-9]*/lib/gcc/*/[0-9]*")"`,
+	`export ZBK_GLIBC_PREFIX="$(bkresolve "$ZPKG_DIR/gnu.org/glibc/v[0-9]*")"`,
+	`[ -n "$ZBK_GLIBC_PREFIX" ] && export ZBK_GLIBC_PREFIX="$ZBK_GLIBC_PREFIX/"`,
+	`export ZBK_GLIBC_LIB="$(bkresolve "${ZBK_GLIBC_PREFIX}lib/glibc-[0-9]*")"`,
+	`[ -n "$ZBK_GLIBC_LIB" ] && export ZBK_GLIBC_LIB="$ZBK_GLIBC_LIB/"`,
+	`export ZBK_KHDR_PREFIX="$(bkresolve "$ZPKG_DIR/kernel.org/linux-headers/v[0-9]*")"`,
+	`[ -n "$ZBK_KHDR_PREFIX" ] && export ZBK_KHDR_PREFIX="$ZBK_KHDR_PREFIX/"`,
+	`export ZBK_LIBCXX_PREFIX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/v[0-9]*")"`,
+	`[ -n "$ZBK_LIBCXX_PREFIX" ] && export ZBK_LIBCXX_PREFIX="$ZBK_LIBCXX_PREFIX/"`,
+	`export ZBK_LIBGCC="$(bkresolve "$ZPKG_DIR/gnu.org/gcc/v[0-9]*/lib/gcc/*/[0-9]*")"`,
 }
 
 // SysrootCC is the driver flag set for compiling C against a pkgx-supplied
@@ -872,4 +872,4 @@ var sysrootResolve = []string{
 const SysrootCC = baseSysrootFlags + ` --unwindlib=none`
 
 // SysrootCXX is SysrootCC plus libc++.
-const SysrootCXX = `${BK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${BK_LIBCXX_PREFIX}include/c++/v1"} ` + baseSysrootFlags + ` ${BK_LIBCXX_PREFIX:+--unwindlib=libunwind}`
+const SysrootCXX = `${ZBK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${ZBK_LIBCXX_PREFIX}include/c++/v1"} ` + baseSysrootFlags + ` ${ZBK_LIBCXX_PREFIX:+--unwindlib=libunwind}`

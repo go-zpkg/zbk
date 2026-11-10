@@ -25,7 +25,7 @@ func TestCCShimAppendsPrefixMapLast(t *testing.T) {
 		got = args
 		return exec.Command("true")
 	}
-	t.Setenv("BK_CC", "clang")
+	t.Setenv("ZBK_CC", "clang")
 	var errb bytes.Buffer
 
 	t.Setenv(prefixMapEnv, "/Users/runner/Library/Caches/brewkit=/build")
@@ -61,7 +61,7 @@ func TestCCShimToolchainRejectingFlagFailsLoudly(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
-	t.Setenv("BK_CC", "oldcc")
+	t.Setenv("ZBK_CC", "oldcc")
 	t.Setenv(prefixMapEnv, "/cache=/build")
 	var errb bytes.Buffer
 	code := ccShim("cc", []string{"-c", "a.c"}, &errb)
@@ -95,7 +95,7 @@ func TestCCShimRealCompilerRewritesPath(t *testing.T) {
 	}
 	compile := func(mapEnv string) []byte {
 		obj := filepath.Join(t.TempDir(), "a.o")
-		t.Setenv("BK_CC", "")
+		t.Setenv("ZBK_CC", "")
 		t.Setenv(prefixMapEnv, mapEnv)
 		var errb bytes.Buffer
 		// -g adds debug info, __FILE__ the macro: the two mechanisms in the issue.
@@ -142,7 +142,7 @@ func TestCCShimAppendsTheOSOPrefixAtLinkOnly(t *testing.T) {
 		got = args
 		return exec.Command("true")
 	}
-	t.Setenv("BK_CC", "clang")
+	t.Setenv("ZBK_CC", "clang")
 	t.Setenv(osoPrefixEnv, "/cache/root/")
 	var errb bytes.Buffer
 	if code := ccShim("cc", []string{"a.o", "-o", "a"}, &errb); code != 0 {
@@ -181,7 +181,7 @@ func TestCCShimLinkerRejectingOSOPrefixFailsLoudly(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir)
-	t.Setenv("BK_CC", "oldcc")
+	t.Setenv("ZBK_CC", "oldcc")
 	t.Setenv(osoPrefixEnv, "/cache/")
 	var errb bytes.Buffer
 	if code := ccShim("cc", []string{"a.o"}, &errb); code == 0 || !strings.Contains(errb.String(), "unknown option") {
