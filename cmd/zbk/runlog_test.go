@@ -173,7 +173,7 @@ func TestRunlogReportsTheCounts(t *testing.T) {
 		"platform: linux/s390x",
 		"builds:   2 ok, 2 failed",
 		"tests:    1 passed, 1 failed",
-		"bk said:  2 built, 0 skipped, 2 failed",
+		"zbk said:  2 built, 0 skipped, 2 failed",
 		"by stage: build 1, publish 1",
 		"test failures after a successful build: 1 of 1",
 	} {

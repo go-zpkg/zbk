@@ -36,10 +36,10 @@ func TestWrapEmitsTwoClosuresToolsFirst(t *testing.T) {
 	}
 
 	// Each says which closure failed, so an operator is not left guessing.
-	if !strings.Contains(s, "bk: the tool environment failed") {
+	if !strings.Contains(s, "zbk: the tool environment failed") {
 		t.Error("the tool closure's failure is not named")
 	}
-	if !strings.Contains(s, "bk: the dependency environment failed") {
+	if !strings.Contains(s, "zbk: the dependency environment failed") {
 		t.Error("the link closure's failure is not named")
 	}
 }

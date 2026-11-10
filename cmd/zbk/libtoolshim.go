@@ -54,7 +54,7 @@ func libtoolShim(args []string, stderr io.Writer) int {
 	}
 	next, err := nextOnPath("libtool")
 	if err != nil {
-		fmt.Fprintf(stderr, "bk libtool: %v\n", err)
+		fmt.Fprintf(stderr, "zbk libtool: %v\n", err)
 		return 127
 	}
 	return runLibtool(next, args, stderr)
@@ -109,7 +109,7 @@ func runLibtool(bin string, args []string, stderr io.Writer) int {
 		if errorsAs(err, &ee) {
 			return ee.ExitCode()
 		}
-		fmt.Fprintf(stderr, "bk libtool: %s: %v\n", strings.TrimSpace(bin), err)
+		fmt.Fprintf(stderr, "zbk libtool: %s: %v\n", strings.TrimSpace(bin), err)
 		return 127
 	}
 	return 0

@@ -55,7 +55,7 @@ func ccShim(name string, args []string, stderr io.Writer) int {
 			}
 			err = fmt.Errorf("%s on PATH outside this shim's directory, and $%s is unset — nothing supplies a compiler for this build", tried, varName)
 		}
-		fmt.Fprintf(stderr, "bk %s: %v\n", name, err)
+		fmt.Fprintf(stderr, "zbk %s: %v\n", name, err)
 		return 127
 	}
 	all := append(append([]string{}, flags...), args...)
@@ -83,7 +83,7 @@ func ccShim(name string, args []string, stderr io.Writer) int {
 		if errorsAs(err, &ee) {
 			return ee.ExitCode()
 		}
-		fmt.Fprintf(stderr, "bk %s: %v\n", name, err)
+		fmt.Fprintf(stderr, "zbk %s: %v\n", name, err)
 		return 127
 	}
 	return 0

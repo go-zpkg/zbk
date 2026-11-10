@@ -203,7 +203,7 @@ func writeDepEval(b *strings.Builder, pkgx, plus, what string, code int) {
 	}
 	b.WriteString("set -a\n")
 	fmt.Fprintf(b, "__bk_deps_env=\"$(CLICOLOR_FORCE=1 %s %s)\" || {\n", pkgx, plus)
-	fmt.Fprintf(b, "  echo \"bk: the %s environment failed: %s %s\" >&2\n", what, pkgx, plus)
+	fmt.Fprintf(b, "  echo \"zbk: the %s environment failed: %s %s\" >&2\n", what, pkgx, plus)
 	fmt.Fprintf(b, "  exit %d\n}\n", code)
 	b.WriteString("eval \"$__bk_deps_env\"\n")
 	b.WriteString("unset __bk_deps_env\n")
@@ -800,7 +800,7 @@ var wasiResolve = []string{
 	sysrootResolve[0],
 	`export BK_WASI_SYSROOT="$(bkresolve "$ZPKG_DIR/github.com/WebAssembly/wasi-libc/v[0-9]*")"`,
 	`export BK_WASI_RT="$(bkresolve "$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*")"`,
-	`[ -n "$BK_WASI_SYSROOT" ] && [ -n "$BK_WASI_RT" ] || { echo "bk: the wasip1 toolchain is not installed (github.com/WebAssembly/wasi-libc, compiler-rt.llvm.org/wasi)" >&2; exit 1; }`,
+	`[ -n "$BK_WASI_SYSROOT" ] && [ -n "$BK_WASI_RT" ] || { echo "zbk: the wasip1 toolchain is not installed (github.com/WebAssembly/wasi-libc, compiler-rt.llvm.org/wasi)" >&2; exit 1; }`,
 	`export BK_CC="clang ` + wasiFlags + `"`,
 	// libc++/libc++abi are a separate bottle (libcxx.llvm.org/wasi), present only
 	// when the recipe asked for it. A sysroot cannot carry it — it is wasi-libc's —

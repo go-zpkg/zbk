@@ -151,7 +151,7 @@ func TestLibtoolShimReportsAnUnrunnableTool(t *testing.T) {
 	if code := libtoolShim([]string{"--version"}, &out); code != 127 {
 		t.Errorf("exit = %d, want 127", code)
 	}
-	if !strings.Contains(out.String(), "bk libtool:") {
+	if !strings.Contains(out.String(), "zbk libtool:") {
 		t.Errorf("stderr = %q, want it to name the shim", out.String())
 	}
 }
