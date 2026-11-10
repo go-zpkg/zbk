@@ -31,16 +31,23 @@ type Paths struct {
 	BuildInstall string // staging prefix the build writes to: <Install>+brewing
 }
 
-// PkgxDir returns the pkgx prefix ($ZPKG_DIR, else ~/.pkgx).
+// PkgxDir returns the store prefix ($ZPKG_DIR, else ~/.zpkg).
+//
+// ⛔⛔ IT MUST AGREE WITH bottle.Dir(), AND FOR A WHILE IT DID NOT. This
+// returned `~/.pkgx` long after bottle/pkgx.go:385 moved the store to
+// `~/.zpkg`, so one product had two functions computing the store root and
+// they disagreed — zbk staged and looked in upstream pkgx's directory while
+// everything built on bottle used ours. The duplication is the defect; this
+// is the cheap half of the fix and the two should become one call.
 func PkgxDir() string {
 	if d := os.Getenv("ZPKG_DIR"); d != "" {
 		return d
 	}
 	home, err := userHomeDir()
 	if err != nil {
-		return ".pkgx"
+		return ".zpkg"
 	}
-	return filepath.Join(home, ".pkgx")
+	return filepath.Join(home, ".zpkg")
 }
 
 // dataHome is the XDG data home ($XDG_DATA_HOME, else ~/.local/share; on macOS

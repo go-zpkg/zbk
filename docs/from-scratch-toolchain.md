@@ -1,19 +1,25 @@
-# Isolation Phase B — building bottles that link only pkgx's glibc
+# Isolation Phase B — building bottles that link only our own glibc
 
 **Written 2026-08-04 as a design note. It shipped; this is the rationale behind
 what shipped, kept because the hazards below are still the ones that bite.**
 
 ## What shipped, and how to read this note
 
-The mechanism is `--libc=pkgx` on `bk build` and `bk factory` — not the
+The mechanism is `--libc=zpkgx` on `zbk build` and `zbk factory` — not the
 `BK_ZPKG_LIBC=1` environment variable the body of this note names. That name was
-the design-time one; every occurrence below should be read as "the pkgx-libc
+the design-time one; every occurrence below should be read as "the sovereign-libc
 mode". The rest of the analysis stands as written.
+
+⛔ The commands were `bk` and `pkgx` when this was written, and the flag value
+was `pkgx`. They are `zbk` and `zpkgx`, and the value is `zpkgx`
+(go-zpkg/zbk#457). This note has been brought in line throughout: where it
+says `zbk` or `zpkgx` it means the tool, and where it says **upstream pkgx**
+it means the project this one forked from.
 
 Two other things changed on the way from note to code:
 
 - **No `clang.cfg`.** The envoy pattern that inspired this (a config file beside
-  the pkgx clang) was generalised into flags the build wrapper emits directly:
+  the bottled clang) was generalised into flags the build wrapper emits directly:
   `--sysroot`/`-isystem`/`-B`/`-L` at the glibc bottle plus
   `--rtlib=compiler-rt -fuse-ld=lld` and `--unwindlib=none`, carried **inside
   `$CC`/`$CXX`** rather than in `CFLAGS`. That last detail is not cosmetic:
@@ -25,14 +31,14 @@ Two other things changed on the way from note to code:
   so C++ recipes link `-stdlib=libc++` instead of the container's libstdc++.
 
 `--glibc <version>` pins the sysroot to an exact glibc line (see the
-"old-CI-base glibc" hazard below), and `bk builder` stages the FROM-scratch
+"old-CI-base glibc" hazard below), and `zbk builder` stages the FROM-scratch
 rootfs the whole thing was for: three static Go binaries plus toolchain bottles
 from the signed registry, nothing else.
 
 ## The problem
 
-`bk` builds C/C++ recipes with whatever compiler `bk` resolves onto `PATH`. On
-Linux that is the pkgx `llvm.org` clang (added implicitly by
+`zbk` builds C/C++ recipes with whatever compiler `zbk` resolves onto `PATH`. On
+Linux that is the bottled `llvm.org` clang (added implicitly by
 `buildscript.WrapOptions.depPlus`), but clang still links against **the build
 host's glibc** — in CI that is the Debian container's `/usr/lib/.../libc.so.6`
 and its `/lib64/ld-linux-*.so.*` loader. The produced bottle therefore:
@@ -41,14 +47,14 @@ and its `/lib64/ld-linux-*.so.*` loader. The produced bottle therefore:
   (`/lib64/ld-linux-x86-64.so.2` / `/lib/ld-linux-aarch64.so.1`), and
 * resolves `libc.so.6`, `libm.so.6`, … from the host at runtime.
 
-That breaks the pkgx promise of a **relocatable bottle that runs `FROM
+That breaks the promise of a **relocatable bottle that runs `FROM
 scratch`**: on a host with an older glibc (or none — Alpine/musl, a scratch
 image) the bottle fails to start with the classic `/lib64/ld-linux-...: no such
 file` or `version 'GLIBC_2.NN' not found`.
 
 The fix already exists as a recipe-level pattern — the **envoy recipe** on the
-`new/envoyproxy` branch writes a `clang.cfg` that re-targets clang at the pkgx
-`gnu.org/glibc` bottle. This note generalises that pattern into a `bk`
+`new/envoyproxy` branch writes a `clang.cfg` that re-targets clang at the
+`gnu.org/glibc` bottle. This note generalises that pattern into a `zbk`
 build-env mechanism that applies to **every** recipe without the recipe having
 to opt in.
 
@@ -86,10 +92,10 @@ What each flag buys:
 
 | flag | effect |
 |------|--------|
-| `-B$GLIBCLIB` | clang finds the pkgx glibc's `crt1.o crti.o crtn.o` (startup objects) here instead of `/usr/lib` |
-| `-L$GLIBCLIB` | link-time library search resolves `-lc`, `-lm`, … to the pkgx glibc |
-| `-Wl,--dynamic-linker=$GLIBCLD` | sets the binary's `PT_INTERP` to the **pkgx** `ld-linux` — the single most important line: it decides which loader the OS hands the process to at exec time |
-| `-Wl,-rpath,$GLIBCLIB` | bakes the pkgx glibc dir into `DT_RPATH`/`DT_RUNPATH` so `libc.so.6` resolves inside the pkgx closure at runtime |
+| `-B$GLIBCLIB` | clang finds the glibc bottle's `crt1.o crti.o crtn.o` (startup objects) here instead of `/usr/lib` |
+| `-L$GLIBCLIB` | link-time library search resolves `-lc`, `-lm`, … to the bottled glibc |
+| `-Wl,--dynamic-linker=$GLIBCLD` | sets the binary's `PT_INTERP` to the **bottle's own** `ld-linux` — the single most important line: it decides which loader the OS hands the process to at exec time |
+| `-Wl,-rpath,$GLIBCLIB` | bakes the glibc bottle's dir into `DT_RPATH`/`DT_RUNPATH` so `libc.so.6` resolves inside our own closure at runtime |
 | `-Wl,-rpath,$GCCLIB` | same for `libgcc_s.so.1` (the C++/unwind runtime), which lives in the gcc bottle, not glibc |
 | `-Wl,--disable-new-dtags` | emit **`DT_RPATH`** rather than `DT_RUNPATH`. `DT_RUNPATH` is *not* consulted for the transitive deps of a `dlopen`'d library; `DT_RPATH` *is*. This matters for any binary that `dlopen`s a plugin whose own `NEEDED` must resolve inside the closure |
 
@@ -104,27 +110,27 @@ resets `CC`; a config file beside the binary does.
 Note the envoy pattern redirects only the **link** side (crt, `-L`, loader,
 rpath). It deliberately leaves the **header** search on the host `/usr/include`.
 That is safe because glibc is backward-compatible at the *symbol-version* level:
-the pkgx glibc bottle is chosen to be **≥** the host glibc used for headers, so
-every symbol version referenced by a host header is present in the linked pkgx
-libc. (The stricter `-nostdinc -isystem $glibc/include` "sysroot" regime from
-`gnu.org/glibc/README.md` is only needed when the pkgx glibc is *older* than the
+the glibc bottle is chosen to be **≥** the host glibc used for headers, so
+every symbol version referenced by a host header is present in the linked
+bottled libc. (The stricter `-nostdinc -isystem $glibc/include` "sysroot" regime from
+`gnu.org/glibc/README.md` is only needed when the bottled glibc is *older* than the
 host — e.g. deliberately building a manylinux-2.28 floor. See Hazard (f).)
 
-## Generalising into a `bk` build-env mechanism
+## Generalising into a `zbk` build-env mechanism
 
-The insertion points in `bk` are already the right shape. Two functions own the
+The insertion points in `zbk` are already the right shape. Two functions own the
 build environment:
 
-* `build.EvalDeps` (`build/build.go`) assembles the `pkgx +…` closure: a
+* `build.EvalDeps` (`build/build.go`) assembles the `zpkgx +…` closure: a
   `BaseToolchain()` plus the recipe's runtime + build deps.
 * `buildscript.Wrap` (`buildscript/wrapper.go`) emits the runnable script:
-  `eval "$(pkgx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
+  `eval "$(zpkgx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
   script. `depPlus` is exactly where `+llvm.org` is appended today.
 
 The mechanism adds, **for a linux target only, when `BK_ZPKG_LIBC=1`**:
 
 1. **Implicit toolchain deps.** Inject `gnu.org/glibc` and
-   `gnu.org/gcc/libstdcxx` into the `pkgx +…` closure (clang from `llvm.org` is
+   `gnu.org/gcc/libstdcxx` into the `zpkgx +…` closure (clang from `llvm.org` is
    already injected by `depPlus`). This is a one-line addition to a new
    `libcToolchain()` helper consumed by `EvalDeps`, mirroring `BaseToolchain()`.
    These are *build-time* deps; whether the produced bottle also lists
@@ -132,15 +138,15 @@ The mechanism adds, **for a linux target only, when `BK_ZPKG_LIBC=1`**:
    glibc ships in the bottle's closure — see "Runtime closure" below).
 
 2. **A generated `clang.cfg`.** In the wrapper, before `cd $SRCROOT`, emit the
-   shell that (a) locates the pkgx glibc lib dir + loader + libgcc_s from the
+   shell that (a) locates the glibc bottle's lib dir + loader + libgcc_s from the
    already-`eval`'d `$ZPKG_DIR`, (b) writes `clang.cfg` next to the resolved
    clang, and (c) symlinks `clang++.cfg`, `clang-cpp.cfg`, `<versioned>.cfg` to
-   it. Because the pkgx env is `eval`'d with `set -a` just above, the glibc/gcc
+   it. Because the zpkgx env is `eval`'d with `set -a` just above, the glibc/gcc
    prefixes are discoverable by globbing `$ZPKG_DIR/gnu.org/glibc/v*/lib` — no
    `{{deps.*}}` moustache needed (though the `{{deps.gnu.org/glibc.prefix}}`
    token is available too, since `DepTokens` already resolves it).
 
-   Locating clang itself: `command -v clang` after the pkgx `eval` gives the
+   Locating clang itself: `command -v clang` after the zpkgx `eval` gives the
    shimmed path; `readlink -f` resolves it into the real
    `$ZPKG_DIR/llvm.org/v*/bin` dir where the `.cfg` must land (a `.cfg` beside a
    symlink is *not* read — clang reads it beside the **real** binary, located

@@ -25,8 +25,14 @@ func TestPkgxDir(t *testing.T) {
 	}
 	t.Setenv("ZPKG_DIR", "")
 	got := PkgxDir()
-	if !strings.HasSuffix(got, ".pkgx") {
-		t.Errorf("PkgxDir default = %q", got)
+	// ⛔ `.zpkg`, AND IT MUST MATCH bottle.Dir(). This asserted `.pkgx` while
+	// bottle/pkgx.go:385 returned `.zpkg`, so the test certified a store root
+	// that disagreed with the one the rest of the product used.
+	if !strings.HasSuffix(got, ".zpkg") {
+		t.Errorf("PkgxDir default = %q, want a ~/.zpkg suffix", got)
+	}
+	if strings.HasSuffix(got, ".pkgx") {
+		t.Errorf("PkgxDir default = %q — that is upstream pkgx's store", got)
 	}
 }
 
@@ -125,7 +131,7 @@ func TestNoHomeFallbacks(t *testing.T) {
 	userHomeDir = func() (string, error) { return "", errNoHome }
 
 	t.Setenv("ZPKG_DIR", "")
-	if got := PkgxDir(); got != ".pkgx" {
+	if got := PkgxDir(); got != ".zpkg" {
 		t.Errorf("PkgxDir no-home = %q", got)
 	}
 	t.Setenv("XDG_DATA_HOME", "")
