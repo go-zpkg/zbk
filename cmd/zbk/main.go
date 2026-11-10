@@ -228,6 +228,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runPublish(rest[1:], stdout, stderr)
 	case "closure":
 		return runClosure(rest[1:], stdout, stderr)
+	case "affected":
+		return runAffected(rest[1:], stdout, stderr)
 	case "catalog":
 		return runCatalog(rest[1:], stdout, stderr)
 	case "runlog":
