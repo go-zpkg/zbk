@@ -312,7 +312,7 @@ func TestWrapDepEnvIsFatal(t *testing.T) {
 	})
 	for _, w := range []string{
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+zlib.net" "+llvm.org")" || {`,
-		`echo "bk: the dependency environment failed`,
+		`echo "zbk: the dependency environment failed`,
 		"  exit 1\n}",
 		`eval "$__bk_deps_env"`,
 		"unset __bk_deps_env",

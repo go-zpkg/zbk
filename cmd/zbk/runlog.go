@@ -294,10 +294,10 @@ func runRunlog(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "builds:   %d ok, %d failed\n", len(l.Built), len(l.Failed))
 	fmt.Fprintf(stdout, "tests:    %d passed, %d failed\n", len(tPass), len(tFail))
 	if l.HasSummary {
-		fmt.Fprintf(stdout, "bk said:  %d built, %d skipped, %d failed\n", l.SummaryBuilt, l.SummarySkipped, l.SummaryFailed)
+		fmt.Fprintf(stdout, "zbk said:  %d built, %d skipped, %d failed\n", l.SummaryBuilt, l.SummarySkipped, l.SummaryFailed)
 	}
 	if l.HasTests {
-		fmt.Fprintf(stdout, "bk said:  %d passed, %d failed, %d with no test, %d not run\n",
+		fmt.Fprintf(stdout, "zbk said:  %d passed, %d failed, %d with no test, %d not run\n",
 			l.TestsPassed, l.TestsFailed, l.TestsNoTest, l.TestsNotRun)
 	}
 	if st := l.byStage(); len(st) > 0 {

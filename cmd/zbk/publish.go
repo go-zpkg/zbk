@@ -596,7 +596,7 @@ func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
 	// correct, the description of it is merely missing, and the alternative is a
 	// factory that stops on a field nothing consumes yet.
 	if names, err := sonamesFromTarball(tarball, ext); err != nil {
-		fmt.Fprintf(os.Stderr, "bk: could not read the sonames of %s %s: %v\n", o.Project, o.Version, err)
+		fmt.Fprintf(os.Stderr, "zbk: could not read the sonames of %s %s: %v\n", o.Project, o.Version, err)
 	} else if len(names) > 0 {
 		if annotations == nil {
 			annotations = map[string]string{}

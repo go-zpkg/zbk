@@ -308,7 +308,7 @@ has *"the same concrete specs"*.
 `members` is the abstract half. `bk lock` is the concrete one:
 
 ```
-$ bk lock --platform linux/x86-64 -o base-toolchain.lock.hcl go-zpkg/base-toolchain
+$ zbk lock --platform linux/x86-64 -o base-toolchain.lock.hcl go-zpkg/base-toolchain
 set: go-zpkg/base-toolchain names 25 member(s)
 lock: 41 project(s) pinned → base-toolchain.lock.hcl
 ```
@@ -360,7 +360,7 @@ Measured 2026-10-09, by generating a lock and running it in a `FROM scratch`
 container rather than by reading the code:
 
 ```
-$ bk lock -platform linux/aarch64 -o curl.lock.hcl curl.se
+$ zbk lock -platform linux/aarch64 -o curl.lock.hcl curl.se
 lock: 1 of 5 pin(s) NOT published for linux/aarch64 — `bk factory --lock` can
       build this file, `pkgx --lock` cannot run it:
     curl.se/ca-certs             2026.09.25     (published here: 2026.8.13)
@@ -498,7 +498,7 @@ lock nobody can rely on: both refuse to run when the lock and a fresh
 resolution disagree.
 
 ```
-$ bk lock --check base-toolchain.lock.hcl
+$ zbk lock --check base-toolchain.lock.hcl
 lock: linux/x86-64 · 2026-10-05T09:10:39Z · 41 pinned, 2 hour(s) old · pinned from the recipes
 lock: pantry revision differs: fd64699… → 9ab12cd…
   gnu.org/binutils                   2.47 → 2.48
@@ -550,8 +550,8 @@ be settled with `go version -m`, and only if you still had the binary rather
 than a `bk` on your `PATH`.
 
 ```console
-$ bk version
-bk v0.15.0
+$ zbk version
+zbk v0.15.0
 ```
 
 Both spellings exist and are asserted to give the same answer, because two
@@ -592,7 +592,7 @@ away.
 Now the provenance carries it, and this reads it back:
 
 ```console
-$ bk buildenv --platform linux/aarch64 stedolan.github.io/jq 1.8.2
+$ zbk buildenv --platform linux/aarch64 stedolan.github.io/jq 1.8.2
 github.com/kkos/oniguruma 6.9.10
 go.dev 1.27.2
 …
@@ -624,7 +624,7 @@ The operator's real question after a Go patch release is not "what was this
 built with" but **"which of these need rebuilding"**:
 
 ```console
-$ bk buildenv --platform linux/aarch64 --needs go.dev@1.27.2 --list recipes.txt
+$ zbk buildenv --platform linux/aarch64 --needs go.dev@1.27.2 --list recipes.txt
 STALE   acme.org/tool 1.2.3: go.dev 1.27.1, want >=1.27.2
 n/a     zlib.net 1.3.2: does not use go.dev
 ok      other.org 2.0.0: go.dev 1.27.2
@@ -667,7 +667,7 @@ registry said so, and anyone holding the old one kept it.
 `--rebuild` publishes such a build as the next **`_N`** instead:
 
 ```console
-$ bk factory --platform darwin/aarch64 --recipes fftw.org --force --rebuild
+$ zbk factory --platform darwin/aarch64 --recipes fftw.org --force --rebuild
 rebuild: fftw.org 3.3.11 is already published for darwin/aarch64 — publishing as 3.3.11_1
 ```
 
@@ -710,7 +710,7 @@ host's toolchain involved?*
 Measured 2026-11-01, the registry could not answer it:
 
 ```console
-$ bk buildenv --platform linux/s390x lz4.org 1.10.0
+$ zbk buildenv --platform linux/s390x lz4.org 1.10.0
 buildenv: lz4.org 1.10.0 (linux/s390x): the provenance records no build environment
 ```
 
@@ -722,7 +722,7 @@ situations, one silence, and a gate cannot read a silence.
 So the factory now states it, and this reads it back:
 
 ```console
-$ bk origin --platform linux/s390x lz4.org 1.10.0
+$ zbk origin --platform linux/s390x lz4.org 1.10.0
 lz4.org 1.10.0 linux/s390x
   host toolchain used: no — built from bottles
   inputs resolved from: oci://ghcr.io/go-zpkg/packages
@@ -732,7 +732,7 @@ lz4.org 1.10.0 linux/s390x
 provenance **proves** the host toolchain was not used.
 
 ```console
-$ bk origin --platform linux/s390x --promotable lz4.org 1.10.0
+$ zbk origin --platform linux/s390x --promotable lz4.org 1.10.0
 origin: lz4.org 1.10.0 (linux/s390x) is NOT promotable: its provenance does
 not say whether the host toolchain was used, and an unstated answer is not a "no"
 ```
@@ -758,7 +758,7 @@ a **promotion**: every bottle is refused unless its *source* provenance proves
 the host toolchain was unused.
 
 ```console
-$ bk factory --platform linux/s390x --mirror-from oci://127.0.0.1:5000/seed \
+$ zbk factory --platform linux/s390x --mirror-from oci://127.0.0.1:5000/seed \
     --to oci://ghcr.io/go-zpkg/packages --require-origin --recipes "lz4.org"
 ❌ FAIL lz4.org 1.10.0: origin: not promotable: it was built with --bootstrap,
    so its compiler and shell came from the host distribution rather than from
@@ -804,7 +804,7 @@ reference by accident — `gpgme`'s undeclared `libgpg-error` resolved for
 months because something else in the same closure happened to bring it.
 
 ```console
-bk unresolved -platform linux/aarch64 gnu.org/bash curl.se
+zbk unresolved -platform linux/aarch64 gnu.org/bash curl.se
 ```
 
 ⛔ **`-platform` exists because an audit that can only ask about its own
@@ -834,7 +834,7 @@ A recipe usually already names something better, in its `versions:` block.
 `bk vulnid` reads it:
 
 ```
-$ bk vulnid -dir ~/Library/Caches/pkgx/pantry
+$ zbk vulnid -dir ~/Library/Caches/pkgx/pantry
 1563 recipe(s) read from …/pantry/projects
   declared  0
   derived   1241
@@ -923,7 +923,7 @@ Four kinds of thing are attached to a bottle as OCI referrers. Nothing could be
 asked **which of them a given bottle has**.
 
 ```
-$ bk attest --platform linux/x86-64 bitwarden.com 1.22.1
+$ zbk attest --platform linux/x86-64 bitwarden.com 1.22.1
 bitwarden.com 1.22.1 linux/x86-64: 4 referrer(s)
   application/vnd.cyclonedx+json       3412 bytes  pkg:pkgx/bitwarden.com@1.22.1
   application/vnd.in-toto+json         1890 bytes  https://github.com/go-zpkg/zbk@v0.26.0
@@ -942,7 +942,7 @@ document looks exactly like a bottle nobody had anything to say about.
 what you read after something went wrong, a gate is what tells you.
 
 ```sh
-bk attest --require application/vnd.openvex+json bitwarden.com 1.22.1
+zbk attest --require application/vnd.openvex+json bitwarden.com 1.22.1
 ```
 
 Two details that are not decoration. The summary **reads the blob**, not the
@@ -1093,7 +1093,7 @@ attach its findings to the wrong package, and nothing else in the record says
 which project it is about.
 
 ```
-$ bk advisories -dir advisories
+$ zbk advisories -dir advisories
 2 project(s) read from advisories, 3 advisory(ies)
   detection                    2
   true-positive-determination  0
@@ -1137,7 +1137,7 @@ bottle.
 ### The bottle carries its own justification
 
 ```
-bk publish --to oci://ghcr.io/go-zpkg/bottles --project openssl.org \
+zbk publish --to oci://ghcr.io/go-pkgx/packages --project openssl.org \
            --version 3.5.8_1 --platform linux/x86-64 \
            --advisories ./advisories  openssl.org-3.5.8_1.tar.xz
 ```
@@ -1195,7 +1195,7 @@ Three details earn their keep:
 ## `bk vulnfetch` — asking a database, once
 
 ```
-$ bk vulnfetch -dir ~/Library/Caches/pkgx/pantry
+$ zbk vulnfetch -dir ~/Library/Caches/pkgx/pantry
 1563 recipe(s) read from …/pantry/projects
 129 identity(ies) asked, 1207 not answerable by OSV (repository- or CPE-keyed)
 55 finding(s) across 14 project(s)
@@ -1224,11 +1224,11 @@ before the version we ship. The two questions over the same pantry, the same
 run, on **2026-10-17**:
 
 ```
-$ bk vulnfetch -dir pantry
+$ zbk vulnfetch -dir pantry
 171 identity(ies) asked, 1500 not answerable by OSV (repository- or CPE-keyed)
 748 finding(s) across 21 project(s)
 
-$ bk vulnfetch -dir pantry -catalog catalog/darwin-aarch64.json
+$ zbk vulnfetch -dir pantry -catalog catalog/darwin-aarch64.json
 137 of them asked AT the version the catalogue publishes; the rest as a whole package
 171 identity(ies) asked, 1500 not answerable by OSV (repository- or CPE-keyed)
 90 finding(s) across 5 project(s)
@@ -1457,7 +1457,7 @@ mode, by design.
 ## `bk provides` — does the bottle say what the catalogue says?
 
 ```
-bk provides --catalog catalog.json --platform wasip1/wasm [--fail] [project...]
+zbk provides --catalog catalog.json --platform wasip1/wasm [--fail] [project...]
 ```
 
 Installs each project for `--platform` (every published project of the
