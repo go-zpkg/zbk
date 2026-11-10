@@ -25,7 +25,7 @@ func TestWrapLinux(t *testing.T) {
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+openssl.org@1.1" "+zlib.net" "+llvm.org")" || {`,
 		`export PATH="/bk/libexec:$PATH"`,
 		`export CMAKE_PREFIX_PATH="/opt/pkgx${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"`,
-		`export PKGX="/opt/pkgx/bin/pkgx"`,
+		`export ZPKGX="/opt/pkgx/bin/pkgx"`,
 		`export HOME="/bk/home"`,
 		`export SRCROOT="/bk/build"`,
 		`export TMPDIR="$HOME/tmp"; mkdir -p "$TMPDIR"`,
@@ -136,8 +136,8 @@ func TestWrapHasCompilerAndDefaults(t *testing.T) {
 	}
 	// no-deps linux still gets the llvm.org default => an eval block appears
 	s3 := Wrap(WrapOptions{UserScript: "x", Target: linuxTgt(), Host: linuxTgt()})
-	if !strings.Contains(s3, `__bk_deps_env="$(CLICOLOR_FORCE=1 pkgx "+llvm.org")" || {`) {
-		t.Errorf("no-dep linux should still eval default llvm.org via `pkgx`: %s", s3)
+	if !strings.Contains(s3, `__bk_deps_env="$(CLICOLOR_FORCE=1 zpkgx "+llvm.org")" || {`) {
+		t.Errorf("no-dep linux should still eval default llvm.org via `zpkgx`: %s", s3)
 	}
 }
 

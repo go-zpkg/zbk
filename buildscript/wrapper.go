@@ -37,7 +37,7 @@ type WrapOptions struct {
 	Install     string        // the final install prefix ($ZPKG_DIR/project/vX.Y.Z)
 	Project     string        // the project being built, so we never preset a tool IT provides
 	BrewkitPath string        // dir prepended to PATH for the build shims (optional)
-	PkgxBin     string        // path to the pkgx binary (for the deps eval + $PKGX)
+	PkgxBin     string        // path to the zpkgx binary (for the deps eval + $ZPKGX)
 	BashPath    string        // shebang interpreter (default /bin/bash)
 	HasCompiler bool          // a compiler (llvm.org / gnu.org/gcc) is already a dep
 	// Bootstrap takes the compiler from the HOST instead of adding the llvm.org
@@ -126,9 +126,9 @@ func Wrap(o WrapOptions) string {
 
 	pkgxBin := o.PkgxBin
 	if pkgxBin == "" {
-		pkgxBin = "pkgx"
+		pkgxBin = "zpkgx"
 	}
-	// Tools first: each variable pkgx writes PREPENDS, so whatever is evaluated
+	// Tools first: each variable zpkgx writes PREPENDS, so whatever is evaluated
 	// last comes first on the path. The link closure must win.
 	writeDepEval(&b, pkgxBin, o.toolPlus(), "tool", 1)
 	writeDepEval(&b, pkgxBin, o.depPlus(), "dependency", 1)
@@ -138,8 +138,13 @@ func Wrap(o WrapOptions) string {
 	if o.PkgxDir != "" {
 		fmt.Fprintf(&b, "export CMAKE_PREFIX_PATH=\"%s${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}\"\n", o.PkgxDir)
 	}
+	// ⛔ $ZPKGX, MEASURED SAFE RATHER THAN ASSUMED. A recipe may read this, so
+	// the question was how many do. Of the 1700 recipes in pkgxdev/pantry
+	// (shallow clone, 2026-11-10): 21 name PKGX_DIR — which this builder
+	// already exports as ZPKG_DIR, a separate and older gap — and ZERO read a
+	// bare $PKGX. Our own overlay's two mentions are PKGX_DIR as well.
 	if o.PkgxBin != "" {
-		fmt.Fprintf(&b, "export PKGX=\"%s\"\n", o.PkgxBin)
+		fmt.Fprintf(&b, "export ZPKGX=\"%s\"\n", o.PkgxBin)
 	}
 	fmt.Fprintf(&b, "export HOME=%q\n", o.Home)
 	fmt.Fprintf(&b, "export SRCROOT=%q\n", o.SrcRoot)

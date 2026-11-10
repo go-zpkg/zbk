@@ -194,7 +194,7 @@ func TestStageBuilderInstallsBinaries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dst := filepath.Join(root, "usr", "local", "bin", "bk")
+	dst := filepath.Join(root, "usr", "local", "bin", "zbk")
 	st, err := os.Stat(dst)
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestStageBuilderErrors(t *testing.T) {
 		fakeStage(t)
 		o := stageOpts(t.TempDir())
 		o.BkBin = filepath.Join(t.TempDir(), "absent")
-		if err := stageBuilder(o); err == nil || !strings.Contains(err.Error(), "install bk") {
+		if err := stageBuilder(o); err == nil || !strings.Contains(err.Error(), "install zbk") {
 			t.Fatalf("got %v", err)
 		}
 	})
@@ -293,7 +293,7 @@ func TestMicroVMConfigIsBootable(t *testing.T) {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Process.Args) != 1 || cfg.Process.Args[0] != "/usr/local/bin/bk" {
+	if len(cfg.Process.Args) != 1 || cfg.Process.Args[0] != "/usr/local/bin/zbk" {
 		t.Errorf("args = %v", cfg.Process.Args)
 	}
 	env := strings.Join(cfg.Process.Env, "\n")

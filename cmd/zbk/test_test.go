@@ -408,7 +408,7 @@ func TestRunTestKeepsTheGivenPkgxWhenItCannotBeResolved(t *testing.T) {
 
 	p := writeTestRecipe(t, okRecipe)
 	var out, errOut bytes.Buffer
-	if code := runTest([]string{"--recipe", p, "--pkgx", "/my/pkgx", "proj.org"}, &out, &errOut); code != 0 {
+	if code := runTest([]string{"--recipe", p, "--zpkgx", "/my/zpkgx", "proj.org"}, &out, &errOut); code != 0 {
 		t.Fatalf("want 0, got %d (%s)", code, errOut.String())
 	}
 	script, err := os.ReadFile(*got)
@@ -417,8 +417,8 @@ func TestRunTestKeepsTheGivenPkgxWhenItCannotBeResolved(t *testing.T) {
 	}
 	// Kept as given: an explicit path still works and the original error
 	// stays legible instead of being replaced by an empty string.
-	if !strings.Contains(string(script), "/my/pkgx") {
-		t.Errorf("the given pkgx was lost:\n%s", script)
+	if !strings.Contains(string(script), "/my/zpkgx") {
+		t.Errorf("the given zpkgx was lost:\n%s", script)
 	}
 }
 

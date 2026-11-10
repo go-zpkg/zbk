@@ -71,12 +71,12 @@ type Runner struct {
 	// recipes can reference those files as `props/foo` or via the {{props}}
 	// moustache (pkgx's convention). Empty disables the behaviour.
 	RecipeDir string
-	// LibcMode selects the C library the build links against. "pkgx" targets the
-	// gnu.org/glibc bottle (sovereign FROM-scratch, linux only, C recipes);
+	// LibcMode selects the C library the build links against. "zpkgx" targets
+	// the gnu.org/glibc bottle (sovereign FROM-scratch, linux only, C recipes);
 	// anything else (default "") keeps the build container's system glibc.
 	LibcMode string
-	// Glibc pins the exact pkgx glibc version to link against in LibcMode "pkgx"
-	// (a chosen HPC floor, e.g. "2.27.0"); empty = newest.
+	// Glibc pins the exact glibc bottle version to link against in LibcMode
+	// "zpkgx" (a chosen HPC floor, e.g. "2.27.0"); empty = newest.
 	Glibc string
 	// Bootstrap runs the build WITHOUT the base toolchain in its environment,
 	// taking those tools from the host instead. It is for the first generation
@@ -467,7 +467,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	// libexec dir alongside the generated script, and prepend it to PATH via
 	// BrewkitPath so recipes that exec them (`fix-shebangs.ts bin/*`) resolve.
 	libexecDir := paths.Build + ".libexec"
-	if err := writeLibexec(libexecDir, r.LibcMode == "pkgx", tgt.Triple, tgt.Platform, tgt.Arch); err != nil {
+	if err := writeLibexec(libexecDir, r.LibcMode == "zpkgx", tgt.Triple, tgt.Platform, tgt.Arch); err != nil {
 		return res, fmt.Errorf("write libexec: %w", err)
 	}
 	// The map is derived from the root the build really uses and refused when it
@@ -482,7 +482,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 		UserScript: user, Deps: deps, ToolDeps: toolDeps, Target: tgt, Host: host,
 		Home: paths.Home, SrcRoot: paths.Build, PkgxDir: config.PkgxDir(), Install: paths.Install, Project: project,
 		PkgxBin: r.PkgxBin, BashPath: r.BashPath, BrewkitPath: libexecDir,
-		LibcPkgx:  r.LibcMode == "pkgx",
+		LibcPkgx:  r.LibcMode == "zpkgx",
 		Glibc:     r.Glibc,
 		Bootstrap: r.Bootstrap,
 	})

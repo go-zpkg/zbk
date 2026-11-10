@@ -76,7 +76,7 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	recipe := fs.String("recipe", "", "path to the package.yml recipe (required)")
 	version := fs.String("version", "", "exact version to test (default: latest the recipe resolves)")
-	pkgx := fs.String("pkgx", "pkgx", "path to the pkgx binary used for the test env")
+	pkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the test env")
 	sandbox := fs.String("sandbox", "", "directory to run in (default: the computed testbed)")
 	if err := fs.Parse(args); err != nil {
 		return 2

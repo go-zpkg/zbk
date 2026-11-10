@@ -160,17 +160,17 @@ func TestBuildResolvesPkgxPath(t *testing.T) {
 	if c, _, e := run2(t, "build", "--recipe", rec, "test.org/x"); c != 0 {
 		t.Fatalf("build: code=%d err=%q", c, e)
 	}
-	if gotBin != "/abs/pkgx" {
-		t.Errorf("resolved pkgx = %q, want /abs/pkgx", gotBin)
+	if gotBin != "/abs/zpkgx" {
+		t.Errorf("resolved zpkgx = %q, want /abs/zpkgx — the default is the binary we ship", gotBin)
 	}
 
 	// LookPath fails → the flag value is kept as given.
 	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
-	if c, _, e := run2(t, "build", "--recipe", rec, "--pkgx", "/explicit/pkgx", "test.org/x"); c != 0 {
+	if c, _, e := run2(t, "build", "--recipe", rec, "--zpkgx", "/explicit/zpkgx", "test.org/x"); c != 0 {
 		t.Fatalf("build: code=%d err=%q", c, e)
 	}
-	if gotBin != "/explicit/pkgx" {
-		t.Errorf("unresolved pkgx = %q, want /explicit/pkgx", gotBin)
+	if gotBin != "/explicit/zpkgx" {
+		t.Errorf("unresolved zpkgx = %q, want /explicit/zpkgx", gotBin)
 	}
 }
 

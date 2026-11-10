@@ -394,7 +394,7 @@ func TestRunFactoryGlibcFlavor(t *testing.T) {
 	if code := h.run(t, "--recipes", "lib.org gnu.org/glibc", "--glibc", "2.27.0", "--max-versions", "1"); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
-	if runner.LibcMode != "pkgx" || runner.Glibc != "2.27.0" {
+	if runner.LibcMode != "zpkgx" || runner.Glibc != "2.27.0" {
 		t.Fatalf("runner libc = %q glibc = %q", runner.LibcMode, runner.Glibc)
 	}
 	// ⛔ THE GLIBC FLAVOUR COMES FIRST AND THE IDENTITY LAST. Both are in the
@@ -702,11 +702,11 @@ func TestRunFactoryPkgxLookupFallback(t *testing.T) {
 	var gotBin string
 	lookPath = func(string) (string, error) { return "", errors.New("not found") }
 	buildFactory = func(bin string) *build.Runner { gotBin = bin; return &build.Runner{} }
-	if code := h.run(t, "--recipes", "lib.org", "--pkgx", "/opt/pkgx", "--max-versions", "1"); code != 0 {
+	if code := h.run(t, "--recipes", "lib.org", "--zpkgx", "/opt/zpkgx", "--max-versions", "1"); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if gotBin != "/opt/pkgx" {
-		t.Fatalf("pkgx bin = %q", gotBin)
+	if gotBin != "/opt/zpkgx" {
+		t.Fatalf("zpkgx bin = %q", gotBin)
 	}
 }
 
