@@ -35,8 +35,8 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 	out := fs.String("out", "", "directory to stage the rootfs in (required)")
 	platform := fs.String("platform", envOr("PLATFORM", "linux/aarch64"), "target os/arch")
 	toolchain := fs.String("toolchain", "", "file listing the toolchain packages, one `project[constraint]` per line (default: the built-in list)")
-	bkBin := fs.String("bk", "", "path to a target-arch bk binary to install at /usr/local/bin/bk")
-	pkgxBin := fs.String("pkgx", "", "path to a target-arch pkgx binary to install at /usr/local/bin/pkgx")
+	bkBin := fs.String("zbk", "", "path to a target-arch zbk binary to install at /usr/local/bin/zbk")
+	pkgxBin := fs.String("zpkgx", "", "path to a target-arch zpkgx binary to install at /usr/local/bin/zpkgx")
 	dist := fs.String("dist", "", "bottle registry to install from (default $ZPKG_DIST)")
 	overlay := fs.String("overlay", "", "pantry overlay consulted before the upstream pantry (default $ZPKG_PANTRY_OVERLAY)")
 	microvm := fs.Bool("microvm", false, "also write .weft-microvm/config.json so `weft microvm run` can boot the directory as-is")
@@ -463,7 +463,12 @@ func stageBuilder(o stageOptions) error {
 		}
 	}
 
-	for _, b := range []struct{ src, name string }{{o.BkBin, "bk"}, {o.PkgxBin, "pkgx"}} {
+	// ⛔ THE ROOTFS CARRIES THE NAMES THE PRODUCT HAS. These were staged as
+	// `bk` and `pkgx` long after the binaries were renamed, so every build ran
+	// inside an image whose tools introduced themselves by their retired
+	// names — and a developer with upstream's `pkgx` on PATH could not tell
+	// the two apart by looking at the tree.
+	for _, b := range []struct{ src, name string }{{o.BkBin, "zbk"}, {o.PkgxBin, "zpkgx"}} {
 		if b.src == "" {
 			continue
 		}
@@ -636,7 +641,7 @@ func writeMicroVMConfig(o stageOptions, closure []bottle.Resolved, pkgxDir strin
 	sort.Strings(env)
 
 	cfg := microVMConfig{Process: microVMProcess{
-		Args: []string{"/usr/local/bin/bk"},
+		Args: []string{"/usr/local/bin/zbk"},
 		Env:  env,
 		Cwd:  "/",
 	}}

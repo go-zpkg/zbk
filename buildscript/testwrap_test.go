@@ -28,7 +28,7 @@ func TestWrapTestRunsThePackageInAnEmptySandbox(t *testing.T) {
 		`export TMPDIR="$HOME/tmp"; mkdir -p "$TMPDIR"`,
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+gnu.org/gawk@5.4.1" "+gnu.org/diffutils")" || {`,
 		`bk: the test environment failed`,
-		`export PKGX="/opt/pkgx/bin/pkgx"`,
+		`export ZPKGX="/opt/pkgx/bin/pkgx"`,
 		`cd "/bk/testbed"`,
 		"gawk --version | grep 5.4.1",
 	}
@@ -93,10 +93,10 @@ func TestWrapTestDefaultsBashAndPkgx(t *testing.T) {
 	if !strings.Contains(s, `pkgx "+p@1"`) {
 		t.Errorf("want the default pkgx, got:\n%s", s)
 	}
-	// With no PkgxBin there is nothing to export as $PKGX; a recipe that reads
+	// With no PkgxBin there is nothing to export as $ZPKGX; a recipe that reads
 	// it would otherwise get an empty string that looks like a path.
-	if strings.Contains(s, "export PKGX=") {
-		t.Errorf("exported an empty PKGX:\n%s", s)
+	if strings.Contains(s, "export ZPKGX=") {
+		t.Errorf("exported an empty ZPKGX:\n%s", s)
 	}
 	// Nor an empty ZPKG_DIR, for the same reason.
 	if strings.Contains(s, "export ZPKG_DIR=") {

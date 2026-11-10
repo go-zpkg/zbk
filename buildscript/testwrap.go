@@ -123,7 +123,7 @@ func WrapTest(o TestWrapOptions) string {
 	}
 	pkgxBin := o.PkgxBin
 	if pkgxBin == "" {
-		pkgxBin = "pkgx"
+		pkgxBin = "zpkgx"
 	}
 	var b strings.Builder
 	// `set -e`, and NOT pipefail. A build is one long script where a stage
@@ -163,7 +163,7 @@ func WrapTest(o TestWrapOptions) string {
 	// never made.
 	writeDepEval(&b, pkgxBin, o.testPlus(), "test", EnvFailExit)
 	if o.PkgxBin != "" {
-		fmt.Fprintf(&b, "export PKGX=%q\n", o.PkgxBin)
+		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.PkgxBin)
 	}
 
 	// After the eval, so the bottles are on disk and $ZPKG_DIR is set; before

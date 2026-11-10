@@ -138,10 +138,10 @@ func printVersion(w io.Writer) {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("bk", flag.ContinueOnError)
+	fs := flag.NewFlagSet("zbk", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	platform := fs.String("platform", "", "cross-build target, eg. windows/x86-64 (also ZBK_TARGET)")
-	version := fs.Bool("version", false, "print the version this bk writes into every lock")
+	version := fs.Bool("version", false, "print the version this zbk writes into every lock")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
