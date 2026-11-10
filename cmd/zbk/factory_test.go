@@ -1034,8 +1034,8 @@ func TestEnvInt(t *testing.T) {
 		val  string
 		want int
 	}{{"", 0}, {"abc", 0}, {"-3", 0}, {"7", 7}} {
-		t.Setenv("BK_TEST_N", tc.val)
-		if got := envInt("BK_TEST_N"); got != tc.want {
+		t.Setenv("ZBK_TEST_N", tc.val)
+		if got := envInt("ZBK_TEST_N"); got != tc.want {
 			t.Fatalf("envInt(%q) = %d, want %d", tc.val, got, tc.want)
 		}
 	}
@@ -2041,11 +2041,11 @@ func TestEnvBool(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			if tc.val == "" {
-				os.Unsetenv("BK_TEST_BOOL")
+				os.Unsetenv("ZBK_TEST_BOOL")
 			} else {
-				t.Setenv("BK_TEST_BOOL", tc.val)
+				t.Setenv("ZBK_TEST_BOOL", tc.val)
 			}
-			if got := envBool("BK_TEST_BOOL"); got != tc.want {
+			if got := envBool("ZBK_TEST_BOOL"); got != tc.want {
 				t.Errorf("envBool(%q) = %v, want %v  %s", tc.val, got, tc.want, tc.why)
 			}
 		})

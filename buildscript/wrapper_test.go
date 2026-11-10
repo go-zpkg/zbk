@@ -159,20 +159,20 @@ func TestWrapLibcPkgxLinuxX86(t *testing.T) {
 		// a literal `v[0-9]*` in the flags reaches the linker and breaks the very
 		// first configure probe.
 		`bkresolve() { set +f; for d in $1; do case "$d" in *'*'*|*'['*) continue;; esac; printf '%s\n' "$d"; done | sort -V | tail -n1; }`,
-		`export BK_GLIBC_PREFIX="$(bkresolve "$ZPKG_DIR/gnu.org/glibc/v[0-9]*")"`,
-		`export BK_LIBCXX_PREFIX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/v[0-9]*")"`,
+		`export ZBK_GLIBC_PREFIX="$(bkresolve "$ZPKG_DIR/gnu.org/glibc/v[0-9]*")"`,
+		`export ZBK_LIBCXX_PREFIX="$(bkresolve "$ZPKG_DIR/libcxx.llvm.org/v[0-9]*")"`,
 		// C: glibc sysroot + compiler-rt, no unwinder (exception-free C).
-		`export CFLAGS="-fPIC --sysroot="$BK_GLIBC_PREFIX" -isystem "${BK_GLIBC_PREFIX}include" -isystem "${BK_KHDR_PREFIX}include" -B "$BK_GLIBC_LIB" -L"$BK_GLIBC_LIB"${BK_LIBGCC:+ -L"$BK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument --unwindlib=none -Wno-implicit-function-declaration`,
+		`export CFLAGS="-fPIC --sysroot="$ZBK_GLIBC_PREFIX" -isystem "${ZBK_GLIBC_PREFIX}include" -isystem "${ZBK_KHDR_PREFIX}include" -B "$ZBK_GLIBC_LIB" -L"$ZBK_GLIBC_LIB"${ZBK_LIBGCC:+ -L"$ZBK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument --unwindlib=none -Wno-implicit-function-declaration`,
 		// C++: libc++ headers FIRST (before glibc's), then sysroot + libunwind.
-		`export CXXFLAGS="${BK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${BK_LIBCXX_PREFIX}include/c++/v1"} --sysroot="$BK_GLIBC_PREFIX" -isystem "${BK_GLIBC_PREFIX}include" -isystem "${BK_KHDR_PREFIX}include" -B "$BK_GLIBC_LIB" -L"$BK_GLIBC_LIB"${BK_LIBGCC:+ -L"$BK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument ${BK_LIBCXX_PREFIX:+--unwindlib=libunwind} -fPIC`,
+		`export CXXFLAGS="${ZBK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${ZBK_LIBCXX_PREFIX}include/c++/v1"} --sysroot="$ZBK_GLIBC_PREFIX" -isystem "${ZBK_GLIBC_PREFIX}include" -isystem "${ZBK_KHDR_PREFIX}include" -B "$ZBK_GLIBC_LIB" -L"$ZBK_GLIBC_LIB"${ZBK_LIBGCC:+ -L"$ZBK_LIBGCC"} --rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument ${ZBK_LIBCXX_PREFIX:+--unwindlib=libunwind} -fPIC`,
 		// The compiler is pinned to the pkgx clang AND carries the whole driver
 		// configuration, because libtool builds its own command lines from $CC
 		// and ignores CFLAGS/LDFLAGS.
-		`export CC="${CC:-clang --sysroot="$BK_GLIBC_PREFIX"`,
-		`export CXX="${CXX:-clang++ ${BK_LIBCXX_PREFIX:+-stdlib=libc++`,
+		`export CC="${CC:-clang --sysroot="$ZBK_GLIBC_PREFIX"`,
+		`export CXX="${CXX:-clang++ ${ZBK_LIBCXX_PREFIX:+-stdlib=libc++`,
 		`--rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument --unwindlib=none}"`,
 		// PT_INTERP = the bottle's x86-64 loader; libc + libc++/libunwind lib search paths; DT_RPATH.
-		`-Wl,--dynamic-linker="${BK_GLIBC_LIB}ld-linux-x86-64.so.2" -Wl,-rpath,"$BK_GLIBC_LIB" ${BK_LIBCXX_PREFIX:+-L"${BK_LIBCXX_PREFIX}lib" -Wl,-rpath,"${BK_LIBCXX_PREFIX}lib"} -Wl,--disable-new-dtags -Wl,--undefined-version`,
+		`-Wl,--dynamic-linker="${ZBK_GLIBC_LIB}ld-linux-x86-64.so.2" -Wl,-rpath,"$ZBK_GLIBC_LIB" ${ZBK_LIBCXX_PREFIX:+-L"${ZBK_LIBCXX_PREFIX}lib" -Wl,-rpath,"${ZBK_LIBCXX_PREFIX}lib"} -Wl,--disable-new-dtags -Wl,--undefined-version`,
 	}
 	for _, w := range wants {
 		if !strings.Contains(s, w) {
@@ -196,12 +196,12 @@ func TestWrapLibcPkgxFreestandingDriver(t *testing.T) {
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
 		PkgxDir: "/opt/pkgx", LibcPkgx: true,
 	})
-	const want = `export BK_CC_FREESTANDING="clang"`
+	const want = `export ZBK_CC_FREESTANDING="clang"`
 	if !strings.Contains(s, want) {
 		t.Fatalf("missing %q in:\n%s", want, s)
 	}
 	for _, line := range strings.Split(s, "\n") {
-		if !strings.HasPrefix(line, "export BK_CC_FREESTANDING=") {
+		if !strings.HasPrefix(line, "export ZBK_CC_FREESTANDING=") {
 			continue
 		}
 		if strings.Contains(line, "-isystem") || strings.Contains(line, "--sysroot") {
@@ -217,7 +217,7 @@ func TestWrapFreestandingDriverOnlyInLibcPkgx(t *testing.T) {
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
 		PkgxDir: "/opt/pkgx",
 	})
-	if strings.Contains(s, "BK_CC_FREESTANDING") {
+	if strings.Contains(s, "ZBK_CC_FREESTANDING") {
 		t.Errorf("freestanding driver exported outside pkgx-libc mode:\n%s", s)
 	}
 }
@@ -234,7 +234,7 @@ func TestWrapLibcPkgxArm64Loader(t *testing.T) {
 		t.Errorf("arm64 script leaked x86-64 flags:\n%s", s)
 	}
 	// arm64 CXXFLAGS leads with libc++ then the glibc sysroot (non-fPIC branch).
-	if !strings.Contains(s, `export CXXFLAGS="${BK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${BK_LIBCXX_PREFIX}include/c++/v1"} --sysroot="$BK_GLIBC_PREFIX"`) {
+	if !strings.Contains(s, `export CXXFLAGS="${ZBK_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${ZBK_LIBCXX_PREFIX}include/c++/v1"} --sysroot="$ZBK_GLIBC_PREFIX"`) {
 		t.Errorf("arm64 CXXFLAGS missing libc++/sysroot:\n%s", s)
 	}
 }
@@ -244,7 +244,7 @@ func TestWrapLibcPkgxNonLinuxIgnored(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: darwinTgt(), Host: linuxTgt(), LibcPkgx: true,
 	})
-	if strings.Contains(s, "gnu.org/glibc") || strings.Contains(s, "BK_GLIBC") || strings.Contains(s, "--dynamic-linker") {
+	if strings.Contains(s, "gnu.org/glibc") || strings.Contains(s, "ZBK_GLIBC") || strings.Contains(s, "--dynamic-linker") {
 		t.Errorf("darwin target must ignore LibcPkgx:\n%s", s)
 	}
 }
@@ -408,7 +408,7 @@ func TestIncompatibleFunctionPointerFlagIsClangOnly(t *testing.T) {
 // first and is the wrong vehicle: a recipe may set `env: RUSTFLAGS:` and a
 // recipe's env is emitted after this preamble, overwriting it whole —
 // crates.io/wasm-pack and crates.io/spider_cli both do, and both went on
-// failing on -lgcc while recipes that set no RUSTFLAGS built fine. $BK_CC is
+// failing on -lgcc while recipes that set no RUSTFLAGS built fine. $ZBK_CC is
 // not a variable a recipe sets, and `cc` on PATH is bk's shim, which re-execs
 // it.
 func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
@@ -422,25 +422,25 @@ func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
 	got := Wrap(sovereign)
 	// Resolved from the tree, never spelled out: both the triple and the
 	// version in lib/gcc/<triple>/<version> move with the bottle.
-	if !strings.Contains(got, `BK_LIBGCC="$(bkresolve`) {
+	if !strings.Contains(got, `ZBK_LIBGCC="$(bkresolve`) {
 		t.Error("the libgcc path must be resolved, not spelled out")
 	}
 	// Guarded, so an absent gcc bottle contributes nothing rather than a glob.
-	if !strings.Contains(got, `${BK_LIBGCC:+ -L"$BK_LIBGCC"}`) {
+	if !strings.Contains(got, `${ZBK_LIBGCC:+ -L"$ZBK_LIBGCC"}`) {
 		t.Error("the libgcc search path must be guarded")
 	}
 	// It has to be resolved BEFORE the driver flags that interpolate it, or the
 	// exports read an empty variable and the whole point is lost.
-	if strings.Index(got, `BK_LIBGCC="$(bkresolve`) > strings.Index(got, `export BK_CC=`) {
-		t.Error("BK_LIBGCC is resolved after the driver that uses it")
+	if strings.Index(got, `ZBK_LIBGCC="$(bkresolve`) > strings.Index(got, `export ZBK_CC=`) {
+		t.Error("ZBK_LIBGCC is resolved after the driver that uses it")
 	}
 	// In every driver a build can reach: $CC/$CXX for recipes that honour them,
-	// $BK_CC/$BK_CXX for the shims a recipe reaches by calling `cc` or `gcc` —
+	// $ZBK_CC/$ZBK_CXX for the shims a recipe reaches by calling `cc` or `gcc` —
 	// which is the path rustc takes.
-	for _, v := range []string{"export CC=", "export CXX=", "export BK_CC=", "export BK_CXX="} {
+	for _, v := range []string{"export CC=", "export CXX=", "export ZBK_CC=", "export ZBK_CXX="} {
 		line := got[strings.Index(got, v):]
 		line = line[:strings.Index(line, "\n")]
-		if !strings.Contains(line, `-L"$BK_LIBGCC"`) {
+		if !strings.Contains(line, `-L"$ZBK_LIBGCC"`) {
 			t.Errorf("%s does not carry the libgcc search path:\n%s", v, line)
 		}
 	}
@@ -450,7 +450,7 @@ func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
 		t.Error("the sovereign preamble must not set RUSTFLAGS — a recipe overwrites it")
 	}
 	// Not in the ordinary mode, where the flags stay compiler-neutral.
-	if strings.Contains(Wrap(opts), "BK_LIBGCC") {
+	if strings.Contains(Wrap(opts), "ZBK_LIBGCC") {
 		t.Error("the libgcc path leaked into the non-sovereign mode")
 	}
 }

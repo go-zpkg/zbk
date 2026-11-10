@@ -29,7 +29,7 @@ func TestCCShimRealLinkNormalisesTheDebugMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	osos := func(withFlag bool) []string {
-		t.Setenv("BK_CC", "")
+		t.Setenv("ZBK_CC", "")
 		t.Setenv(prefixMapEnv, "")
 		t.Setenv(osoPrefixEnv, "")
 		if withFlag {

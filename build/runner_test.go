@@ -1483,7 +1483,7 @@ func TestBuildExportsThePrefixMapOfTheRealRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(res.ScriptPath)
-	want := "export BK_FILE_PREFIX_MAP=\"" + config.Compute("acme.org/tool", "1.2.3", testBuildHash, tgt).Root + "=/build\"\n"
+	want := "export ZBK_FILE_PREFIX_MAP=\"" + config.Compute("acme.org/tool", "1.2.3", testBuildHash, tgt).Root + "=/build\"\n"
 	if !strings.Contains(string(b), want) {
 		t.Errorf("script lacks %q:\n%s", want, b)
 	}

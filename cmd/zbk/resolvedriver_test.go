@@ -11,7 +11,7 @@ import (
 
 // THE INVARIANT THAT MAKES SHIMMING `clang` SAFE.
 //
-// $BK_CC's driver is `clang` and the shim directory is FIRST on PATH, so a
+// $ZBK_CC's driver is `clang` and the shim directory is FIRST on PATH, so a
 // shim named clang that looked its driver up normally would find itself and
 // re-exec forever. This is the test that says it does not.
 func TestAShimDoesNotResolveToItself(t *testing.T) {
@@ -57,7 +57,7 @@ func TestTheShimPassesItsOwnPathToTheResolver(t *testing.T) {
 		}
 	}
 	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+realDir)
-	t.Setenv("BK_CC", "clang --sysroot=/somewhere")
+	t.Setenv("ZBK_CC", "clang --sysroot=/somewhere")
 
 	// argv[0] as the kernel gives it to a shim: the symlink's own path.
 	argv := os.Args
@@ -100,7 +100,7 @@ func TestTheShimReportsACompilerItCannotFind(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", shimDir) // the ONLY clang is the shim
-	t.Setenv("BK_CC", "clang --sysroot=/somewhere")
+	t.Setenv("ZBK_CC", "clang --sysroot=/somewhere")
 	argv := os.Args
 	os.Args = []string{filepath.Join(shimDir, "clang")}
 	t.Cleanup(func() { os.Args = argv })
@@ -177,16 +177,16 @@ func TestResolveDriverSkipsWhatCannotBeRun(t *testing.T) {
 }
 
 // The C++ names must reach the C++ driver, bare and triple-prefixed alike.
-// A C++ build handed $BK_CC gets no libc++ headers.
+// A C++ build handed $ZBK_CC gets no libc++ headers.
 func TestTheCXXNamesRouteToTheCXXDriver(t *testing.T) {
 	for _, n := range []string{"c++", "g++", "clang++", "s390x-ibm-linux-gnu-g++", "x86_64-pc-linux-gnu-clang++"} {
 		if !isCXXShim(n) {
-			t.Errorf("%q is a C++ compiler and routes to BK_CC", n)
+			t.Errorf("%q is a C++ compiler and routes to ZBK_CC", n)
 		}
 	}
 	for _, n := range []string{"cc", "gcc", "clang", "s390x-ibm-linux-gnu-gcc"} {
 		if isCXXShim(n) {
-			t.Errorf("%q is a C compiler and routes to BK_CXX", n)
+			t.Errorf("%q is a C compiler and routes to ZBK_CXX", n)
 		}
 	}
 }
