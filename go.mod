@@ -1,6 +1,6 @@
 module github.com/go-zpkg/zbk
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/ProtonMail/go-crypto v1.1.6
