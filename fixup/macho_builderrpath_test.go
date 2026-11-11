@@ -11,7 +11,7 @@ import (
 
 // go-zpkg/bk#395: every darwin bottle carried an absolute LC_RPATH into the
 // builder's store ($ZPKG_DIR as the build ran). These tests derive that store
-// from the test's own PkgxDir, as the build does, and never name a runner path.
+// from the test's own ZpkgDir, as the build does, and never name a runner path.
 
 func rpathsOf(t *testing.T, path string) []string {
 	t.Helper()
@@ -41,7 +41,7 @@ func TestBuilderStoreRpathIsPresentBeforeAndGoneAfter(t *testing.T) {
 	if err := checkNoBuilderRpath(exe, store); !errors.Is(err, ErrBuilderRpath) {
 		t.Fatalf("before: err = %v, want ErrBuilderRpath", err)
 	}
-	if err := rewriteMacho(exe, Options{Prefix: filepath.Dir(filepath.Dir(exe)), Platform: "darwin", PkgxDir: store}); err != nil {
+	if err := rewriteMacho(exe, Options{Prefix: filepath.Dir(filepath.Dir(exe)), Platform: "darwin", ZpkgDir: store}); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkNoBuilderRpath(exe, store); err != nil {
@@ -105,7 +105,7 @@ func TestAuditBuiltRefusesAShippedBuilderRpath(t *testing.T) {
 	store := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(store, "acme.org", "foo", "v1.0.0")
 	placePad(t, filepath.Join(prefix, "bin", "foo"), 256, machoCmd{lcRpath, store})
-	opts := Options{Prefix: prefix, Platform: "darwin", PkgxDir: store}
+	opts := Options{Prefix: prefix, Platform: "darwin", ZpkgDir: store}
 	if err := auditBuilt(opts); !errors.Is(err, ErrBuilderRpath) {
 		t.Fatalf("err = %v, want ErrBuilderRpath", err)
 	}
@@ -133,7 +133,7 @@ func TestDroppingTheLastRpathOfAnRpathUserIsRefused(t *testing.T) {
 		machoCmd{lcRpath, store},
 		machoCmd{lcLoadDylib, "@rpath/other.org/bar/v1/lib/libbar.dylib"},
 	)
-	err := rewriteMacho(exe, Options{Prefix: filepath.Dir(exe), Platform: "darwin", PkgxDir: store})
+	err := rewriteMacho(exe, Options{Prefix: filepath.Dir(exe), Platform: "darwin", ZpkgDir: store})
 	if !errors.Is(err, ErrDeadRpath) && !errors.Is(err, ErrBuilderOnlyRpath) {
 		t.Fatalf("err = %v, want a dead-rpath refusal", err)
 	}
@@ -231,7 +231,7 @@ func TestAuditBuiltCountsWhatItJudgedAndSkipped(t *testing.T) {
 	}
 	run := func(skips []string) string {
 		var logged []string
-		err := auditBuilt(Options{Prefix: prefix, Platform: "darwin", PkgxDir: store, Skips: skips,
+		err := auditBuilt(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: store, Skips: skips,
 			Log: func(s string) { logged = append(logged, s) }})
 		if err != nil {
 			t.Fatal(err)
@@ -254,7 +254,7 @@ func TestAuditBuiltCountsWhatItJudgedAndSkipped(t *testing.T) {
 		}
 	}
 	// A prefix outside the store falls back to the directory above the version.
-	if n := recipeName(Options{Prefix: "/elsewhere/proj/v1", PkgxDir: store}); n != "proj" {
+	if n := recipeName(Options{Prefix: "/elsewhere/proj/v1", ZpkgDir: store}); n != "proj" {
 		t.Errorf("recipeName outside the store = %q", n)
 	}
 }

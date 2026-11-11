@@ -33,11 +33,11 @@ type WrapOptions struct {
 	Host        target.Target // where we run — drives TMPDIR
 	Home        string        // a fresh HOME for the build
 	SrcRoot     string        // the build directory (also SRCROOT / cd target)
-	PkgxDir     string        // $ZPKG_DIR — the rpath root and CMAKE_PREFIX_PATH
+	ZpkgDir     string        // $ZPKG_DIR — the rpath root and CMAKE_PREFIX_PATH
 	Install     string        // the final install prefix ($ZPKG_DIR/project/vX.Y.Z)
 	Project     string        // the project being built, so we never preset a tool IT provides
 	BrewkitPath string        // dir prepended to PATH for the build shims (optional)
-	PkgxBin     string        // path to the zpkgx binary (for the deps eval + $ZPKGX)
+	ZpkgxBin    string        // path to the zpkgx binary (for the deps eval + $ZPKGX)
 	BashPath    string        // shebang interpreter (default /bin/bash)
 	HasCompiler bool          // a compiler (llvm.org / gnu.org/gcc) is already a dep
 	// Bootstrap takes the compiler from the HOST instead of adding the llvm.org
@@ -58,15 +58,15 @@ type WrapOptions struct {
 	// s390x at all.
 	Bootstrap   bool
 	HasBinutils bool // gnu.org/binutils is a dep (darwin AR/RANLIB workaround)
-	// LibcPkgx targets the pkgx gnu.org/glibc bottle instead of the build
+	// LibcZpkgx targets the pkgx gnu.org/glibc bottle instead of the build
 	// container's system glibc (linux only): the output links its crt objects,
 	// libc and dynamic linker from the bottle, so the bottle owes nothing to the
 	// debian build container — the sovereign FROM-scratch end state. Opt-in
 	// (default off); the caller also adds gnu.org/glibc to Deps so the bottle is
 	// present in the eval. C-only for now: the pkgx llvm.org bottle ships no
 	// libc++/libunwind, so C++ recipes still need the system libstdc++.
-	LibcPkgx bool
-	// Glibc, when set (with LibcPkgx), pins the exact pkgx gnu.org/glibc version
+	LibcZpkgx bool
+	// Glibc, when set (with LibcZpkgx), pins the exact pkgx gnu.org/glibc version
 	// used as the sysroot — so the output links THAT glibc's symbols and runs on
 	// any host whose kernel satisfies it (a chosen HPC floor, e.g. "2.27.0").
 	// Empty = newest available. wrapFlags then resolves that sole installed
@@ -124,27 +124,27 @@ func Wrap(o WrapOptions) string {
 		b.WriteString("export ZPKG_IMPLICIT_ROOTS=none\n")
 	}
 
-	pkgxBin := o.PkgxBin
-	if pkgxBin == "" {
-		pkgxBin = "zpkgx"
+	zpkgxBin := o.ZpkgxBin
+	if zpkgxBin == "" {
+		zpkgxBin = "zpkgx"
 	}
 	// Tools first: each variable zpkgx writes PREPENDS, so whatever is evaluated
 	// last comes first on the path. The link closure must win.
-	writeDepEval(&b, pkgxBin, o.toolPlus(), "tool", 1)
-	writeDepEval(&b, pkgxBin, o.depPlus(), "dependency", 1)
+	writeDepEval(&b, zpkgxBin, o.toolPlus(), "tool", 1)
+	writeDepEval(&b, zpkgxBin, o.depPlus(), "dependency", 1)
 	if o.BrewkitPath != "" {
 		fmt.Fprintf(&b, "export PATH=\"%s:$PATH\"\n", o.BrewkitPath)
 	}
-	if o.PkgxDir != "" {
-		fmt.Fprintf(&b, "export CMAKE_PREFIX_PATH=\"%s${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}\"\n", o.PkgxDir)
+	if o.ZpkgDir != "" {
+		fmt.Fprintf(&b, "export CMAKE_PREFIX_PATH=\"%s${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}\"\n", o.ZpkgDir)
 	}
 	// ⛔ $ZPKGX, MEASURED SAFE RATHER THAN ASSUMED. A recipe may read this, so
 	// the question was how many do. Of the 1700 recipes in pkgxdev/pantry
 	// (shallow clone, 2026-11-10): 21 name PKGX_DIR — which this builder
 	// already exports as ZPKG_DIR, a separate and older gap — and ZERO read a
 	// bare $PKGX. Our own overlay's two mentions are PKGX_DIR as well.
-	if o.PkgxBin != "" {
-		fmt.Fprintf(&b, "export ZPKGX=\"%s\"\n", o.PkgxBin)
+	if o.ZpkgxBin != "" {
+		fmt.Fprintf(&b, "export ZPKGX=\"%s\"\n", o.ZpkgxBin)
 	}
 	fmt.Fprintf(&b, "export HOME=%q\n", o.Home)
 	fmt.Fprintf(&b, "export SRCROOT=%q\n", o.SrcRoot)
@@ -165,7 +165,7 @@ func Wrap(o WrapOptions) string {
 	}
 	b.WriteString(toolVars(o.Project))
 	b.WriteString("mkdir -p $HOME\n")
-	for _, f := range wrapFlags(o.Target, o.PkgxDir, o.Install, o.HasBinutils, o.LibcPkgx) {
+	for _, f := range wrapFlags(o.Target, o.ZpkgDir, o.Install, o.HasBinutils, o.LibcZpkgx) {
 		b.WriteString(f + "\n")
 	}
 	// A redacted DUMP of the environment into the build log, not an unset —
@@ -247,7 +247,7 @@ func (o WrapOptions) depPlus() string {
 	// kernel headers (linux/*.h, asm/*.h) glibc's own headers include — glibc's
 	// recipe depends on it for exactly this reason; the bottle doesn't bundle
 	// them and --sysroot cuts off the container's copy.
-	if o.LibcPkgx && o.Target.Platform == "linux" {
+	if o.LibcZpkgx && o.Target.Platform == "linux" {
 		// gnu.org/binutils supplies ar/ranlib (the pkgx llvm.org bottle ships
 		// llvm-ar, not a plain `ar`, and the sovereign mode must not fall back to
 		// the container's binutils). Linking still uses lld via -fuse-ld=lld.
@@ -388,16 +388,16 @@ func glibcLoader(arch string) (string, bool) {
 // dylib in lib/ is one level below that; libexec/<sub>/ is one more, so both
 // are named. During the build the staging tree is <install>+brewing, the same
 // depth, so the relative rpath resolves there too.
-func darwinRpaths(pkgxDir, install string) []string {
+func darwinRpaths(zpkgDir, install string) []string {
 	var out []string
-	if rel, err := filepath.Rel(pkgxDir, install); err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
+	if rel, err := filepath.Rel(zpkgDir, install); err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
 		depth := len(strings.Split(filepath.ToSlash(rel), "/"))
 		for _, extra := range rpathExtraDepths {
 			up := strings.TrimSuffix(strings.Repeat("../", depth+extra), "/")
 			out = append(out, "-Wl,-rpath,@loader_path/"+up)
 		}
 	}
-	return append(out, "-Wl,-rpath,"+pkgxDir)
+	return append(out, "-Wl,-rpath,"+zpkgDir)
 }
 
 // rpathExtraDepths is how far below the prefix a Mach-O may sit and still get a
@@ -421,7 +421,7 @@ var rpathExtraDepths = []int{1, 2, 3, 4, 5}
 
 // wrapFlags returns the target-keyed compiler/linker FLAGS exports. A windows
 // target gets none (PEs have no rpath and mingw rejects -pie).
-func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx bool) []string {
+func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkgx bool) []string {
 	var out []string
 	var ld []string
 	switch tgt.Platform {
@@ -438,7 +438,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		// about where this package installs, which we know here and the linker
 		// does not. The absolute one stays as well, so anything that runs out of
 		// the build tree keeps resolving the way it does today.
-		ld = append(ld, darwinRpaths(pkgxDir, install)...)
+		ld = append(ld, darwinRpaths(zpkgDir, install)...)
 		// Slack between the load commands and the first section, so fixup can
 		// LENGTHEN an install name rather than skip it.
 		//
@@ -502,7 +502,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 		// bottles never published for linux/x86-64). -fPIC in CFLAGS still gives
 		// the position-independent objects both PIE executables and shared libs
 		// need; PIE-ness of the final executable is the toolchain default.
-		ld = append(ld, "-Wl,-rpath,"+pkgxDir)
+		ld = append(ld, "-Wl,-rpath,"+zpkgDir)
 	}
 
 	// pkgx-libc mode (linux): resolve the gnu.org/glibc bottle in the eval'd
@@ -514,7 +514,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 	// otherwise pull (fine for exception-free C — the mode's scope). The result
 	// links its interpreter + libc from the bottle, not the debian container.
 	var glibcCC, glibcCXX, glibcLD string
-	if libcPkgx && tgt.Platform == "linux" {
+	if libcZpkgx && tgt.Platform == "linux" {
 		// Resolve the newest installed version dir of each bottle. Two hazards:
 		// pkgx creates a symlink literally NAMED "v*" (alongside v2, v2.44,
 		// v2.44.0) which a "v*/" glob would match and — worse — sort -V ranks
@@ -727,7 +727,7 @@ func wrapFlags(tgt target.Target, pkgxDir, install string, hasBinutils, libcPkgx
 	// and nothing else after LDFLAGS alone had been fixed.
 	if tgt.Platform == "darwin" {
 		var rf []string
-		for _, r := range darwinRpaths(pkgxDir, install) {
+		for _, r := range darwinRpaths(zpkgDir, install) {
 			rf = append(rf, "-C link-arg="+r)
 		}
 		// The install-name slack, for the same reason as LDFLAGS: a Rust cdylib

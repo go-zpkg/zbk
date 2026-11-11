@@ -23,8 +23,8 @@ import (
 // relocatable is a question about what our signature claims, and it is
 // go-zpkg/packages#147's to answer; what a publisher should not have to do is
 // find out from a third package's dyld error.
-func AuditRelocatable(prefix, pkgxDir string) (checked int, problems []error) {
-	opts := Options{PkgxDir: pkgxDir}
+func AuditRelocatable(prefix, zpkgDir string) (checked int, problems []error) {
+	opts := Options{ZpkgDir: zpkgDir}
 	_ = walkExes(prefix, func(p string) error {
 		if !isMachO(p) {
 			return nil
@@ -75,7 +75,7 @@ var ErrMissingRef = errors.New("fixup: @rpath reference names a file that is not
 // recipe declared, so this is that build's own disagreement and not an
 // inherited one.
 func checkRefExists(exe string, opts Options) error {
-	if opts.PkgxDir == "" {
+	if opts.ZpkgDir == "" {
 		return nil
 	}
 	refs, err := readMachoRefs(exe)
@@ -87,7 +87,7 @@ func checkRefExists(exe string, opts Options) error {
 		if !ok || !strings.Contains(rest, "/") {
 			continue // a BARE soname is checkRpathResolvable's business
 		}
-		cand := filepath.Join(opts.PkgxDir, filepath.FromSlash(rest))
+		cand := filepath.Join(opts.ZpkgDir, filepath.FromSlash(rest))
 		// The package's own files may still be under the staging prefix while
 		// fixup runs, so try both — the same pair qualifyRef stats.
 		if exists(cand) || exists(staged(cand, opts)) {

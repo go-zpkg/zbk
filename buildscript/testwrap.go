@@ -62,8 +62,8 @@ type TestWrapOptions struct {
 	Compiler bool
 	Home     string        // a fresh HOME, created by the script
 	Sandbox  string        // the empty directory the test runs in
-	PkgxDir  string        // $ZPKG_DIR, so the eval resolves where the build published
-	PkgxBin  string        // path to the pkgx binary
+	ZpkgDir  string        // $ZPKG_DIR, so the eval resolves where the build published
+	ZpkgxBin string        // path to the pkgx binary
 	BashPath string        // shebang interpreter (default /bin/bash)
 	Host     target.Target // where we run — drives TMPDIR
 	// ShimDir holds bk's compiler shims (cc, gcc, c++, g++ and their
@@ -121,9 +121,9 @@ func WrapTest(o TestWrapOptions) string {
 	if bash == "" {
 		bash = "/bin/bash"
 	}
-	pkgxBin := o.PkgxBin
-	if pkgxBin == "" {
-		pkgxBin = "zpkgx"
+	zpkgxBin := o.ZpkgxBin
+	if zpkgxBin == "" {
+		zpkgxBin = "zpkgx"
 	}
 	var b strings.Builder
 	// `set -e`, and NOT pipefail. A build is one long script where a stage
@@ -150,8 +150,8 @@ func WrapTest(o TestWrapOptions) string {
 	fmt.Fprintf(&b, "export HOME=%q\n", o.Home)
 	b.WriteString("export ZPKG_HOME=\"$HOME\"\n")
 	b.WriteString("mkdir -p \"$HOME\"\n")
-	if o.PkgxDir != "" {
-		fmt.Fprintf(&b, "export ZPKG_DIR=%q\n", o.PkgxDir)
+	if o.ZpkgDir != "" {
+		fmt.Fprintf(&b, "export ZPKG_DIR=%q\n", o.ZpkgDir)
 	}
 	b.WriteString(tmpdirLine(o.Host) + "\n")
 
@@ -161,9 +161,9 @@ func WrapTest(o TestWrapOptions) string {
 	// test has no artefact and no link step: everything it names is something
 	// that has to RUN, so splitting them would invent a distinction the recipe
 	// never made.
-	writeDepEval(&b, pkgxBin, o.testPlus(), "test", EnvFailExit)
-	if o.PkgxBin != "" {
-		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.PkgxBin)
+	writeDepEval(&b, zpkgxBin, o.testPlus(), "test", EnvFailExit)
+	if o.ZpkgxBin != "" {
+		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.ZpkgxBin)
 	}
 
 	// After the eval, so the bottles are on disk and $ZPKG_DIR is set; before

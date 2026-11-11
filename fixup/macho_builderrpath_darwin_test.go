@@ -57,7 +57,7 @@ func TestBinaryWithItsBuilderRpathRemovedStillVerifiesAndRuns(t *testing.T) {
 		t.Fatalf("control: the unmodified binary did not run: %v %q", err, out)
 	}
 
-	if err := rewriteMacho(exe, Options{Prefix: dir, Platform: "darwin", PkgxDir: store}); err != nil {
+	if err := rewriteMacho(exe, Options{Prefix: dir, Platform: "darwin", ZpkgDir: store}); err != nil {
 		t.Fatal(err)
 	}
 	if has(exe) {

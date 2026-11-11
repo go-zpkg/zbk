@@ -156,7 +156,7 @@ func SpecProject(spec string) string {
 // wrong one: `resolve` reaches the registry, and two resolutions a moment
 // apart are two ANSWERS — measured on this fleet, the same pantry commit gave
 // tcl 9.0.4 and 9.1.0 four hours apart.
-func DepTokens(runtime, buildDeps map[string]any, tgt target.Target, pkgxDir string, resolve func(project, constraint string) (string, error)) ([]moustache.Token, []moustache.Dep, error) {
+func DepTokens(runtime, buildDeps map[string]any, tgt target.Target, zpkgDir string, resolve func(project, constraint string) (string, error)) ([]moustache.Token, []moustache.Dep, error) {
 	flat := reduceDepMap(runtime, tgt)
 	for p, c := range reduceDepMap(buildDeps, tgt) {
 		flat[p] = c
@@ -191,7 +191,7 @@ func DepTokens(runtime, buildDeps map[string]any, tgt target.Target, pkgxDir str
 			// bottle.StorePrefix resolves the installed build and falls back
 			// to the composed path when nothing is installed, which is the
 			// string this produced before and keeps a dry run unchanged.
-			Path: bottle.StorePrefix(pkgxDir, p, bottle.Ver{Raw: ver}),
+			Path: bottle.StorePrefix(zpkgDir, p, bottle.Ver{Raw: ver}),
 		})
 	}
 	return moustache.Deps(deps), deps, nil
@@ -742,11 +742,11 @@ func EvalDeps(project string, runtime, buildDeps map[string]any, tgt target.Targ
 // through from the caller's environment. It prevents a stray toolchain (eg. a
 // system Homebrew) from leaking into the build (proven: wget linked the wrong
 // openssl under an unsanitized env).
-func SanitizedEnv(home, pkgxDir string) []string {
+func SanitizedEnv(home, zpkgDir string) []string {
 	env := []string{
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 		"HOME=" + home,
-		"ZPKG_DIR=" + pkgxDir,
+		"ZPKG_DIR=" + zpkgDir,
 		// Neutralise autotools maintainer-mode. A release tarball ships a correct
 		// configure/Makefile.in/aclocal.m4, but timestamp skew after extraction
 		// makes `make` try to regenerate them with a pinned aclocal-1.NN /

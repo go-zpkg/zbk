@@ -694,9 +694,9 @@ func TestRunFactoryUsageErrors(t *testing.T) {
 	}
 }
 
-// TestRunFactoryPkgxLookupFallback: an unresolvable pkgx name is passed through
+// TestRunFactoryZpkgxLookupFallback: an unresolvable pkgx name is passed through
 // verbatim rather than swallowed.
-func TestRunFactoryPkgxLookupFallback(t *testing.T) {
+func TestRunFactoryZpkgxLookupFallback(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "lib.org", "versions:\n  github: a/lib/tags\nbuild: make\n")
 	var gotBin string

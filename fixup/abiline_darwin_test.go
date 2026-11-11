@@ -65,9 +65,9 @@ func abiLineScenario(t *testing.T, withLink bool) {
 	}
 
 	// line one: v1.0.0, soname libfoo.1.dylib, and the links a store writes.
-	pkgxDir := filepath.Join(root, "store")
-	libPrefix := filepath.Join(pkgxDir, "abi.example", "v1.0.0")
-	exePrefix := filepath.Join(pkgxDir, "other.org", "bar", "v2.0.0")
+	zpkgDir := filepath.Join(root, "store")
+	libPrefix := filepath.Join(zpkgDir, "abi.example", "v1.0.0")
+	exePrefix := filepath.Join(zpkgDir, "other.org", "bar", "v2.0.0")
 	if err := os.MkdirAll(filepath.Join(libPrefix, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func abiLineScenario(t *testing.T, withLink bool) {
 	}
 	dylib := filepath.Join(libPrefix, "lib", "libfoo.1.dylib")
 	run(cc, "-dynamiclib", "-install_name", dylib, "-Wl,-rpath,@loader_path/../../..", "-o", dylib, foo)
-	proj := filepath.Join(pkgxDir, "abi.example")
+	proj := filepath.Join(zpkgDir, "abi.example")
 	links := []string{"v1"}
 	if withLink {
 		links = append(links, "abi-libfoo.1.dylib")
@@ -90,7 +90,7 @@ func abiLineScenario(t *testing.T, withLink bool) {
 	exe := filepath.Join(exePrefix, "bin", "bar")
 	run(cc, "-o", exe, mainC, dylib, "-Wl,-rpath,@loader_path/../../../..")
 	for _, p := range []string{libPrefix, exePrefix} {
-		if err := FixUp(Options{Prefix: p, Platform: "darwin", PkgxDir: pkgxDir}); err != nil {
+		if err := FixUp(Options{Prefix: p, Platform: "darwin", ZpkgDir: zpkgDir}); err != nil {
 			t.Fatalf("fixup %s: %v", p, err)
 		}
 	}
@@ -117,7 +117,7 @@ func abiLineScenario(t *testing.T, withLink bool) {
 	}
 
 	// The other line arrives and takes v1 — which is what a minor upgrade does.
-	other := filepath.Join(pkgxDir, "abi.example", "v1.5.0")
+	other := filepath.Join(zpkgDir, "abi.example", "v1.5.0")
 	if err := os.MkdirAll(filepath.Join(other, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}

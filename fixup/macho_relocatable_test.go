@@ -35,7 +35,7 @@ func TestInstallNamesBecomeRpathReferences(t *testing.T) {
 		machoCmd{lcLoadDylib, filepath.Join(pkgx, "acme.org/foo/v1.2.3/lib/libfoo.dylib")},
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -67,7 +67,7 @@ func TestNoReachingRpathLeavesNamesAbsolute(t *testing.T) {
 		machoCmd{lcLoadDylib, dep},
 	)
 	var logged []string
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx,
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx,
 		Log: func(s string) { logged = append(logged, s) }}); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestUnderDir(t *testing.T) {
 
 // Without a $ZPKG_DIR — `bk fixup <prefix>` run by hand — the pass does what it
 // always did: strip the staging prefix, and nothing else.
-func TestNoPkgxDirIsTheOldBehaviour(t *testing.T) {
+func TestNoZpkgDirIsTheOldBehaviour(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "acme.org", "foo", "v1.2.3")
 	exe := filepath.Join(prefix, "bin", "foo")
@@ -171,7 +171,7 @@ func TestNothingToDo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: dir}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: dir}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(exe)
@@ -199,7 +199,7 @@ func TestRpathReadErrorSurfaces(t *testing.T) {
 		}
 		return os.ReadFile(p)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err == nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err == nil {
 		t.Fatal("want the read error, got none")
 	}
 }
@@ -221,7 +221,7 @@ func TestDependencyVersionsAreMajorOnly(t *testing.T) {
 		machoCmd{lcLoadDylib, filepath.Join(pkgx, "pcre.org/v2/v10.47/lib/libpcre2-8.0.dylib")},
 		machoCmd{lcIDDylib, filepath.Join(prefix, "lib/libgreputils.1.dylib")},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -251,7 +251,7 @@ func TestAlreadyRpathReferencesAreMajorVersionedToo(t *testing.T) {
 		machoCmd{lcLoadDylib, "@rpath/gnu.org/grep/v3.12/lib/libgreputils.1.dylib"},
 		machoCmd{lcLoadDylib, "@rpath/not/under/anything.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -287,7 +287,7 @@ func TestDeadRpathIsRefused(t *testing.T) {
 	prefix := filepath.Join(pkgx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcLoadDylib, "@rpath/tukaani.org/xz/v5.8.3/lib/liblzma.5.dylib"})
-	err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
 	if !errors.Is(err, ErrDeadRpath) {
 		t.Fatalf("err = %v, want ErrDeadRpath", err)
 	}
@@ -306,7 +306,7 @@ func TestAnRpathIsEnoughToPass(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/tukaani.org/xz/v5.8.3/lib/liblzma.5.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatalf("a file with an rpath was refused: %v", err)
 	}
 }
@@ -317,7 +317,7 @@ func TestNoRpathReferenceNeedsNoRpath(t *testing.T) {
 	prefix := filepath.Join(pkgx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"})
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatalf("a plain binary was refused: %v", err)
 	}
 }
@@ -338,7 +338,7 @@ func TestNoRpathReferenceNeedsNoRpath(t *testing.T) {
 // say about this file: an absolute rpath INSIDE $ZPKG_DIR states the target,
 // the file's own location states the depth, and relativeRpath writes the entry
 // that means the same thing from anywhere. What used to be a build refusal is
-// now a repair — see TestAbsolutePkgxRpathsBecomeLoaderPath for the shape that
+// now a repair — see TestAbsoluteZpkgxRpathsBecomeLoaderPath for the shape that
 // no linker flag could have fixed.
 func TestAnAbsoluteRpathBecomesRelocatable(t *testing.T) {
 	pkgx := filepath.Join(t.TempDir(), ".pkgx")
@@ -349,7 +349,7 @@ func TestAnAbsoluteRpathBecomesRelocatable(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../lib"}, // its own lib, not a sibling's
 		machoCmd{lcLoadDylib, "@rpath/zlib.net/v1.3.1/lib/libz.1.3.1.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatalf("err = %v; want the builder rpath repaired, not refused", err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -366,7 +366,7 @@ func TestAnAbsoluteRpathBecomesRelocatable(t *testing.T) {
 // and a missing one everywhere else, and no arithmetic on the file's own
 // location can say where a consumer keeps it — so this is the case that must
 // still refuse to publish rather than be guessed at.
-func TestAnAbsoluteRpathOutsidePkgxDirStillRefuses(t *testing.T) {
+func TestAnAbsoluteRpathOutsideZpkgDirStillRefuses(t *testing.T) {
 	pkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(pkgx, "llvm.org", "v22.1.8")
 	exe := filepath.Join(prefix, "bin", "clang")
@@ -375,7 +375,7 @@ func TestAnAbsoluteRpathOutsidePkgxDirStillRefuses(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../lib"},
 		machoCmd{lcLoadDylib, "@rpath/zlib.net/v1.3.1/lib/libz.1.3.1.dylib"},
 	)
-	err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
 	if !errors.Is(err, ErrBuilderOnlyRpath) {
 		t.Fatalf("err = %v; want ErrBuilderOnlyRpath", err)
 	}
@@ -398,7 +398,7 @@ func TestAnAbsoluteRpathBesideAReachingOneIsAccepted(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/zlib.net/v1.3.1/lib/libz.1.3.1.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatalf("a reaching relative rpath must be enough: %v", err)
 	}
 }
@@ -414,7 +414,7 @@ func TestOwnLibraryReferenceNeedsNoEscapingRpath(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../lib"},
 		machoCmd{lcLoadDylib, "@rpath/libLLVM.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatalf("own-library reference must be accepted: %v", err)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestPkgxArch(t *testing.T) {
+func TestZpkgxArch(t *testing.T) {
 	cases := map[string]string{"amd64": "x86-64", "arm64": "aarch64", "riscv64": "riscv64"}
 	for in, want := range cases {
 		if got := pkgxArch(in); got != want {

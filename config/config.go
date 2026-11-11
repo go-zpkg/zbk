@@ -31,7 +31,7 @@ type Paths struct {
 	BuildInstall string // staging prefix the build writes to: <Install>+brewing
 }
 
-// PkgxDir returns the store prefix ($ZPKG_DIR, else ~/.zpkg).
+// ZpkgDir returns the store prefix ($ZPKG_DIR, else ~/.zpkg).
 //
 // ⛔⛔ IT MUST AGREE WITH bottle.Dir(), AND FOR A WHILE IT DID NOT. This
 // returned `~/.pkgx` long after bottle/pkgx.go:385 moved the store to
@@ -39,7 +39,7 @@ type Paths struct {
 // they disagreed — zbk staged and looked in upstream pkgx's directory while
 // everything built on bottle used ours. The duplication is the defect; this
 // is the cheap half of the fix and the two should become one call.
-func PkgxDir() string {
+func ZpkgDir() string {
 	if d := os.Getenv("ZPKG_DIR"); d != "" {
 		return d
 	}
@@ -98,7 +98,7 @@ func Compute(project, version, hash string, tgt target.Target) Paths {
 	if hash == "" {
 		panic("config: Compute with no build identity — the prefix would not name which build it is")
 	}
-	install := filepath.Join(PkgxDir(), filepath.FromSlash(project), "v"+version+"-h"+hash)
+	install := filepath.Join(ZpkgDir(), filepath.FromSlash(project), "v"+version+"-h"+hash)
 	p := Paths{
 		Install:      install,
 		BuildInstall: install + "+brewing",

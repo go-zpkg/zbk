@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// mkABIStore lays out <pkgxDir>/<project>/v<ver>/lib plus the abi- links named.
+// mkABIStore lays out <zpkgDir>/<project>/v<ver>/lib plus the abi- links named.
 func mkABIStore(t *testing.T, project, ver string, sonames ...string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -68,7 +68,7 @@ func TestAbiLineRefusals(t *testing.T) {
 	for _, tc := range []struct {
 		name, orig, leaf, pkgx string
 	}{
-		{"no pkgxDir", orig, "libthing.1.dylib", ""},
+		{"no zpkgDir", orig, "libthing.1.dylib", ""},
 		{"no leaf", orig, "", dir},
 		{"outside the store", "/elsewhere/acme.org/thing/v1.0.0/lib/libthing.1.dylib", "libthing.1.dylib", dir},
 		{"no version directory", filepath.Join(dir, "acme.org/thing/lib/libthing.1.dylib"), "libthing.1.dylib", dir},
@@ -105,7 +105,7 @@ func TestRewriteBindsToTheABILineWhenOffered(t *testing.T) {
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcLoadDylib, filepath.Join(dep, "libfoo.1.dylib")},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(exe)
@@ -176,7 +176,7 @@ func TestRewriteBindsToTheABILineThroughTheRpathDoor(t *testing.T) {
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcLoadDylib, "@rpath/abi.example/v1.0.0/lib/libfoo.1.dylib"},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(exe)

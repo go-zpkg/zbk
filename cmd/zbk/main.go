@@ -210,7 +210,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		err = fixup.FixUp(fixup.Options{
 			Prefix:   rest[1],
 			Platform: tgt.Platform,
-			PkgxDir:  config.PkgxDir(),
+			ZpkgDir:  config.ZpkgDir(),
 			Log:      func(s string) { fmt.Fprintln(stdout, s) },
 		})
 		if err != nil {

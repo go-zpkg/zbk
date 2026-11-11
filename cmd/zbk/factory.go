@@ -383,11 +383,11 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 			"these bottles are a SEED, not a release; rebuild them inside the sovereign rootfs")
 	}
 
-	pkgxBin := *pkgx
-	if abs, err := lookPath(pkgxBin); err == nil {
-		pkgxBin = abs
+	zpkgxBin := *pkgx
+	if abs, err := lookPath(zpkgxBin); err == nil {
+		zpkgxBin = abs
 	}
-	runner := buildFactory(pkgxBin)
+	runner := buildFactory(zpkgxBin)
 	runner.LibcMode = *libc
 	runner.Glibc = *glibc
 	runner.Bootstrap = *bootstrap
@@ -1626,7 +1626,7 @@ func (f *factory) testPublished(rec *pantry.Recipe, proj, ver, hash string) {
 	tw := &tailWriter{w: f.stdout, max: failTailLines}
 	state, err := runRecipeTest(testRequest{
 		Recipe: rec, RecipeDir: f.runner.RecipeDir, Project: proj,
-		Version: ver, BuildHash: hash, Target: f.tgt, PkgxBin: f.runner.PkgxBin,
+		Version: ver, BuildHash: hash, Target: f.tgt, ZpkgxBin: f.runner.ZpkgxBin,
 		Run: factoryTestRunner(f.testTimeout, tw, tw),
 	}, tw, tw)
 	fmt.Fprintln(f.stdout, "::endgroup::")

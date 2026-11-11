@@ -16,8 +16,8 @@ func TestWrapLinux(t *testing.T) {
 		UserScript: "./configure\nmake install\n",
 		Deps:       []string{"openssl.org@1.1", "zlib.net"},
 		Target:     linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
-		BrewkitPath: "/bk/libexec", PkgxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
+		BrewkitPath: "/bk/libexec", ZpkgxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
 	})
 	wants := []string{
 		"#!/opt/bash\n",
@@ -56,7 +56,7 @@ func TestWrapLinuxArm64Flags(t *testing.T) {
 		UserScript: "make", Deps: []string{"x"},
 		Target:  target.Target{Platform: "linux", Arch: "aarch64"},
 		Host:    target.Target{Platform: "linux", Arch: "aarch64"},
-		PkgxDir: "/opt/pkgx",
+		ZpkgDir: "/opt/pkgx",
 	})
 	if !strings.Contains(s, `export CFLAGS="-Wno-implicit-function-declaration -Wno-implicit-int -Wno-int-conversion $CFLAGS"`) {
 		t.Errorf("arm64 CFLAGS wrong:\n%s", s)
@@ -73,7 +73,7 @@ func TestWrapLinuxArm64Flags(t *testing.T) {
 func TestWrapDarwinWithBinutils(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Deps: []string{"x"}, Target: darwinTgt(), Host: darwinTgt(),
-		PkgxDir: "/opt/pkgx", HasBinutils: true,
+		ZpkgDir: "/opt/pkgx", HasBinutils: true,
 	})
 	// darwin host => NO default llvm.org appended
 	if strings.Contains(s, "+llvm.org") {
@@ -143,13 +143,13 @@ func TestWrapHasCompilerAndDefaults(t *testing.T) {
 
 func linuxArm64Tgt() target.Target { return target.Target{Platform: "linux", Arch: "aarch64"} }
 
-func TestWrapLibcPkgxLinuxX86(t *testing.T) {
+func TestWrapLibcZpkgxLinuxX86(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make install\n",
 		Deps:       []string{"zlib.net"},
 		Target:     linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
-		PkgxBin: "/opt/pkgx/bin/pkgx", LibcPkgx: true,
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
+		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
 	})
 	wants := []string{
 		// glibc + kernel-headers + binutils + libcxx bottles join the eval.
@@ -191,10 +191,10 @@ func TestWrapLibcPkgxLinuxX86(t *testing.T) {
 // glibc's off its search path, and -nostdinc cannot remove an -isystem the
 // driver prepends. Asserted as "no -isystem anywhere in the value" so that a
 // later flag added to the hosted driver cannot leak in unnoticed.
-func TestWrapLibcPkgxFreestandingDriver(t *testing.T) {
+func TestWrapLibcZpkgxFreestandingDriver(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
-		PkgxDir: "/opt/pkgx", LibcPkgx: true,
+		ZpkgDir: "/opt/pkgx", LibcZpkgx: true,
 	})
 	const want = `export ZBK_CC_FREESTANDING="clang"`
 	if !strings.Contains(s, want) {
@@ -212,20 +212,20 @@ func TestWrapLibcPkgxFreestandingDriver(t *testing.T) {
 
 // Outside pkgx-libc mode nothing injects a libc include directory, so there is
 // nothing to escape and no variable to offer.
-func TestWrapFreestandingDriverOnlyInLibcPkgx(t *testing.T) {
+func TestWrapFreestandingDriverOnlyInLibcZpkgx(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
-		PkgxDir: "/opt/pkgx",
+		ZpkgDir: "/opt/pkgx",
 	})
 	if strings.Contains(s, "ZBK_CC_FREESTANDING") {
 		t.Errorf("freestanding driver exported outside pkgx-libc mode:\n%s", s)
 	}
 }
 
-func TestWrapLibcPkgxArm64Loader(t *testing.T) {
+func TestWrapLibcZpkgxArm64Loader(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
-		PkgxDir: "/opt/pkgx", LibcPkgx: true,
+		ZpkgDir: "/opt/pkgx", LibcZpkgx: true,
 	})
 	if !strings.Contains(s, `ld-linux-aarch64.so.1`) {
 		t.Errorf("arm64 loader wrong:\n%s", s)
@@ -239,13 +239,13 @@ func TestWrapLibcPkgxArm64Loader(t *testing.T) {
 	}
 }
 
-func TestWrapLibcPkgxNonLinuxIgnored(t *testing.T) {
-	// LibcPkgx only affects linux: darwin gets neither the glibc dep nor flags.
+func TestWrapLibcZpkgxNonLinuxIgnored(t *testing.T) {
+	// LibcZpkgx only affects linux: darwin gets neither the glibc dep nor flags.
 	s := Wrap(WrapOptions{
-		UserScript: "make\n", Target: darwinTgt(), Host: linuxTgt(), LibcPkgx: true,
+		UserScript: "make\n", Target: darwinTgt(), Host: linuxTgt(), LibcZpkgx: true,
 	})
 	if strings.Contains(s, "gnu.org/glibc") || strings.Contains(s, "ZBK_GLIBC") || strings.Contains(s, "--dynamic-linker") {
-		t.Errorf("darwin target must ignore LibcPkgx:\n%s", s)
+		t.Errorf("darwin target must ignore LibcZpkgx:\n%s", s)
 	}
 }
 
@@ -270,14 +270,14 @@ func TestGlibcLoader(t *testing.T) {
 	}
 }
 
-// TestWrapLibcPkgxGlibcPin: -glibc pins the exact glibc version in the eval.
-func TestWrapLibcPkgxGlibcPin(t *testing.T) {
+// TestWrapLibcZpkgxGlibcPin: -glibc pins the exact glibc version in the eval.
+func TestWrapLibcZpkgxGlibcPin(t *testing.T) {
 	for _, in := range []string{"2.27.0", "=2.27.0"} {
 		s := Wrap(WrapOptions{
 			UserScript: "make install\n",
 			Target:     linuxTgt(), Host: linuxTgt(),
-			Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
-			PkgxBin: "/opt/pkgx/bin/pkgx", LibcPkgx: true, Glibc: in,
+			Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
+			ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true, Glibc: in,
 		})
 		// `@<version>`, no operator: pkgx REJECTS `@=2.27.0` ("invalid semver")
 		// and that error aborts the ENTIRE env eval, so nothing installs and the
@@ -295,7 +295,7 @@ func TestWrapLibcPkgxGlibcPin(t *testing.T) {
 	// no pin -> unversioned (newest)
 	s := Wrap(WrapOptions{
 		Target: linuxTgt(), Host: linuxTgt(), Home: "/h", SrcRoot: "/b",
-		PkgxDir: "/opt/pkgx", PkgxBin: "/opt/pkgx/bin/pkgx", LibcPkgx: true,
+		ZpkgDir: "/opt/pkgx", ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
 	})
 	if !strings.Contains(s, `"+gnu.org/glibc"`) || strings.Contains(s, "glibc@") {
 		t.Errorf("no-pin should use unversioned glibc:\n%s", s)
@@ -308,7 +308,7 @@ func TestWrapLibcPkgxGlibcPin(t *testing.T) {
 func TestWrapDepEnvIsFatal(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Deps: []string{"zlib.net"},
-		Target: linuxTgt(), Host: linuxTgt(), PkgxBin: "/opt/pkgx/bin/pkgx",
+		Target: linuxTgt(), Host: linuxTgt(), ZpkgxBin: "/opt/pkgx/bin/pkgx",
 	})
 	for _, w := range []string{
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+zlib.net" "+llvm.org")" || {`,
@@ -331,16 +331,16 @@ func TestWrapDepEnvIsFatal(t *testing.T) {
 	}
 }
 
-// TestWrapLibcPkgxUndefinedVersion: lld 17 defaults to --no-undefined-version,
+// TestWrapLibcZpkgxUndefinedVersion: lld 17 defaults to --no-undefined-version,
 // where GNU ld — which every recipe is written against — merely warns. Without
 // restoring the permissive behaviour, a version script that names a symbol the
 // build did not produce is fatal: gnu.org/gettext dies on
 // 'iconv_ostream_create' because libtextstyle's script exports symbols its
 // configure left out.
-func TestWrapLibcPkgxUndefinedVersion(t *testing.T) {
+func TestWrapLibcZpkgxUndefinedVersion(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Target: target.Target{Platform: "linux", Arch: "aarch64"},
-		Host: target.Target{Platform: "linux", Arch: "aarch64"}, LibcPkgx: true,
+		Host: target.Target{Platform: "linux", Arch: "aarch64"}, LibcZpkgx: true,
 	})
 	if !strings.Contains(s, "-Wl,--undefined-version") {
 		t.Errorf("the lld strict default must be relaxed:\n%s", s)
@@ -369,8 +369,8 @@ func TestIncompatibleFunctionPointerFlagIsClangOnly(t *testing.T) {
 	gcc := Wrap(WrapOptions{
 		UserScript: "make install\n",
 		Target:     linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
-		PkgxBin: "/opt/pkgx/bin/pkgx",
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
+		ZpkgxBin: "/opt/pkgx/bin/pkgx",
 	})
 	if strings.Contains(gcc, flag) {
 		t.Errorf("the clang-only flag reached a gcc build:\n%s", gcc)
@@ -386,8 +386,8 @@ func TestIncompatibleFunctionPointerFlagIsClangOnly(t *testing.T) {
 	clang := Wrap(WrapOptions{
 		UserScript: "make install\n",
 		Target:     linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
-		PkgxBin: "/opt/pkgx/bin/pkgx", LibcPkgx: true,
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
+		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
 	})
 	if !strings.Contains(clang, flag) {
 		t.Errorf("sovereign (clang) build lost the flag gnu.org/gettext needs:\n%s", clang)
@@ -415,10 +415,10 @@ func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
 	opts := WrapOptions{
 		UserScript: "make", Deps: []string{"x"},
 		Target: linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
 	}
 	sovereign := opts
-	sovereign.LibcPkgx = true
+	sovereign.LibcZpkgx = true
 	got := Wrap(sovereign)
 	// Resolved from the tree, never spelled out: both the triple and the
 	// version in lib/gcc/<triple>/<version> move with the bottle.
@@ -471,7 +471,7 @@ func TestDarwinGivesRustcTheRpath(t *testing.T) {
 	darwin := Wrap(WrapOptions{
 		UserScript: "make", Target: target.Target{Platform: "darwin", Arch: "aarch64"},
 		Host: target.Target{Platform: "darwin", Arch: "aarch64"},
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
 		Install: "/opt/pkgx/acme.org/foo/v1.2.3",
 	})
 	// The SAME list LDFLAGS gets, relative entries included. With only the
@@ -492,7 +492,7 @@ func TestDarwinGivesRustcTheRpath(t *testing.T) {
 	// adding it there would be a second, competing channel.
 	linux := Wrap(WrapOptions{
 		UserScript: "make", Target: linuxTgt(), Host: linuxTgt(),
-		Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
+		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
 	})
 	if strings.Contains(linux, "RUSTFLAGS") {
 		t.Errorf("linux must not set RUSTFLAGS — the shim already carries it:\n%s", linux)
@@ -500,7 +500,7 @@ func TestDarwinGivesRustcTheRpath(t *testing.T) {
 	// And windows gets no rpath of any kind: a PE has none.
 	win := Wrap(WrapOptions{
 		UserScript: "make", Target: target.Target{Platform: "windows", Arch: "x86-64"},
-		Host: linuxTgt(), Home: "/bk/home", SrcRoot: "/bk/build", PkgxDir: "/opt/pkgx",
+		Host: linuxTgt(), Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
 	})
 	if strings.Contains(win, "RUSTFLAGS") || strings.Contains(win, "-rpath") {
 		t.Errorf("windows must get no rpath:\n%s", win)
@@ -515,7 +515,7 @@ func TestDarwinGivesRustcTheRpath(t *testing.T) {
 func TestDarwinLinksRelativeRpaths(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make install", Target: darwinTgt(),
-		PkgxDir: "/opt/pkgx", Install: "/opt/pkgx/acme.org/foo/v1.2.3",
+		ZpkgDir: "/opt/pkgx", Install: "/opt/pkgx/acme.org/foo/v1.2.3",
 	})
 	want := `export LDFLAGS="-Wl,-rpath,@loader_path/../../../.. -Wl,-rpath,@loader_path/../../../../.. -Wl,-rpath,@loader_path/../../../../../.. -Wl,-rpath,@loader_path/../../../../../../.. -Wl,-rpath,@loader_path/../../../../../../../.. -Wl,-rpath,/opt/pkgx -Wl,-headerpad_max_install_names -Wno-unused-command-line-argument $LDFLAGS"`
 	if !strings.Contains(s, want) {
@@ -528,7 +528,7 @@ func TestDarwinLinksRelativeRpaths(t *testing.T) {
 // absolute rpath alone rather than a relative one aimed at nothing.
 func TestDarwinRpathDepths(t *testing.T) {
 	for _, tc := range []struct {
-		name, pkgxDir, install string
+		name, zpkgDir, install string
 		want                   []string
 	}{
 		// Five depths, not two: bin/ and lib/ are the first two, and the rest are
@@ -556,7 +556,7 @@ func TestDarwinRpathDepths(t *testing.T) {
 		{"installed AT $ZPKG_DIR", "/opt/pkgx", "/opt/pkgx", []string{"-Wl,-rpath,/opt/pkgx"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := darwinRpaths(tc.pkgxDir, tc.install)
+			got := darwinRpaths(tc.zpkgDir, tc.install)
 			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
 				t.Errorf("darwinRpaths = %q, want %q", got, tc.want)
 			}
@@ -630,7 +630,7 @@ func TestToolVarsStillExported(t *testing.T) {
 func TestDarwinHeaderpadCarriesItsSuppression(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: darwinTgt(), Host: darwinTgt(),
-		PkgxDir: "/opt/pkgx",
+		ZpkgDir: "/opt/pkgx",
 	})
 	// LDFLAGS only. RUSTFLAGS carries the same flag as -C link-arg, which
 	// rustc hands to the linker driver and nothing else — there is no
