@@ -95,8 +95,8 @@ func placePad(t *testing.T, path string, pad int, cmds ...machoCmd) {
 // libzstd.1.5.7.dylib. The correct name is LONGER than the wrong one, so this
 // only works because a load command can now grow into the linker's slack.
 func TestBareInstallNameGainsItsDirectory(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "facebook.com", "zstd", "v1.5.7")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "facebook.com", "zstd", "v1.5.7")
 	lib := filepath.Join(prefix, "lib", "libzstd.1.5.7.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
@@ -105,7 +105,7 @@ func TestBareInstallNameGainsItsDirectory(t *testing.T) {
 	if err := os.Symlink("libzstd.1.5.7.dylib", filepath.Join(prefix, "lib", "libzstd.1.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -124,14 +124,14 @@ func TestBareInstallNameGainsItsDirectory(t *testing.T) {
 // A soname with no symlink beside it is a name we would be inventing. The
 // file's own name is the one thing known to exist.
 func TestBareInstallNameFallsBackToTheFileItself(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 	lib := filepath.Join(prefix, "lib", "libfoo.1.2.3.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, "@rpath/libfoo.1.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -147,15 +147,15 @@ func TestBareInstallNameFallsBackToTheFileItself(t *testing.T) {
 // An install name that already names a directory was either written correctly
 // or is the absolute case handled elsewhere. Only a bare one is touched.
 func TestQualifiedInstallNameIsLeftAlone(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 	lib := filepath.Join(prefix, "lib", "libfoo.dylib")
 	const id = "@rpath/acme.org/foo/v1.2.3/lib/libfoo.dylib"
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, id},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -183,14 +183,14 @@ func TestBareInstallNameWithNoHeadroomIsLeftAlone(t *testing.T) {
 		{"slack", 256, "@rpath/acme.org/foo/v1.2.3/lib/libfoo.dylib"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			pkgx := filepath.Join(t.TempDir(), ".pkgx")
-			prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+			zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+			prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 			lib := filepath.Join(prefix, "lib", "libfoo.dylib")
 			placePad(t, lib, tc.pad,
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcIDDylib, "@rpath/libfoo.dylib"},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(lib)
@@ -208,20 +208,20 @@ func TestBareInstallNameWithNoHeadroomIsLeftAlone(t *testing.T) {
 // the reader expects it: the commands after it slide down, sizeofcmds rises,
 // and nothing else in the file moves.
 func TestGrowthKeepsTheRestOfTheLoadCommandsReadable(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 	lib := filepath.Join(prefix, "lib", "libfoo.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, "@rpath/libfoo.dylib"},
-		machoCmd{lcLoadDylib, filepath.Join(pkgx, "other.org/bar/v2.0.0/lib/libbar.dylib")},
+		machoCmd{lcLoadDylib, filepath.Join(zpkgx, "other.org/bar/v2.0.0/lib/libbar.dylib")},
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"},
 	)
 	before, err := os.ReadFile(lib)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(lib)
@@ -340,8 +340,8 @@ func TestQualifyIDOutsideZpkgDir(t *testing.T) {
 // hides it by linking the static archive: only a package that links libbz2
 // finds out.
 func TestPlainRelativeInstallNameGainsItsDirectory(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "sourceware.org", "bzip2", "v1.0.8")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "sourceware.org", "bzip2", "v1.0.8")
 	lib := filepath.Join(prefix, "lib", "libbz2.1.0.8.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
@@ -350,7 +350,7 @@ func TestPlainRelativeInstallNameGainsItsDirectory(t *testing.T) {
 	if err := os.Symlink("libbz2.1.0.8.dylib", filepath.Join(prefix, "lib", "libbz2.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -366,15 +366,15 @@ func TestPlainRelativeInstallNameGainsItsDirectory(t *testing.T) {
 // @loader_path and @executable_path install names are already anchored to
 // something real. Rewriting one would move a reference that works.
 func TestLoaderPathInstallNameIsLeftAlone(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 	lib := filepath.Join(prefix, "lib", "libfoo.dylib")
 	const id = "@loader_path/../lib/libfoo.dylib"
 	placePad(t, lib, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, id},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -397,8 +397,8 @@ func TestLoaderPathInstallNameIsLeftAlone(t *testing.T) {
 // CONSUMER's rpath's business, and qualifying it is never worse than leaving it
 // — a consumer without a $ZPKG_DIR rpath fails on either spelling.
 func TestInstallNameIsFixedWithoutAnRpathOfItsOwn(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "sourceware.org", "bzip2", "v1.0.8")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "sourceware.org", "bzip2", "v1.0.8")
 	lib := filepath.Join(prefix, "lib", "libbz2.1.0.8.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcIDDylib, "libbz2.dylib"},
@@ -407,7 +407,7 @@ func TestInstallNameIsFixedWithoutAnRpathOfItsOwn(t *testing.T) {
 	if err := os.Symlink("libbz2.1.0.8.dylib", filepath.Join(prefix, "lib", "libbz2.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -429,15 +429,15 @@ func TestInstallNameIsFixedWithoutAnRpathOfItsOwn(t *testing.T) {
 // reference — @rpath would resolve nowhere, which is worse than a path that at
 // least works in one place.
 func TestReferencesStillNeedAnRpathEvenWhenTheIDIsFixed(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.2.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.2.3")
 	lib := filepath.Join(prefix, "lib", "libfoo.dylib")
-	dep := filepath.Join(pkgx, "other.org/bar/v2.0.0/lib/libbar.dylib")
+	dep := filepath.Join(zpkgx, "other.org/bar/v2.0.0/lib/libbar.dylib")
 	placePad(t, lib, 256,
 		machoCmd{lcIDDylib, "libfoo.dylib"},
 		machoCmd{lcLoadDylib, dep},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -476,8 +476,8 @@ func TestMachoIDOfSomethingUnreadable(t *testing.T) {
 // cjpeg does not start at all. Across 2319 Mach-O files in installed closures,
 // 124 carried a bare reference and 102 of them resolved to nothing.
 func TestQualifyBareReferenceToOwnPackage(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "libjpeg-turbo.org", "v3.2.0")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "libjpeg-turbo.org", "v3.2.0")
 	if err := os.MkdirAll(filepath.Join(prefix, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +502,7 @@ func TestQualifyBareReferenceToOwnPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: pkgx, Platform: "darwin"}); err != nil {
+	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: zpkgx, Platform: "darwin"}); err != nil {
 		t.Fatal(err)
 	}
 	strs, err := readMachoRefs(bin)
@@ -522,8 +522,8 @@ func TestQualifyBareReferenceToOwnPackage(t *testing.T) {
 // file's directory nor the package's lib belongs to some dependency, and which
 // one is not something to guess at — the string is left exactly as it was.
 func TestBareReferenceToAnotherPackageIsLeftAlone(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "simplesystems.org", "libtiff", "v4.7.2")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "simplesystems.org", "libtiff", "v4.7.2")
 	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +539,7 @@ func TestBareReferenceToAnotherPackageIsLeftAlone(t *testing.T) {
 	if err := os.WriteFile(bin, b, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: pkgx, Platform: "darwin"}); err != nil {
+	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: zpkgx, Platform: "darwin"}); err != nil {
 		t.Fatal(err)
 	}
 	strs, err := readMachoRefs(bin)
@@ -560,9 +560,9 @@ func TestBareReferenceToAnotherPackageIsLeftAlone(t *testing.T) {
 // one of the two would answer "no such library" for every package fixed up
 // before it is moved into place.
 func TestQualifyBareReferenceFindsTheStagedFile(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "bytereef.org", "mpdecimal", "v2.5.1")
-	staging := filepath.Join(pkgx, "bytereef.org", "mpdecimal", "v2.5.1+brewing")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "bytereef.org", "mpdecimal", "v2.5.1")
+	staging := filepath.Join(zpkgx, "bytereef.org", "mpdecimal", "v2.5.1+brewing")
 	if err := os.MkdirAll(filepath.Join(staging, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -573,7 +573,7 @@ func TestQualifyBareReferenceFindsTheStagedFile(t *testing.T) {
 	got, ok := qualifyRef(
 		filepath.Join(staging, "lib", "libmpdec++.2.5.1.dylib"),
 		"libmpdec.3.dylib",
-		Options{Prefix: prefix, BuildInstall: staging, ZpkgDir: pkgx},
+		Options{Prefix: prefix, BuildInstall: staging, ZpkgDir: zpkgx},
 	)
 	want := "@rpath/bytereef.org/mpdecimal/v2.5.1/lib/libmpdec.3.dylib"
 	if !ok || got != want {
@@ -592,9 +592,9 @@ func TestQualifyBareReferenceFindsTheStagedFile(t *testing.T) {
 // two; 60 of the 76 were this same libzstd.1.dylib, zstd's bare install name
 // still being recorded by consumers.
 func TestQualifyBareReferenceAgainstTheClosure(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "simplesystems.org", "libtiff", "v4.7.2")
-	dep := filepath.Join(pkgx, "facebook.com", "zstd", "v1.5.7", "lib")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "simplesystems.org", "libtiff", "v4.7.2")
+	dep := filepath.Join(zpkgx, "facebook.com", "zstd", "v1.5.7", "lib")
 	for _, d := range []string{filepath.Join(prefix, "bin"), dep} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -604,7 +604,7 @@ func TestQualifyBareReferenceAgainstTheClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := qualifyRef(filepath.Join(prefix, "bin", "tiffsplit"), "libzstd.1.dylib",
-		Options{Prefix: prefix, ZpkgDir: pkgx})
+		Options{Prefix: prefix, ZpkgDir: zpkgx})
 	// the MAJOR directory, as every other sibling reference is written: v1
 	// resolves to whatever 1.x the machine has, so a dependency's minor
 	// upgrade does not orphan its dependents.
@@ -619,14 +619,14 @@ func TestQualifyBareReferenceAgainstTheClosure(t *testing.T) {
 // the only honest move: a reference invented from the wrong project would load
 // and behave, which is worse than one that fails loudly.
 func TestBareReferenceWithTwoOwnersIsDeclined(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "a.org", "v1")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "a.org", "v1")
 	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{
-		filepath.Join(pkgx, "one.org", "v1", "lib"),
-		filepath.Join(pkgx, "two.org", "v2", "lib"),
+		filepath.Join(zpkgx, "one.org", "v1", "lib"),
+		filepath.Join(zpkgx, "two.org", "v2", "lib"),
 	} {
 		if err := os.MkdirAll(p, 0o755); err != nil {
 			t.Fatal(err)
@@ -636,7 +636,7 @@ func TestBareReferenceWithTwoOwnersIsDeclined(t *testing.T) {
 		}
 	}
 	if got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "libboth.1.dylib",
-		Options{Prefix: prefix, ZpkgDir: pkgx}); ok {
+		Options{Prefix: prefix, ZpkgDir: zpkgx}); ok {
 		t.Errorf("qualifyRef = %q, true — two owners must not be resolved to one", got)
 	}
 }
@@ -645,13 +645,13 @@ func TestBareReferenceWithTwoOwnersIsDeclined(t *testing.T) {
 // ambiguity: both are the same project, so the closure still answers. Counting
 // directories rather than projects would have declined it.
 func TestBareReferenceWithTwoVersionsOfOneProject(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "a.org", "v1")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "a.org", "v1")
 	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, v := range []string{"v1.5.5", "v1.5.7"} {
-		d := filepath.Join(pkgx, "facebook.com", "zstd", v, "lib")
+		d := filepath.Join(zpkgx, "facebook.com", "zstd", v, "lib")
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -660,7 +660,7 @@ func TestBareReferenceWithTwoVersionsOfOneProject(t *testing.T) {
 		}
 	}
 	got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "libzstd.1.dylib",
-		Options{Prefix: prefix, ZpkgDir: pkgx})
+		Options{Prefix: prefix, ZpkgDir: zpkgx})
 	want := "@rpath/facebook.com/zstd/v1/lib/libzstd.1.dylib"
 	if !ok || got != want {
 		t.Errorf("qualifyRef = %q, %v\nwant %q, true — two versions of ONE project are not two owners", got, ok, want)
@@ -671,8 +671,8 @@ func TestBareReferenceWithTwoVersionsOfOneProject(t *testing.T) {
 // makes the search itself fail. It must decline rather than propagate an error
 // out of a rewrite that has nothing to do with the caller's request.
 func TestBareReferenceWithAPatternInItsName(t *testing.T) {
-	pkgx := t.TempDir()
-	prefix := filepath.Join(pkgx, "a.org", "v1")
+	zpkgx := t.TempDir()
+	prefix := filepath.Join(zpkgx, "a.org", "v1")
 	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +680,7 @@ func TestBareReferenceWithAPatternInItsName(t *testing.T) {
 	// compare it against: it matches the directories first, then calls Match
 	// per entry. An empty lib dir never reaches the comparison, so the error
 	// branch needs a directory that matches AND a file inside it.
-	lib := filepath.Join(pkgx, "one.org", "v1", "lib")
+	lib := filepath.Join(zpkgx, "one.org", "v1", "lib")
 	if err := os.MkdirAll(lib, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -688,7 +688,7 @@ func TestBareReferenceWithAPatternInItsName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "lib[bad.dylib",
-		Options{Prefix: prefix, ZpkgDir: pkgx}); ok {
+		Options{Prefix: prefix, ZpkgDir: zpkgx}); ok {
 		t.Errorf("qualifyRef = %q, true — a malformed pattern must decline", got)
 	}
 }

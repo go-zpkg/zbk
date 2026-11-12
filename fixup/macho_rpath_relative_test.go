@@ -20,15 +20,15 @@ const bundleUnder = "lib/perl5/darwin-thread-multi-2level/auto/Locale/gettext/ge
 //	but its only rpaths are /Users/runner/.pkgx,
 //	/Users/runner/.pkgx/gnu.org/gettext/v1.0.0/lib
 func TestAbsoluteZpkgxRpathsBecomeLoaderPath(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "gnu.org", "help2man", "v1.49.3")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "gnu.org", "help2man", "v1.49.3")
 	exe := filepath.Join(prefix, bundleUnder)
 	placePad(t, exe, 256,
-		machoCmd{lcRpath, pkgx},
-		machoCmd{lcRpath, filepath.Join(pkgx, "gnu.org/gettext/v1.0.0/lib")},
+		machoCmd{lcRpath, zpkgx},
+		machoCmd{lcRpath, filepath.Join(zpkgx, "gnu.org/gettext/v1.0.0/lib")},
 		machoCmd{lcLoadDylib, "@rpath/gnu.org/gettext/v1/lib/libintl.8.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -50,7 +50,7 @@ func TestAbsoluteZpkgxRpathsBecomeLoaderPath(t *testing.T) {
 		}
 	}
 	// The guard that refused the build is the judge that it is fixed.
-	checked, problems := AuditRelocatable(prefix, pkgx)
+	checked, problems := AuditRelocatable(prefix, zpkgx)
 	if checked == 0 {
 		t.Fatal("audit checked nothing; it cannot have judged the bundle")
 	}
@@ -62,23 +62,23 @@ func TestAbsoluteZpkgxRpathsBecomeLoaderPath(t *testing.T) {
 // An rpath outside $ZPKG_DIR names something the bottle does not carry and did
 // not build — making it relative would point it at the wrong tree.
 func TestRpathsOutsideZpkgDirAreLeftAlone(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.0.0")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.0.0")
 	exe := filepath.Join(prefix, "lib", "libfoo.dylib")
 	placePad(t, exe, 256,
 		machoCmd{lcRpath, "/usr/local/lib"},
 		machoCmd{lcRpath, "@loader_path/../../../.."},
-		machoCmd{lcRpath, pkgx + "-other"}, // a sibling directory, not this one
+		machoCmd{lcRpath, zpkgx + "-other"}, // a sibling directory, not this one
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/usr/local/lib", "@loader_path/../../../..", pkgx + "-other", "/usr/lib/libSystem.B.dylib"}
+	want := []string{"/usr/local/lib", "@loader_path/../../../..", zpkgx + "-other", "/usr/lib/libSystem.B.dylib"}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("string %d = %q, want %q", i, got[i], want[i])
@@ -87,21 +87,21 @@ func TestRpathsOutsideZpkgDirAreLeftAlone(t *testing.T) {
 }
 
 func TestRelativeRpathRefusals(t *testing.T) {
-	pkgx := "/x/.pkgx"
+	zpkgx := "/x/.pkgx"
 	exe := "/x/.pkgx/a.org/b/v1/lib/l.dylib"
 	for _, c := range []struct {
-		name, exe, rpath, pkgx string
+		name, exe, rpath, zpkgx string
 	}{
-		{"no pkgx dir", exe, pkgx, ""},
-		{"already relative", exe, "@loader_path/../..", pkgx},
-		{"outside the tree", exe, "/usr/lib", pkgx},
-		{"file outside the tree", "/elsewhere/l.dylib", pkgx, pkgx},
+		{"no pkgx dir", exe, zpkgx, ""},
+		{"already relative", exe, "@loader_path/../..", zpkgx},
+		{"outside the tree", exe, "/usr/lib", zpkgx},
+		{"file outside the tree", "/elsewhere/l.dylib", zpkgx, zpkgx},
 		// A relative exe is refused up front: it is what makes the
 		// filepath.Rel inside total.
-		{"relative file", "l.dylib", pkgx, pkgx},
+		{"relative file", "l.dylib", zpkgx, zpkgx},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, ok := relativeRpath(c.exe, c.rpath, c.pkgx)
+			got, ok := relativeRpath(c.exe, c.rpath, c.zpkgx)
 			if ok {
 				t.Errorf("rewrote to %q, want it refused", got)
 			}
@@ -111,7 +111,7 @@ func TestRelativeRpathRefusals(t *testing.T) {
 		})
 	}
 	// $ZPKG_DIR itself, as the rpath of a file sitting directly in it.
-	if got, ok := relativeRpath("/x/.pkgx/l.dylib", pkgx, pkgx); !ok || got != "@loader_path" {
+	if got, ok := relativeRpath("/x/.pkgx/l.dylib", zpkgx, zpkgx); !ok || got != "@loader_path" {
 		t.Errorf("own directory = %q, %v; want \"@loader_path\", true", got, ok)
 	}
 }
@@ -133,15 +133,15 @@ func TestRelativeRpathRefusals(t *testing.T) {
 // guard's requirement — a relative rpath that reaches $ZPKG_DIR — is satisfied
 // either way, because the one that would have been duplicated is already there.
 func TestARelativisedRpathIsNotWrittenTwice(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.0.0")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.0.0")
 	exe := filepath.Join(prefix, "lib", "libfoo.dylib")
 	placePad(t, exe, 256,
 		machoCmd{lcRpath, "@loader_path/../../../.."}, // bk's, and the depth of this file
-		machoCmd{lcRpath, pkgx},                       // the builder's, same place
+		machoCmd{lcRpath, zpkgx},
 		machoCmd{lcLoadDylib, "@rpath/other.org/bar/v1/lib/libbar.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -166,12 +166,12 @@ func TestARelativisedRpathIsNotWrittenTwice(t *testing.T) {
 	// The absolute one is not half-written either: it is REMOVED (bk#395), since
 	// the relative entry that means the same thing is already there.
 	for _, s := range got {
-		if s == pkgx {
-			t.Errorf("builder path %q survived", pkgx)
+		if s == zpkgx {
+			t.Errorf("builder path %q survived", zpkgx)
 		}
 	}
 	// The guard is satisfied all the same: a relative rpath reaches the root.
-	checked, problems := AuditRelocatable(prefix, pkgx)
+	checked, problems := AuditRelocatable(prefix, zpkgx)
 	if checked == 0 {
 		t.Fatal("audit checked nothing")
 	}

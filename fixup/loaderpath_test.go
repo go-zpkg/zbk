@@ -13,8 +13,8 @@ import (
 // there is no LC_RPATH to search — so the build was refused, correctly and
 // with no way forward.
 func TestBareSiblingIsAnsweredWithLoaderPath(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "bytereef.org", "mpdecimal", "v2.5.1")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "bytereef.org", "mpdecimal", "v2.5.1")
 	lib := filepath.Join(prefix, "lib")
 	if err := os.MkdirAll(lib, 0o755); err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestBareSiblingIsAnsweredWithLoaderPath(t *testing.T) {
 	// Measured on the published libmpdec++.2.5.1.dylib: 16376 bytes spare.
 	placePad(t, exe, 64, machoCmd{lcLoadDylib, "@rpath/libmpdec.3.dylib"}) // and no lcRpath
 
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -46,8 +46,8 @@ func TestBareSiblingIsAnsweredWithLoaderPath(t *testing.T) {
 // path from where IT sits, not from the prefix: @loader_path is relative to
 // the referring file.
 func TestBareNameFromBinGetsTheRelativePath(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "a.org", "v1.0.0")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "a.org", "v1.0.0")
 	if err := os.MkdirAll(filepath.Join(prefix, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestBareNameFromBinGetsTheRelativePath(t *testing.T) {
 	exe := filepath.Join(prefix, "bin", "tool")
 	placePad(t, exe, 64, machoCmd{lcLoadDylib, "@rpath/liba.1.dylib"})
 
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := ReadMachoStrings(exe)
@@ -71,8 +71,8 @@ func TestBareNameFromBinGetsTheRelativePath(t *testing.T) {
 // dependency's library is what the closure-owner search is for, and that one
 // needs an rpath to resolve through.
 func TestBareNameThatIsNotOursIsLeftAlone(t *testing.T) {
-	pkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(pkgx, "a.org", "v1.0.0")
+	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkgx, "a.org", "v1.0.0")
 	if err := os.MkdirAll(filepath.Join(prefix, "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestBareNameThatIsNotOursIsLeftAlone(t *testing.T) {
 	// The build is REFUSED, which is right: the reference resolves nowhere and
 	// nothing here can make it. What must not happen is a repair invented out
 	// of a name we do not own.
-	err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx})
 	if err == nil {
 		t.Fatal("a file whose reference resolves nowhere was accepted")
 	}
