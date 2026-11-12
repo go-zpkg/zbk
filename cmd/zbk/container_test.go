@@ -16,7 +16,7 @@ import (
 // file" in a container built from this tree.
 func TestWriteLdSoConf(t *testing.T) {
 	root := t.TempDir()
-	pkgx := filepath.Join(root, "pkgx")
+	zpkgx := filepath.Join(root, "pkgx")
 	for _, f := range []string{
 		"gnu.org/glibc/v2.44.0/lib/glibc-2.44/libc.so.6", // the nested one
 		"gnu.org/glibc/v2.44.0/lib/libanl.so.1",
@@ -25,7 +25,7 @@ func TestWriteLdSoConf(t *testing.T) {
 		"gnu.org/bash/v5.3/bin/bash",     // not a shared object
 		"zlib.net/v1.3.2/include/zlib.h", // nor a header
 	} {
-		p := filepath.Join(pkgx, f)
+		p := filepath.Join(zpkgx, f)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -34,7 +34,7 @@ func TestWriteLdSoConf(t *testing.T) {
 		}
 	}
 
-	n, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, pkgx)
+	n, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, zpkgx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,11 +62,11 @@ func TestWriteLdSoConf(t *testing.T) {
 
 func TestWriteLdSoConfNoSharedObjects(t *testing.T) {
 	root := t.TempDir()
-	pkgx := filepath.Join(root, "pkgx")
-	if err := os.MkdirAll(filepath.Join(pkgx, "a.org/v1/bin"), 0o755); err != nil {
+	zpkgx := filepath.Join(root, "pkgx")
+	if err := os.MkdirAll(filepath.Join(zpkgx, "a.org/v1/bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	n, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, pkgx)
+	n, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, zpkgx)
 	if err != nil || n != 0 {
 		t.Fatalf("got %d, %v", n, err)
 	}
@@ -144,8 +144,8 @@ func TestWriteLdSoConfPartialWalkFails(t *testing.T) {
 		t.Skip("root reads unreadable directories")
 	}
 	root := t.TempDir()
-	pkgx := filepath.Join(root, "pkgx")
-	locked := filepath.Join(pkgx, "a.org", "v1", "lib")
+	zpkgx := filepath.Join(root, "pkgx")
+	locked := filepath.Join(zpkgx, "a.org", "v1", "lib")
 	if err := os.MkdirAll(locked, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestWriteLdSoConfPartialWalkFails(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	if _, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, pkgx); err == nil {
+	if _, err := writeLdSoConf(stageOptions{Root: root, Log: func(string) {}}, zpkgx); err == nil {
 		t.Fatal("an unreadable library directory must fail, not yield a short list")
 	}
 }

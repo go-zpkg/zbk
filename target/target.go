@@ -120,8 +120,15 @@ var (
 // GOARCH=wasm; WASI preview 1 on a 32-bit wasm machine).
 const wasip1Triple = "wasm32-wasip1"
 
-// pkgxArch maps a Go GOARCH to pkgx's arch naming.
-func pkgxArch(goarch string) string {
+// zpkgArch maps a Go GOARCH to the arch naming this project's catalogue and
+// bottles use ("x86-64", "aarch64").
+//
+// ⛔ IT WAS CALLED pkgxArch, AND THE COMMENT SAID "pkgx's arch naming". That
+// was true while the fork tracked upstream and is not any more: the direct
+// filiation is broken and this project is no longer compatible with pkgx
+// (go-zpkg/packages#431). The spellings are OURS now, and a name saying
+// otherwise points a reader at a compatibility that does not exist.
+func zpkgArch(goarch string) string {
 	switch goarch {
 	case "amd64":
 		return "x86-64"
@@ -224,7 +231,7 @@ func Arches() []string {
 
 func Host() Target {
 	p := runtime.GOOS
-	return Target{Platform: p, Arch: pkgxArch(runtime.GOARCH), Triple: nativeTriple()}
+	return Target{Platform: p, Arch: zpkgArch(runtime.GOARCH), Triple: nativeTriple()}
 }
 
 // Override parses & validates ZBK_TARGET, returning ok=false when unset.
@@ -264,8 +271,8 @@ func Override() (platform, arch string, ok bool, err error) {
 		// mistake actually made, since every other arch name here is shared.
 		// Refusing without saying so sends the reader looking for a missing
 		// port rather than at the two characters that differ.
-		if pkgx := pkgxArch(arch); pkgx != arch && IsPair(platform, pkgx) {
-			return "", "", false, fmt.Errorf("unsupported target arch: %q (pkgx spells it %q)", arch, pkgx)
+		if zpkgx := zpkgArch(arch); zpkgx != arch && IsPair(platform, zpkgx) {
+			return "", "", false, fmt.Errorf("unsupported target arch: %q (pkgx spells it %q)", arch, zpkgx)
 		}
 		return "", "", false, fmt.Errorf("unsupported target arch %q for platform %q", arch, platform)
 	}

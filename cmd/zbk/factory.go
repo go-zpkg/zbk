@@ -187,7 +187,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	force := fs.Bool("force", envBool("FORCE"), "rebuild and republish even when the bottle is already in the registry — the projects you REQUESTED only, never the dependency closure behind them")
 	compress := fs.String("compress", envOr("COMPRESS", "zstd"), "codec for NEW bottles: zstd or gzip. Already-published bottles are never rewritten, so gzip stays readable; this only governs what we create")
 	signKey := fs.String("sign", "", "sign published bottles with this go-attest/sign secret key file (else $SIGNING_KEY)")
-	pkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
+	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
 	failures := fs.String("failures", "failures.txt", "write the list of failed builds here")
 	failuresDetail := fs.String("failures-detail", "failures-detail.txt", "write each failure's error tail here")
 	runTests := fs.Bool("test", true, "run each published package's own test: block and RECORD the outcome (never changes the run's result)")
@@ -383,7 +383,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 			"these bottles are a SEED, not a release; rebuild them inside the sovereign rootfs")
 	}
 
-	zpkgxBin := *pkgx
+	zpkgxBin := *zpkgx
 	if abs, err := lookPath(zpkgxBin); err == nil {
 		zpkgxBin = abs
 	}

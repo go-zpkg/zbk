@@ -202,13 +202,13 @@ func Wrap(o WrapOptions) string {
 // from "the thing I ran said no". A build has no use for the distinction —
 // either way it did not build — so it passes 1. A test does: see
 // EnvFailExit.
-func writeDepEval(b *strings.Builder, pkgx, plus, what string, code int) {
+func writeDepEval(b *strings.Builder, zpkgx, plus, what string, code int) {
 	if plus == "" {
 		return
 	}
 	b.WriteString("set -a\n")
-	fmt.Fprintf(b, "__bk_deps_env=\"$(CLICOLOR_FORCE=1 %s %s)\" || {\n", pkgx, plus)
-	fmt.Fprintf(b, "  echo \"zbk: the %s environment failed: %s %s\" >&2\n", what, pkgx, plus)
+	fmt.Fprintf(b, "__bk_deps_env=\"$(CLICOLOR_FORCE=1 %s %s)\" || {\n", zpkgx, plus)
+	fmt.Fprintf(b, "  echo \"zbk: the %s environment failed: %s %s\" >&2\n", what, zpkgx, plus)
 	fmt.Fprintf(b, "  exit %d\n}\n", code)
 	b.WriteString("eval \"$__bk_deps_env\"\n")
 	b.WriteString("unset __bk_deps_env\n")
