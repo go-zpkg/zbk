@@ -246,7 +246,22 @@ func alreadyStaged(zpkgDir string, closure []bottle.Resolved) int {
 
 // guestZpkgDir is where the staged bottles live once the rootfs is the root:
 // the stubs, the loader symlinks and ZPKG_DIR must all agree on it.
-const guestZpkgDir = "/pkgx"
+//
+// ⛔ IT WAS "/pkgx" UNTIL 2026-11-12, AND THAT WAS THE LAST PLACE UPSTREAM'S
+// NAME DECIDED SOMETHING. Our prefix is zpkg: the user store is already
+// ~/.zpkg (bottle.Dir), the environment variable is ZPKG_DIR, and only the
+// guest root inside the build container still said otherwise. A build
+// container that mounts somebody else's directory name has not been renamed,
+// it has been relabelled — the same sentence bottle/zpkg.go:373 uses about
+// what a command PRINTS.
+//
+// ⛔ This is a PRODUCT change, not a doc sweep: the stubs bake this path and
+// a bottle built before it moves carries the old one. The decision to take
+// it anyway is the user's, 2026-11-12 — published bottles are to be rebuilt
+// if needed. The relocation stage (fixup/) is what makes that survivable:
+// a bottle's rpaths are rewritten at install time, so the guest root is a
+// build-time location rather than a promise to the artifact.
+const guestZpkgDir = "/zpkg"
 
 // defaultToolchain is the build environment of the sovereign builder when the
 // caller names no file. Each entry earns its place — a toolchain nobody can
