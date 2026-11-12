@@ -9,7 +9,7 @@ import (
 func TestZpkgxArch(t *testing.T) {
 	cases := map[string]string{"amd64": "x86-64", "arm64": "aarch64", "riscv64": "riscv64"}
 	for in, want := range cases {
-		if got := pkgxArch(in); got != want {
+		if got := zpkgArch(in); got != want {
 			t.Errorf("pkgxArch(%q)=%q want %q", in, got, want)
 		}
 	}
@@ -185,14 +185,14 @@ func TestOverrideS390x(t *testing.T) {
 // the arches in the list, and the only arch names here that differ from Go's.
 // A bare refusal sends the reader looking for a port that is already present.
 func TestOverrideGoSpellingIsDiagnosed(t *testing.T) {
-	for goName, pkgxName := range map[string]string{"amd64": "x86-64", "arm64": "aarch64"} {
+	for goName, zpkgName := range map[string]string{"amd64": "x86-64", "arm64": "aarch64"} {
 		t.Setenv("ZBK_TARGET", "linux/"+goName)
 		_, _, _, err := Override()
 		if err == nil {
 			t.Fatalf("Override() accepted linux/%s", goName)
 		}
-		if !strings.Contains(err.Error(), pkgxName) {
-			t.Errorf("Override() for linux/%s = %v; want it to name %q", goName, err, pkgxName)
+		if !strings.Contains(err.Error(), zpkgName) {
+			t.Errorf("Override() for linux/%s = %v; want it to name %q", goName, err, zpkgName)
 		}
 	}
 }
