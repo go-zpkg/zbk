@@ -6,7 +6,7 @@ what shipped, kept because the hazards below are still the ones that bite.**
 ## What shipped, and how to read this note
 
 The mechanism is `--libc=zpkgx` on `zbk build` and `zbk factory` — not the
-`BK_ZPKG_LIBC=1` environment variable the body of this note names. That name was
+`ZBK_ZPKG_LIBC=1` environment variable the body of this note names. That name was
 the design-time one; every occurrence below should be read as "the sovereign-libc
 mode". The rest of the analysis stands as written.
 
@@ -127,7 +127,7 @@ build environment:
   `eval "$(zpkgx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
   script. `depPlus` is exactly where `+llvm.org` is appended today.
 
-The mechanism adds, **for a linux target only, when `BK_ZPKG_LIBC=1`**:
+The mechanism adds, **for a linux target only, when `ZBK_ZPKG_LIBC=1`**:
 
 1. **Implicit toolchain deps.** Inject `gnu.org/glibc` and
    `gnu.org/gcc/libstdcxx` into the `zpkgx +…` closure (clang from `llvm.org` is
@@ -159,8 +159,8 @@ The mechanism adds, **for a linux target only, when `BK_ZPKG_LIBC=1`**:
 Sketch of the wrapper addition (see the experimental Go at the end):
 
 ```sh
-# --- BK_ZPKG_LIBC: retarget clang at the pkgx glibc bottle (linux only) ---
-if [ -n "$BK_ZPKG_LIBC" ]; then
+# --- ZBK_ZPKG_LIBC: retarget clang at the pkgx glibc bottle (linux only) ---
+if [ -n "$ZBK_ZPKG_LIBC" ]; then
   GLIBCLIB=$(dirname "$(ls "$ZPKG_DIR"/gnu.org/glibc/v*/lib/glibc-*/libc.so.6 2>/dev/null | sort | tail -1)")
   GLIBCLD=$(ls "$GLIBCLIB"/ld-linux*.so.* 2>/dev/null | head -1)
   GCCLIB=$(dirname "$(ls "$ZPKG_DIR"/gnu.org/gcc/libstdcxx/v*/lib*/libgcc_s.so.1 2>/dev/null | head -1)")
@@ -213,7 +213,7 @@ that sets `LDFLAGS` may or may not clobber ours depending on order.
    to `CFLAGS`/`LDFLAGS` still inherits the loader retarget.
 2. Detect the hazard: after the build, the verifier (below) fails the build if
    any produced ELF's `PT_INTERP` is not the pkgx loader. This converts a silent
-   host-glibc leak into a hard build error. Under `BK_ZPKG_LIBC=1` this check is
+   host-glibc leak into a hard build error. Under `ZBK_ZPKG_LIBC=1` this check is
    the real guarantee; the `clang.cfg` is best-effort, the verifier is the gate.
 3. A recipe that legitimately needs the host gcc (e.g. a kernel module) opts out
    via a per-recipe skip (analogous to the existing `skip: [fix-patchelf]`).
@@ -244,7 +244,7 @@ wrong. Constraints:
   bottle and a target-arch `--dynamic-linker`. pkgx bottles are per-arch, so
   this is expressible, but the prototype and first landing scope to
   **Target.Arch == Host.Arch** (native). Cross-arch libc retarget is future
-  work; the gate is `BK_ZPKG_LIBC=1 && linux && Target==Host arch`.
+  work; the gate is `ZBK_ZPKG_LIBC=1 && linux && Target==Host arch`.
 
 ### (e) Recipes with no compile step (pure scripts)
 
@@ -292,7 +292,7 @@ readelf -d <bin> | grep -E 'NEEDED|RPATH|RUNPATH'
 ```
 
 Proposed Go helper (in `fixup`, so it can gate the build under
-`BK_ZPKG_LIBC=1`):
+`ZBK_ZPKG_LIBC=1`):
 
 ```go
 // ReadInterp returns an ELF's PT_INTERP (the requested dynamic linker), or ""
@@ -317,7 +317,7 @@ Two ways, matching what the recipes already do:
   fix-up point `$ORIGIN` at them (heavier bottle, but truly `FROM scratch` with
   no pkgx dep).
 
-The first is the pkgx-idiomatic choice and is what `BK_ZPKG_LIBC=1` should pair
+The first is the pkgx-idiomatic choice and is what `ZBK_ZPKG_LIBC=1` should pair
 with; the verifier checks link-correctness, the runtime-dep declaration checks
 closure-completeness.
 
@@ -445,16 +445,16 @@ viable future variant.
   loader/glibc name differs); a full autotools package with `configure` probes
   and host-tool sub-builds (the Hazard (a) `GLIBC_2.29` class); and the
   cross-arch (Target ≠ Host) libc retarget (Hazard (d)). Those are the next
-  milestones before wiring `BK_ZPKG_LIBC=1` into a default path.
+  milestones before wiring `ZBK_ZPKG_LIBC=1` into a default path.
 
 ## Experimental Go (off by default)
 
 A first, deliberately-minimal slice of the mechanism is implemented in `bk`
 behind an off-by-default switch — see `buildscript`:
 
-* `WrapOptions.PkgxLibc` (Go-side gate, default `false`) makes `Wrap` emit the
+* `WrapOptions.LibcZpkgx` (Go-side gate, default `false`) makes `Wrap` emit the
   clang.cfg-generation shell, itself additionally guarded at runtime by
-  `if [ -n "$BK_ZPKG_LIBC" ]`. With `PkgxLibc` false the wrapper output is
+  `if [ -n "$ZBK_ZPKG_LIBC" ]`. With `LibcZpkgx` false the wrapper output is
   byte-identical to before, so nothing in the default build path changes.
 * The emitted block is skipped for a `windows` target and for a cross-arch build
   (`Target.Arch != Host.Arch`) — Hazards (d)/(e).
