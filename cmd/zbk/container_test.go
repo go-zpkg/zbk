@@ -43,11 +43,15 @@ func TestWriteLdSoConf(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Split(strings.TrimSpace(string(body)), "\n")
+	// ⛔ BUILT FROM guestZpkgDir, NOT FROM ITS VALUE: what this asserts is
+	// that ld.so.conf names GUEST paths rather than staged ones, which is the
+	// sentence three lines below. Hardcoding the root made it go red when the
+	// root moved, which says nothing about ld.so.conf.
 	want := []string{
-		"/pkgx/gnu.org/glibc/v2.44.0/lib",
-		"/pkgx/gnu.org/glibc/v2.44.0/lib/glibc-2.44",
-		"/pkgx/llvm.org/v22.1.8/lib",
-		"/pkgx/zlib.net/v1.3.2/lib",
+		guestZpkgDir + "/gnu.org/glibc/v2.44.0/lib",
+		guestZpkgDir + "/gnu.org/glibc/v2.44.0/lib/glibc-2.44",
+		guestZpkgDir + "/llvm.org/v22.1.8/lib",
+		guestZpkgDir + "/zlib.net/v1.3.2/lib",
 	}
 	if n != len(want) || strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("got %d dirs %v\nwant %d %v", n, got, len(want), want)

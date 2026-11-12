@@ -421,9 +421,34 @@ func TestSplitToolchainSpec(t *testing.T) {
 	}
 }
 
+// ⛔⛔ THE ONE PLACE THE GUEST ROOT'S VALUE IS PINNED. Everything else builds
+// its expectation from guestZpkgDir, which is right — those tests are about
+// what uses the root, not about what it is called. But if NOTHING asserts the
+// value, the constant can drift back with a green suite, and the whole reason
+// it moved is that upstream's name had been deciding it.
+//
+// Our prefix is zpkg: the user store is ~/.zpkg (bottle.Dir), the environment
+// variable is ZPKG_DIR, and the guest root inside the build container is the
+// last thing that said otherwise. It carries no x: this is the STORE, like
+// ZPKG_DIR, not the zpkgx runtime.
+func TestTheGuestRootIsZpkg(t *testing.T) {
+	if guestZpkgDir != "/zpkg" {
+		t.Errorf("guestZpkgDir = %q, want /zpkg", guestZpkgDir)
+	}
+	if strings.Contains(guestZpkgDir, "pkgx") {
+		t.Errorf("guestZpkgDir = %q still carries upstream's name", guestZpkgDir)
+	}
+}
+
 func TestGuestPath(t *testing.T) {
-	dir := "/stage/pkgx"
-	if got := guestPath("/stage/pkgx/gnu.org/bash/v5.3/bin/bash", dir); got != "/pkgx/gnu.org/bash/v5.3/bin/bash" {
+	// ⛔ THE EXPECTATION IS BUILT FROM guestZpkgDir, NOT FROM ITS VALUE. This
+	// test hardcoded "/pkgx" and went red when the guest root moved to
+	// "/zpkg" — which told me nothing about guestPath, only that someone had
+	// changed a constant. What it is actually about is that the staging root
+	// is REPLACED by the guest root; TestTheGuestRootIsZpkg below is where
+	// the value itself is pinned, once, on purpose.
+	dir := "/stage/store"
+	if got := guestPath(dir+"/gnu.org/bash/v5.3/bin/bash", dir); got != guestZpkgDir+"/gnu.org/bash/v5.3/bin/bash" {
 		t.Errorf("got %q", got)
 	}
 	if got := guestPath("", dir); got != "" {
