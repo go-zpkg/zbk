@@ -64,7 +64,7 @@ type Runner struct {
 	// the project being built.
 	ToolInstallable func(project, constraint string) (string, error)
 	Concurrency     int
-	PkgxBin         string
+	ZpkgxBin        string
 	BashPath        string
 	// RecipeDir is the pantry project directory holding the recipe (package.yml)
 	// and its sibling files. It is copied into the build tree as `props/` so
@@ -228,7 +228,7 @@ func (r *Runner) Plan(recipe *pantry.Recipe, project, constraint string, tgt tar
 		p.toolDeps = BootstrapToolDeps(bd, tgt)
 	}
 	if r.ResolveDep != nil {
-		dt, resolved, err := DepTokens(recipe.Dependencies, bd, tgt, config.PkgxDir(), r.ResolveDep)
+		dt, resolved, err := DepTokens(recipe.Dependencies, bd, tgt, config.ZpkgDir(), r.ResolveDep)
 		if err != nil {
 			return p, fmt.Errorf("resolve deps: %w", err)
 		}
@@ -438,7 +438,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	toks = append(toks,
 		moustache.Token{From: "srcroot", To: paths.Build},
 		moustache.Token{From: "props", To: propsDir},
-		moustache.Token{From: "pkgx.prefix", To: config.PkgxDir()},
+		moustache.Token{From: "pkgx.prefix", To: config.ZpkgDir()},
 	)
 	toks = append(toks, depToks...)
 	// A recipe that build-depends on itself still interpolates its own prefix.
@@ -480,9 +480,9 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	script := buildscript.Wrap(buildscript.WrapOptions{
 		PrefixMap:  prefixMap,
 		UserScript: user, Deps: deps, ToolDeps: toolDeps, Target: tgt, Host: host,
-		Home: paths.Home, SrcRoot: paths.Build, PkgxDir: config.PkgxDir(), Install: paths.Install, Project: project,
-		PkgxBin: r.PkgxBin, BashPath: r.BashPath, BrewkitPath: libexecDir,
-		LibcPkgx:  r.LibcMode == "zpkgx",
+		Home: paths.Home, SrcRoot: paths.Build, ZpkgDir: config.ZpkgDir(), Install: paths.Install, Project: project,
+		ZpkgxBin: r.ZpkgxBin, BashPath: r.BashPath, BrewkitPath: libexecDir,
+		LibcZpkgx: r.LibcMode == "zpkgx",
 		Glibc:     r.Glibc,
 		Bootstrap: r.Bootstrap,
 	})
@@ -492,7 +492,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	}
 
 	// run (sanitized env), stage, fix-up
-	if err := r.Run(res.ScriptPath, SanitizedEnv(paths.Home, config.PkgxDir())); err != nil {
+	if err := r.Run(res.ScriptPath, SanitizedEnv(paths.Home, config.ZpkgDir())); err != nil {
 		// Name what the host was asked to supply. Twice now a seed build has
 		// died with `exit status 127` -- command not found -- because a tool
 		// bootstrap left to the machine was not on the machine either:
@@ -551,7 +551,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 			return res, fmt.Errorf("stage install: drop the replaced prefix: %w", err)
 		}
 	}
-	if err := r.FixUp(fixup.Options{Prefix: paths.Install, BuildInstall: paths.BuildInstall, Platform: tgt.Platform, PkgxDir: config.PkgxDir()}); err != nil {
+	if err := r.FixUp(fixup.Options{Prefix: paths.Install, BuildInstall: paths.BuildInstall, Platform: tgt.Platform, ZpkgDir: config.ZpkgDir()}); err != nil {
 		return res, fmt.Errorf("fix-up: %w", err)
 	}
 

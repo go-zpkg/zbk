@@ -246,7 +246,7 @@ func TestEnsureWritableChmodErrorAtEveryWriter(t *testing.T) {
 
 // An @rpath reference that names nothing under $ZPKG_DIR is left exactly as it
 // is: /usr/lib and the frameworks are not ours to rewrite.
-func TestRpathReferenceOutsidePkgxDirIsUntouched(t *testing.T) {
+func TestRpathReferenceOutsideZpkgDirIsUntouched(t *testing.T) {
 	pkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(pkgx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
@@ -254,7 +254,7 @@ func TestRpathReferenceOutsidePkgxDirIsUntouched(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/../outside/libfoo.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -297,7 +297,7 @@ func TestRewriteMachoDeadRpathAfterRewrite(t *testing.T) {
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcIDDylib, prefix + "+brewing/lib/libthing.dylib"},
 		machoCmd{lcLoadDylib, "@rpath/tukaani.org/xz/v5.8.3/lib/liblzma.5.dylib"})
-	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", PkgxDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: pkgx})
 	if !errors.Is(err, ErrDeadRpath) {
 		t.Errorf("err = %v, want ErrDeadRpath after a rewrite too", err)
 	}
@@ -313,7 +313,7 @@ func TestRewriteMachoWriteErrorSurfaces(t *testing.T) {
 	saved := osWriteFile
 	defer func() { osWriteFile = saved }()
 	osWriteFile = func(string, []byte, os.FileMode) error { return errInject }
-	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", PkgxDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: pkgx})
 	if !errors.Is(err, errInject) {
 		t.Errorf("err = %v, want the write error", err)
 	}

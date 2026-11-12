@@ -18,21 +18,21 @@ var errNoHome = errors.New("no home")
 // the expected path and the argument cannot drift apart through a constant.
 const testHash = "abcdefghijklmnop"
 
-func TestPkgxDir(t *testing.T) {
+func TestZpkgDir(t *testing.T) {
 	t.Setenv("ZPKG_DIR", "/opt/pkgx")
-	if PkgxDir() != "/opt/pkgx" {
-		t.Errorf("PkgxDir env = %q", PkgxDir())
+	if ZpkgDir() != "/opt/pkgx" {
+		t.Errorf("ZpkgDir env = %q", ZpkgDir())
 	}
 	t.Setenv("ZPKG_DIR", "")
-	got := PkgxDir()
+	got := ZpkgDir()
 	// ⛔ `.zpkg`, AND IT MUST MATCH bottle.Dir(). This asserted `.pkgx` while
 	// bottle/pkgx.go:385 returned `.zpkg`, so the test certified a store root
 	// that disagreed with the one the rest of the product used.
 	if !strings.HasSuffix(got, ".zpkg") {
-		t.Errorf("PkgxDir default = %q, want a ~/.zpkg suffix", got)
+		t.Errorf("ZpkgDir default = %q, want a ~/.zpkg suffix", got)
 	}
 	if strings.HasSuffix(got, ".pkgx") {
-		t.Errorf("PkgxDir default = %q — that is upstream pkgx's store", got)
+		t.Errorf("ZpkgDir default = %q — that is upstream pkgx's store", got)
 	}
 }
 
@@ -131,8 +131,8 @@ func TestNoHomeFallbacks(t *testing.T) {
 	userHomeDir = func() (string, error) { return "", errNoHome }
 
 	t.Setenv("ZPKG_DIR", "")
-	if got := PkgxDir(); got != ".zpkg" {
-		t.Errorf("PkgxDir no-home = %q", got)
+	if got := ZpkgDir(); got != ".zpkg" {
+		t.Errorf("ZpkgDir no-home = %q", got)
 	}
 	t.Setenv("XDG_DATA_HOME", "")
 	if got := dataHome(); got != filepath.Join(".local", "share") {

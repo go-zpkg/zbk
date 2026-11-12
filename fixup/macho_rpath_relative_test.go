@@ -19,7 +19,7 @@ const bundleUnder = "lib/perl5/darwin-thread-multi-2level/auto/Locale/gettext/ge
 //	gettext.bundle references @rpath/gnu.org/gettext/v1/lib/libintl.8.dylib
 //	but its only rpaths are /Users/runner/.pkgx,
 //	/Users/runner/.pkgx/gnu.org/gettext/v1.0.0/lib
-func TestAbsolutePkgxRpathsBecomeLoaderPath(t *testing.T) {
+func TestAbsoluteZpkgxRpathsBecomeLoaderPath(t *testing.T) {
 	pkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(pkgx, "gnu.org", "help2man", "v1.49.3")
 	exe := filepath.Join(prefix, bundleUnder)
@@ -28,7 +28,7 @@ func TestAbsolutePkgxRpathsBecomeLoaderPath(t *testing.T) {
 		machoCmd{lcRpath, filepath.Join(pkgx, "gnu.org/gettext/v1.0.0/lib")},
 		machoCmd{lcLoadDylib, "@rpath/gnu.org/gettext/v1/lib/libintl.8.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -61,7 +61,7 @@ func TestAbsolutePkgxRpathsBecomeLoaderPath(t *testing.T) {
 
 // An rpath outside $ZPKG_DIR names something the bottle does not carry and did
 // not build — making it relative would point it at the wrong tree.
-func TestRpathsOutsidePkgxDirAreLeftAlone(t *testing.T) {
+func TestRpathsOutsideZpkgDirAreLeftAlone(t *testing.T) {
 	pkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(pkgx, "acme.org", "foo", "v1.0.0")
 	exe := filepath.Join(prefix, "lib", "libfoo.dylib")
@@ -71,7 +71,7 @@ func TestRpathsOutsidePkgxDirAreLeftAlone(t *testing.T) {
 		machoCmd{lcRpath, pkgx + "-other"}, // a sibling directory, not this one
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -141,7 +141,7 @@ func TestARelativisedRpathIsNotWrittenTwice(t *testing.T) {
 		machoCmd{lcRpath, pkgx},                       // the builder's, same place
 		machoCmd{lcLoadDylib, "@rpath/other.org/bar/v1/lib/libbar.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)

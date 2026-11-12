@@ -21,7 +21,7 @@ type Options struct {
 	Prefix       string   // the final install prefix (…/project/vX.Y.Z)
 	BuildInstall string   // the +brewing staging prefix that paths were baked with
 	Platform     string   // target platform: darwin | linux | windows
-	PkgxDir      string   // $ZPKG_DIR: the root darwin @rpath references resolve against
+	ZpkgDir      string   // $ZPKG_DIR: the root darwin @rpath references resolve against
 	Skips        []string // recipe build.skip entries (fix-machos, fix-patchelf, libtool-cleanup, flatten-includes)
 	// DepPaths are the install prefixes of the build's dependency closure,
 	// used to compute $ORIGIN-relative RUNPATHs (linux only).
@@ -140,7 +140,7 @@ func auditBuilt(opts Options) error {
 			c.optedOut++
 		} else {
 			c.judged++
-			if err := checkNoBuilderRpath(p, opts.PkgxDir); err != nil {
+			if err := checkNoBuilderRpath(p, opts.ZpkgDir); err != nil {
 				return err
 			}
 		}
@@ -158,7 +158,7 @@ func auditBuilt(opts Options) error {
 		// around. Refused.
 		// underDir already answers false for an empty dir, so no guard here.
 		intoTheStore := func(ref string) bool {
-			_, ok := underDir(ref, opts.PkgxDir)
+			_, ok := underDir(ref, opts.ZpkgDir)
 			return ok
 		}
 		if err := checkAbsoluteRefs(p, intoTheStore); err != nil {
@@ -198,7 +198,7 @@ func (c auditCounts) summary(recipe string) string {
 // or the last directory above the version when the prefix is outside the store.
 func recipeName(opts Options) string {
 	proj := filepath.Dir(opts.Prefix)
-	if rel, ok := underDir(proj, opts.PkgxDir); ok {
+	if rel, ok := underDir(proj, opts.ZpkgDir); ok {
 		return rel
 	}
 	return filepath.Base(proj)

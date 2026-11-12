@@ -36,7 +36,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 	platform := fs.String("platform", envOr("PLATFORM", "linux/aarch64"), "target os/arch")
 	toolchain := fs.String("toolchain", "", "file listing the toolchain packages, one `project[constraint]` per line (default: the built-in list)")
 	bkBin := fs.String("zbk", "", "path to a target-arch zbk binary to install at /usr/local/bin/zbk")
-	pkgxBin := fs.String("zpkgx", "", "path to a target-arch zpkgx binary to install at /usr/local/bin/zpkgx")
+	zpkgxBin := fs.String("zpkgx", "", "path to a target-arch zpkgx binary to install at /usr/local/bin/zpkgx")
 	dist := fs.String("dist", "", "bottle registry to install from (default $ZPKG_DIST)")
 	overlay := fs.String("overlay", "", "pantry overlay consulted before the upstream pantry (default $ZPKG_PANTRY_OVERLAY)")
 	microvm := fs.Bool("microvm", false, "also write .weft-microvm/config.json so `weft microvm run` can boot the directory as-is")
@@ -77,7 +77,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 		Arch:      arch,
 		Roots:     roots,
 		BkBin:     *bkBin,
-		PkgxBin:   *pkgxBin,
+		ZpkgxBin:  *zpkgxBin,
 		MicroVM:   *microvm,
 		Container: *container,
 		Overlay:   bottle.PantryOverlay,
@@ -176,10 +176,10 @@ func reportRootGaps(roots map[string]string, osn, arch string, stdout io.Writer)
 // trip to a runner to learn a directory listing is one too many.
 //
 // Names only, and capped: this goes in an error, not a report.
-func glibcLayout(pkgxDir string) string {
-	roots, _ := filepath.Glob(filepath.Join(pkgxDir, bottle.GlibcProject, "v*"))
+func glibcLayout(zpkgDir string) string {
+	roots, _ := filepath.Glob(filepath.Join(zpkgDir, bottle.GlibcProject, "v*"))
 	if len(roots) == 0 {
-		return "\n  (no gnu.org/glibc directory under " + pkgxDir + ")"
+		return "\n  (no gnu.org/glibc directory under " + zpkgDir + ")"
 	}
 	var b strings.Builder
 	for _, r := range roots {
@@ -234,19 +234,19 @@ func glibcLayout(pkgxDir string) string {
 
 // alreadyStaged counts the closure members whose prefix is already on disk,
 // which is exactly what bottle.InstallFor will skip.
-func alreadyStaged(pkgxDir string, closure []bottle.Resolved) int {
+func alreadyStaged(zpkgDir string, closure []bottle.Resolved) int {
 	n := 0
 	for _, r := range closure {
-		if st, err := os.Stat(filepath.Join(pkgxDir, r.Project, "v"+r.Version.Raw)); err == nil && st.IsDir() {
+		if st, err := os.Stat(filepath.Join(zpkgDir, r.Project, "v"+r.Version.Raw)); err == nil && st.IsDir() {
 			n++
 		}
 	}
 	return n
 }
 
-// guestPkgxDir is where the staged bottles live once the rootfs is the root:
+// guestZpkgDir is where the staged bottles live once the rootfs is the root:
 // the stubs, the loader symlinks and ZPKG_DIR must all agree on it.
-const guestPkgxDir = "/pkgx"
+const guestZpkgDir = "/pkgx"
 
 // defaultToolchain is the build environment of the sovereign builder when the
 // caller names no file. Each entry earns its place — a toolchain nobody can
@@ -346,7 +346,7 @@ type stageOptions struct {
 	OS, Arch  string
 	Roots     map[string]string
 	BkBin     string
-	PkgxBin   string
+	ZpkgxBin  string
 	MicroVM   bool
 	Container bool
 	Overlay   string
@@ -358,14 +358,14 @@ type stageOptions struct {
 // on disk before the loader can be found in it, and the loader has to be posed
 // before a stub is worth writing.
 func stageBuilder(o stageOptions) error {
-	pkgxDir := filepath.Join(o.Root, "pkgx")
+	zpkgDir := filepath.Join(o.Root, "pkgx")
 	o.Log(fmt.Sprintf("builder: resolving the toolchain closure for %s/%s", o.OS, o.Arch))
 	closure, err := resolveClosureFor(o.Roots, o.OS, o.Arch)
 	if err != nil {
 		return fmt.Errorf("resolve closure: %w", err)
 	}
 	o.Log(fmt.Sprintf("builder: %d packages", len(closure)))
-	if n := alreadyStaged(pkgxDir, closure); n > 0 {
+	if n := alreadyStaged(zpkgDir, closure); n > 0 {
 		// bottle.InstallFor takes the EXISTENCE of <project>/v<ver> as "already
 		// present" and returns without fetching:
 		//
@@ -384,11 +384,11 @@ func stageBuilder(o stageOptions) error {
 		// case and is why the skip exists. What was missing is that the log
 		// claimed a number it had not fetched.
 		o.Log(fmt.Sprintf("builder: %d of them are ALREADY in %s and will not be re-installed — "+
-			"a tree left by an earlier run is reused as-is, however it ended", n, pkgxDir))
+			"a tree left by an earlier run is reused as-is, however it ended", n, zpkgDir))
 	}
 
 	for _, r := range closure {
-		fresh, err := installFor(r, pkgxDir, o.OS, o.Arch)
+		fresh, err := installFor(r, zpkgDir, o.OS, o.Arch)
 		if err != nil {
 			return fmt.Errorf("install %s %s: %w", r.Project, r.Version.Raw, err)
 		}
@@ -400,7 +400,7 @@ func stageBuilder(o stageOptions) error {
 	// The loader and /bin/sh have to answer at their canonical absolute paths:
 	// every bottle ELF names PT_INTERP=/lib/ld-linux-*, and make runs each
 	// recipe line through /bin/sh. Both symlinks must point at GUEST paths.
-	loader := findLoaderFor(pkgxDir, o.Arch)
+	loader := findLoaderFor(zpkgDir, o.Arch)
 	if loader == "" {
 		// TWO failures wear this one symptom, and they are nothing alike.
 		//
@@ -420,13 +420,13 @@ func stageBuilder(o stageOptions) error {
 				"bottle for %s and add it there", o.Arch, o.Arch)
 		}
 		return fmt.Errorf("no %s loader (%s) in the staged glibc — is gnu.org/glibc in the toolchain?%s",
-			o.Arch, bottle.LoaderNameFor(o.Arch), glibcLayout(pkgxDir))
+			o.Arch, bottle.LoaderNameFor(o.Arch), glibcLayout(zpkgDir))
 	}
-	shell := bottle.FindClosureBin(closure, pkgxDir, "gnu.org/bash", "bash")
+	shell := bottle.FindClosureBin(closure, zpkgDir, "gnu.org/bash", "bash")
 	if err := bottle.SetupScratchRootfsAt(o.Root,
 		bottle.LoaderNameFor(o.Arch),
-		guestPath(loader, pkgxDir),
-		guestPath(shell, pkgxDir),
+		guestPath(loader, zpkgDir),
+		guestPath(shell, zpkgDir),
 	); err != nil {
 		return fmt.Errorf("pose loader + /bin/sh: %w", err)
 	}
@@ -435,8 +435,8 @@ func stageBuilder(o stageOptions) error {
 	// /usr/bin and /bin but not /usr/local/bin, so a stub outside it is a stub
 	// the build cannot call.
 	n, err := stubBinsStaged(closure, bottle.Stage{
-		Dir:      pkgxDir,
-		GuestDir: guestPkgxDir,
+		Dir:      zpkgDir,
+		GuestDir: guestZpkgDir,
 		Prefix:   filepath.Join(o.Root, "usr"),
 		OS:       o.OS,
 		Arch:     o.Arch,
@@ -468,7 +468,7 @@ func stageBuilder(o stageOptions) error {
 	// inside an image whose tools introduced themselves by their retired
 	// names — and a developer with upstream's `pkgx` on PATH could not tell
 	// the two apart by looking at the tree.
-	for _, b := range []struct{ src, name string }{{o.BkBin, "zbk"}, {o.PkgxBin, "zpkgx"}} {
+	for _, b := range []struct{ src, name string }{{o.BkBin, "zbk"}, {o.ZpkgxBin, "zpkgx"}} {
 		if b.src == "" {
 			continue
 		}
@@ -480,16 +480,16 @@ func stageBuilder(o stageOptions) error {
 	}
 
 	if o.MicroVM {
-		if err := writeMicroVMConfig(o, closure, pkgxDir); err != nil {
+		if err := writeMicroVMConfig(o, closure, zpkgDir); err != nil {
 			return fmt.Errorf("write .weft-microvm/config.json: %w", err)
 		}
 		o.Log("builder: .weft-microvm/config.json written — `weft microvm run` can boot this directory")
 	}
 	// Before the container file and after everything is on disk: the census
 	// is about the tree as it will be ENTERED.
-	o.Log(auditStagedSonames(pkgxDir))
+	o.Log(auditStagedSonames(zpkgDir))
 	if o.Container {
-		n, err := writeLdSoConf(o, pkgxDir)
+		n, err := writeLdSoConf(o, zpkgDir)
 		if err != nil {
 			return fmt.Errorf("write /etc/ld.so.conf: %w", err)
 		}
@@ -519,9 +519,9 @@ func stageBuilder(o stageOptions) error {
 //
 // The directories are FOUND, not globbed: libc.so.6 lives in
 // lib/glibc-2.44/, a versioned subdirectory a `*/v*/lib` pattern misses.
-func writeLdSoConf(o stageOptions, pkgxDir string) (int, error) {
+func writeLdSoConf(o stageOptions, zpkgDir string) (int, error) {
 	seen := map[string]bool{}
-	err := filepath.WalkDir(pkgxDir, func(p string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(zpkgDir, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			// A directory we cannot read means the list is INCOMPLETE, and an
 			// incomplete ld.so.conf breaks the container silently: one library
@@ -532,7 +532,7 @@ func writeLdSoConf(o stageOptions, pkgxDir string) (int, error) {
 		if d.IsDir() || !strings.Contains(d.Name(), ".so") {
 			return nil
 		}
-		seen[guestPath(filepath.Dir(p), pkgxDir)] = true
+		seen[guestPath(filepath.Dir(p), zpkgDir)] = true
 		return nil
 	})
 	if err != nil {
@@ -557,15 +557,15 @@ func writeLdSoConf(o stageOptions, pkgxDir string) (int, error) {
 // guestPath rewrites a staged path to the one it will have once the rootfs is
 // the root. Returns "" unchanged, so a missing optional (no bash in the
 // closure) stays missing rather than becoming "/pkgx".
-func guestPath(p, pkgxDir string) string {
+func guestPath(p, zpkgDir string) string {
 	if p == "" {
 		return ""
 	}
-	rel, err := filepath.Rel(pkgxDir, p)
+	rel, err := filepath.Rel(zpkgDir, p)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return p
 	}
-	return filepath.Join(guestPkgxDir, rel)
+	return filepath.Join(guestZpkgDir, rel)
 }
 
 // copyExecutable copies src to dst with the executable bit set.
@@ -623,12 +623,12 @@ type microVMUser struct {
 // time, but a micro-VM's init execs the args verbatim. Without it the first
 // thing that happens in the guest is /bin/sh failing to find libc.so.6 —
 // measured, in exactly that way.
-func writeMicroVMConfig(o stageOptions, closure []bottle.Resolved, pkgxDir string) error {
-	libPath := strings.ReplaceAll(bottle.LibPath(closure, pkgxDir), pkgxDir, guestPkgxDir)
+func writeMicroVMConfig(o stageOptions, closure []bottle.Resolved, zpkgDir string) error {
+	libPath := strings.ReplaceAll(bottle.LibPath(closure, zpkgDir), zpkgDir, guestZpkgDir)
 	env := []string{
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		"LD_LIBRARY_PATH=" + libPath,
-		"ZPKG_DIR=" + guestPkgxDir,
+		"ZPKG_DIR=" + guestZpkgDir,
 		"HOME=/root",
 		"TMPDIR=/tmp",
 	}

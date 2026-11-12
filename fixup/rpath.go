@@ -480,11 +480,11 @@ func isMajorSoname(leaf, cand string) bool {
 // Only when the link is really there. A dependency published before bottle
 // wrote them, or one whose soname this build did not name, keeps the v<major>
 // form and behaves exactly as before.
-func abiLine(orig, leaf, pkgxDir string) (string, bool) {
-	if pkgxDir == "" || leaf == "" {
+func abiLine(orig, leaf, zpkgDir string) (string, bool) {
+	if zpkgDir == "" || leaf == "" {
 		return "", false
 	}
-	rest, ok := underDir(orig, pkgxDir)
+	rest, ok := underDir(orig, zpkgDir)
 	if !ok {
 		return "", false
 	}
@@ -497,13 +497,13 @@ func abiLine(orig, leaf, pkgxDir string) (string, bool) {
 	}
 	project := m[1]
 	tail := slash[len(m[1])+1+len(m[2]):]
-	link := filepath.Join(pkgxDir, filepath.FromSlash(project), "abi-"+leaf)
+	link := filepath.Join(zpkgDir, filepath.FromSlash(project), "abi-"+leaf)
 	// osStat, not Lstat: a dangling link is not a line anybody can bind to,
 	// and following it is the same question dyld will ask.
 	if _, err := osStat(link); err != nil {
 		return "", false
 	}
-	return filepath.Join(pkgxDir, filepath.FromSlash(project), "abi-"+leaf, filepath.FromSlash(tail)), true
+	return filepath.Join(zpkgDir, filepath.FromSlash(project), "abi-"+leaf, filepath.FromSlash(tail)), true
 }
 
 // abiVersionDirRE finds the /v<version>/ boundary in a store-relative path.
@@ -532,7 +532,7 @@ func abiOrMajor(full string, opts Options, useABI bool) string {
 		return t
 	}
 	leaf := majorLeaf(full)
-	if a, ok := abiLine(full, leaf, opts.PkgxDir); ok && useABI {
+	if a, ok := abiLine(full, leaf, opts.ZpkgDir); ok && useABI {
 		return a
 	}
 	return filepath.Join(filepath.Dir(t), leaf)

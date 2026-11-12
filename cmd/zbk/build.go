@@ -132,7 +132,7 @@ func runBashLimited(limit time.Duration, out, errOut io.Writer) func(string, []s
 
 // realBuildRunner wires the real bk/bottle implementations into a Runner. Every
 // field but pickVersion/runBash is a direct package function of matching shape.
-func realBuildRunner(pkgxBin string) *build.Runner {
+func realBuildRunner(zpkgxBin string) *build.Runner {
 	return &build.Runner{
 		PickVersion:     pickVersion,
 		ResolveVersion:  versions.Resolve,
@@ -145,7 +145,7 @@ func realBuildRunner(pkgxBin string) *build.Runner {
 		WriteBottle:     bottlepkg.WriteBottle,
 		ResolveDep:      pickVersion,
 		ToolInstallable: toolInstallable,
-		PkgxBin:         pkgxBin,
+		ZpkgxBin:        zpkgxBin,
 		BashPath:        "/bin/bash",
 	}
 }
@@ -183,12 +183,12 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	// and ~/.local/bin, so a bare "pkgx" would not be found for the deps eval. If
 	// resolution fails, keep the value as given (explicit paths still work and the
 	// original error stays clear).
-	pkgxBin := *pkgx
-	if abs, err := lookPath(pkgxBin); err == nil {
-		pkgxBin = abs
+	zpkgxBin := *pkgx
+	if abs, err := lookPath(zpkgxBin); err == nil {
+		zpkgxBin = abs
 	}
 
-	runner := buildFactory(pkgxBin)
+	runner := buildFactory(zpkgxBin)
 	runner.RecipeDir = filepath.Dir(*recipe)
 	runner.LibcMode = *libc
 	runner.Glibc = *glibc

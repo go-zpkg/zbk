@@ -17,7 +17,7 @@ import (
 )
 
 // fakeStage replaces the four bottle seams with an in-memory registry that
-// materialises a plausible glibc/bash/tool layout under pkgxDir.
+// materialises a plausible glibc/bash/tool layout under zpkgDir.
 func fakeStage(t *testing.T) *stageCalls {
 	t.Helper()
 	calls := &stageCalls{}
@@ -35,12 +35,12 @@ func fakeStage(t *testing.T) *stageCalls {
 		calls.roots = roots
 		return closure, nil
 	}
-	installFor = func(r bottle.Resolved, pkgxDir, osn, arch string) (bool, error) {
+	installFor = func(r bottle.Resolved, zpkgDir, osn, arch string) (bool, error) {
 		calls.installed = append(calls.installed, r.Project)
 		calls.installedFor = osn + "/" + arch
 		// Lay the files down so the later steps have something real to find.
-		libDir := filepath.Join(pkgxDir, r.Project, "v"+r.Version.Raw, "lib", "glibc-2.44")
-		binDir := filepath.Join(pkgxDir, r.Project, "v"+r.Version.Raw, "bin")
+		libDir := filepath.Join(zpkgDir, r.Project, "v"+r.Version.Raw, "lib", "glibc-2.44")
+		binDir := filepath.Join(zpkgDir, r.Project, "v"+r.Version.Raw, "bin")
 		for _, d := range []string{libDir, binDir} {
 			if err := os.MkdirAll(d, 0o755); err != nil {
 				return false, err
@@ -53,9 +53,9 @@ func fakeStage(t *testing.T) *stageCalls {
 		}
 		return true, nil
 	}
-	findLoaderFor = func(pkgxDir, arch string) string {
+	findLoaderFor = func(zpkgDir, arch string) string {
 		calls.loaderArch = arch
-		return filepath.Join(pkgxDir, bottle.GlibcProject, "v2.44.0", "lib", "glibc-2.44", bottle.LoaderNameFor(arch))
+		return filepath.Join(zpkgDir, bottle.GlibcProject, "v2.44.0", "lib", "glibc-2.44", bottle.LoaderNameFor(arch))
 	}
 	stubBinsStaged = func(clo []bottle.Resolved, s bottle.Stage) (int, error) {
 		calls.stage = s
@@ -117,8 +117,8 @@ func TestStageBuilderPosesGuestPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(loader, guestPkgxDir+"/") {
-		t.Errorf("/lib loader -> %q, want a %s path", loader, guestPkgxDir)
+	if !strings.HasPrefix(loader, guestZpkgDir+"/") {
+		t.Errorf("/lib loader -> %q, want a %s path", loader, guestZpkgDir)
 	}
 	if strings.Contains(loader, root) {
 		t.Errorf("/lib loader leaks the staging root: %q", loader)
@@ -127,7 +127,7 @@ func TestStageBuilderPosesGuestPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sh != guestPkgxDir+"/gnu.org/bash/v5.3/bin/bash" {
+	if sh != guestZpkgDir+"/gnu.org/bash/v5.3/bin/bash" {
 		t.Errorf("/bin/sh -> %q", sh)
 	}
 }
@@ -146,8 +146,8 @@ func TestStageBuilderStubsIntoUsr(t *testing.T) {
 	if want := filepath.Join(root, "usr"); calls.stage.Prefix != want {
 		t.Errorf("stub prefix = %q, want %q", calls.stage.Prefix, want)
 	}
-	if calls.stage.GuestDir != guestPkgxDir {
-		t.Errorf("stubs bake %q, want %q", calls.stage.GuestDir, guestPkgxDir)
+	if calls.stage.GuestDir != guestZpkgDir {
+		t.Errorf("stubs bake %q, want %q", calls.stage.GuestDir, guestZpkgDir)
 	}
 	if want := filepath.Join(root, "pkgx"); calls.stage.Dir != want {
 		t.Errorf("stubs read from %q, want %q", calls.stage.Dir, want)
@@ -301,13 +301,13 @@ func TestMicroVMConfigIsBootable(t *testing.T) {
 	// the environment the way a container ENTRYPOINT did. Without an explicit
 	// LD_LIBRARY_PATH the first thing that happens in the guest is /bin/sh
 	// failing to find libc.so.6.
-	if !strings.Contains(env, "LD_LIBRARY_PATH="+guestPkgxDir+"/") {
+	if !strings.Contains(env, "LD_LIBRARY_PATH="+guestZpkgDir+"/") {
 		t.Errorf("no guest LD_LIBRARY_PATH:\n%s", env)
 	}
 	if strings.Contains(env, root) {
 		t.Errorf("env leaks the staging root:\n%s", env)
 	}
-	for _, want := range []string{"ZPKG_DIR=" + guestPkgxDir, "ZPKG_DIST=oci://", "ZPKG_PANTRY_OVERLAY=https://", "HOME=/root", "TMPDIR=/tmp"} {
+	for _, want := range []string{"ZPKG_DIR=" + guestZpkgDir, "ZPKG_DIST=oci://", "ZPKG_PANTRY_OVERLAY=https://", "HOME=/root", "TMPDIR=/tmp"} {
 		if !strings.Contains(env, want) {
 			t.Errorf("env missing %q:\n%s", want, env)
 		}
@@ -647,8 +647,8 @@ func TestStageBuilderPoseFailure(t *testing.T) {
 func TestStageBuilderSkipsAlreadyInstalled(t *testing.T) {
 	fakeStage(t)
 	old := installFor
-	installFor = func(r bottle.Resolved, pkgxDir, osn, arch string) (bool, error) {
-		if _, err := old(r, pkgxDir, osn, arch); err != nil {
+	installFor = func(r bottle.Resolved, zpkgDir, osn, arch string) (bool, error) {
+		if _, err := old(r, zpkgDir, osn, arch); err != nil {
 			return false, err
 		}
 		return false, nil // already there

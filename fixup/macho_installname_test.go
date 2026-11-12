@@ -105,7 +105,7 @@ func TestBareInstallNameGainsItsDirectory(t *testing.T) {
 	if err := os.Symlink("libzstd.1.5.7.dylib", filepath.Join(prefix, "lib", "libzstd.1.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -131,7 +131,7 @@ func TestBareInstallNameFallsBackToTheFileItself(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, "@rpath/libfoo.1.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -155,7 +155,7 @@ func TestQualifiedInstallNameIsLeftAlone(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, id},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -190,7 +190,7 @@ func TestBareInstallNameWithNoHeadroomIsLeftAlone(t *testing.T) {
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcIDDylib, "@rpath/libfoo.dylib"},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(lib)
@@ -221,7 +221,7 @@ func TestGrowthKeepsTheRestOfTheLoadCommandsReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(lib)
@@ -324,8 +324,8 @@ func TestMachoCmdLimitRefusesMalformedCommands(t *testing.T) {
 // is no directory to name it relative to. With no $ZPKG_DIR at all there is not
 // even a question to answer — unreachable through FixUp, which only calls this
 // once an rpath has been shown to reach $ZPKG_DIR, so it is asserted directly.
-func TestQualifyIDOutsidePkgxDir(t *testing.T) {
-	if _, ok := qualifyID("/elsewhere/lib/libfoo.dylib", "@rpath/libfoo.dylib", Options{PkgxDir: "/opt/pkgx"}); ok {
+func TestQualifyIDOutsideZpkgDir(t *testing.T) {
+	if _, ok := qualifyID("/elsewhere/lib/libfoo.dylib", "@rpath/libfoo.dylib", Options{ZpkgDir: "/opt/pkgx"}); ok {
 		t.Error("qualified an install name for a file that is not under $ZPKG_DIR")
 	}
 	if _, ok := qualifyID("/opt/pkgx/a/v1/lib/libfoo.dylib", "@rpath/libfoo.dylib", Options{}); ok {
@@ -350,7 +350,7 @@ func TestPlainRelativeInstallNameGainsItsDirectory(t *testing.T) {
 	if err := os.Symlink("libbz2.1.0.8.dylib", filepath.Join(prefix, "lib", "libbz2.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -374,7 +374,7 @@ func TestLoaderPathInstallNameIsLeftAlone(t *testing.T) {
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcIDDylib, id},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -407,7 +407,7 @@ func TestInstallNameIsFixedWithoutAnRpathOfItsOwn(t *testing.T) {
 	if err := os.Symlink("libbz2.1.0.8.dylib", filepath.Join(prefix, "lib", "libbz2.dylib")); err != nil {
 		t.Fatal(err)
 	}
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -437,7 +437,7 @@ func TestReferencesStillNeedAnRpathEvenWhenTheIDIsFixed(t *testing.T) {
 		machoCmd{lcIDDylib, "libfoo.dylib"},
 		machoCmd{lcLoadDylib, dep},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(lib)
@@ -502,7 +502,7 @@ func TestQualifyBareReferenceToOwnPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rewriteMacho(bin, Options{Prefix: prefix, PkgxDir: pkgx, Platform: "darwin"}); err != nil {
+	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: pkgx, Platform: "darwin"}); err != nil {
 		t.Fatal(err)
 	}
 	strs, err := readMachoRefs(bin)
@@ -539,7 +539,7 @@ func TestBareReferenceToAnotherPackageIsLeftAlone(t *testing.T) {
 	if err := os.WriteFile(bin, b, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := rewriteMacho(bin, Options{Prefix: prefix, PkgxDir: pkgx, Platform: "darwin"}); err != nil {
+	if err := rewriteMacho(bin, Options{Prefix: prefix, ZpkgDir: pkgx, Platform: "darwin"}); err != nil {
 		t.Fatal(err)
 	}
 	strs, err := readMachoRefs(bin)
@@ -573,7 +573,7 @@ func TestQualifyBareReferenceFindsTheStagedFile(t *testing.T) {
 	got, ok := qualifyRef(
 		filepath.Join(staging, "lib", "libmpdec++.2.5.1.dylib"),
 		"libmpdec.3.dylib",
-		Options{Prefix: prefix, BuildInstall: staging, PkgxDir: pkgx},
+		Options{Prefix: prefix, BuildInstall: staging, ZpkgDir: pkgx},
 	)
 	want := "@rpath/bytereef.org/mpdecimal/v2.5.1/lib/libmpdec.3.dylib"
 	if !ok || got != want {
@@ -604,7 +604,7 @@ func TestQualifyBareReferenceAgainstTheClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := qualifyRef(filepath.Join(prefix, "bin", "tiffsplit"), "libzstd.1.dylib",
-		Options{Prefix: prefix, PkgxDir: pkgx})
+		Options{Prefix: prefix, ZpkgDir: pkgx})
 	// the MAJOR directory, as every other sibling reference is written: v1
 	// resolves to whatever 1.x the machine has, so a dependency's minor
 	// upgrade does not orphan its dependents.
@@ -636,7 +636,7 @@ func TestBareReferenceWithTwoOwnersIsDeclined(t *testing.T) {
 		}
 	}
 	if got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "libboth.1.dylib",
-		Options{Prefix: prefix, PkgxDir: pkgx}); ok {
+		Options{Prefix: prefix, ZpkgDir: pkgx}); ok {
 		t.Errorf("qualifyRef = %q, true — two owners must not be resolved to one", got)
 	}
 }
@@ -660,7 +660,7 @@ func TestBareReferenceWithTwoVersionsOfOneProject(t *testing.T) {
 		}
 	}
 	got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "libzstd.1.dylib",
-		Options{Prefix: prefix, PkgxDir: pkgx})
+		Options{Prefix: prefix, ZpkgDir: pkgx})
 	want := "@rpath/facebook.com/zstd/v1/lib/libzstd.1.dylib"
 	if !ok || got != want {
 		t.Errorf("qualifyRef = %q, %v\nwant %q, true — two versions of ONE project are not two owners", got, ok, want)
@@ -688,7 +688,7 @@ func TestBareReferenceWithAPatternInItsName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, ok := qualifyRef(filepath.Join(prefix, "bin", "tool"), "lib[bad.dylib",
-		Options{Prefix: prefix, PkgxDir: pkgx}); ok {
+		Options{Prefix: prefix, ZpkgDir: pkgx}); ok {
 		t.Errorf("qualifyRef = %q, true — a malformed pattern must decline", got)
 	}
 }

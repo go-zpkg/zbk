@@ -27,7 +27,7 @@ func TestBareSiblingIsAnsweredWithLoaderPath(t *testing.T) {
 	// Measured on the published libmpdec++.2.5.1.dylib: 16376 bytes spare.
 	placePad(t, exe, 64, machoCmd{lcLoadDylib, "@rpath/libmpdec.3.dylib"}) // and no lcRpath
 
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -55,7 +55,7 @@ func TestBareNameFromBinGetsTheRelativePath(t *testing.T) {
 	exe := filepath.Join(prefix, "bin", "tool")
 	placePad(t, exe, 64, machoCmd{lcLoadDylib, "@rpath/liba.1.dylib"})
 
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := ReadMachoStrings(exe)
@@ -82,7 +82,7 @@ func TestBareNameThatIsNotOursIsLeftAlone(t *testing.T) {
 	// The build is REFUSED, which is right: the reference resolves nowhere and
 	// nothing here can make it. What must not happen is a repair invented out
 	// of a name we do not own.
-	err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx})
+	err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
 	if err == nil {
 		t.Fatal("a file whose reference resolves nowhere was accepted")
 	}

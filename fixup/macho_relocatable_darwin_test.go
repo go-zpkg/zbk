@@ -38,14 +38,14 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 	foo := write("foo.c", "int foo(void){ return 42; }\n")
 	mainC := write("main.c", "#include <stdio.h>\nint foo(void);\nint main(void){ printf(\"foo=%d\\n\", foo()); return 0; }\n")
 
-	// build lays out one $ZPKG_DIR and returns (pkgxDir, libPrefix, exePrefix,
+	// build lays out one $ZPKG_DIR and returns (zpkgDir, libPrefix, exePrefix,
 	// exe). The rpaths are the ones bk's wrapper now links in: relative, at the
 	// depth this layout implies.
 	build := func(name string) (string, string, string, string) {
 		t.Helper()
-		pkgxDir := filepath.Join(root, name)
-		libPrefix := filepath.Join(pkgxDir, "acme.org", "foo", "v1.2.3")
-		exePrefix := filepath.Join(pkgxDir, "other.org", "bar", "v2.0.0")
+		zpkgDir := filepath.Join(root, name)
+		libPrefix := filepath.Join(zpkgDir, "acme.org", "foo", "v1.2.3")
+		exePrefix := filepath.Join(zpkgDir, "other.org", "bar", "v2.0.0")
 		if err := os.MkdirAll(filepath.Join(libPrefix, "lib"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 			t.Fatal(err)
 		}
 		run(cc, "-o", exe, mainC, dylib, "-Wl,-rpath,"+up)
-		return pkgxDir, libPrefix, exePrefix, exe
+		return zpkgDir, libPrefix, exePrefix, exe
 	}
 
 	// A copy, never the original: macOS caches a code signature per vnode at
@@ -93,24 +93,24 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 	// The control: the same tree, moved WITHOUT being fixed up. If this one
 	// still ran, the test below would prove nothing about the fix.
 	{
-		pkgxDir, _, exePrefix, exe := build("control")
+		zpkgDir, _, exePrefix, exe := build("control")
 		if got, err := runsFrom(exe); err != nil || got != "foo=42" {
 			t.Fatalf("the control did not even run in place: %q %v", got, err)
 		}
-		moved := pkgxDir + "-moved"
-		if err := os.Rename(pkgxDir, moved); err != nil {
+		moved := zpkgDir + "-moved"
+		if err := os.Rename(zpkgDir, moved); err != nil {
 			t.Fatal(err)
 		}
-		movedExe := filepath.Join(moved, exe[len(pkgxDir)+1:])
+		movedExe := filepath.Join(moved, exe[len(zpkgDir)+1:])
 		_ = exePrefix
 		if got, err := runsFrom(movedExe); err == nil {
 			t.Fatalf("an unfixed bottle survived the move (%q): the absolute install name resolved, so this machine cannot tell the two apart", got)
 		}
 	}
 
-	pkgxDir, libPrefix, exePrefix, exe := build("pkgx")
+	zpkgDir, libPrefix, exePrefix, exe := build("pkgx")
 	for _, prefix := range []string{libPrefix, exePrefix} {
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgxDir}); err != nil {
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgDir}); err != nil {
 			t.Fatalf("fixup %s: %v", prefix, err)
 		}
 	}
@@ -128,7 +128,7 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 		if s == want {
 			found = true
 		}
-		if strings.HasPrefix(s, pkgxDir) {
+		if strings.HasPrefix(s, zpkgDir) {
 			t.Errorf("a path into the build machine's $ZPKG_DIR survived: %q", s)
 		}
 	}
@@ -137,11 +137,11 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 	}
 
 	// And the outcome: the whole tree elsewhere, still working.
-	moved := pkgxDir + "-moved"
-	if err := os.Rename(pkgxDir, moved); err != nil {
+	moved := zpkgDir + "-moved"
+	if err := os.Rename(zpkgDir, moved); err != nil {
 		t.Fatal(err)
 	}
-	movedExe := filepath.Join(moved, exe[len(pkgxDir)+1:])
+	movedExe := filepath.Join(moved, exe[len(zpkgDir)+1:])
 	got, err := runsFrom(movedExe)
 	if err != nil {
 		t.Fatalf("the fixed-up bottle did not run after being moved: %v\noutput: %q", err, got)
@@ -160,9 +160,9 @@ func TestWithoutAnRpathTheNamesAreLeftAlone(t *testing.T) {
 		t.Skip("no cc")
 	}
 	root := t.TempDir()
-	pkgxDir := filepath.Join(root, "pkgx")
-	libPrefix := filepath.Join(pkgxDir, "acme.org", "foo", "v1.2.3")
-	exePrefix := filepath.Join(pkgxDir, "other.org", "bar", "v2.0.0")
+	zpkgDir := filepath.Join(root, "pkgx")
+	libPrefix := filepath.Join(zpkgDir, "acme.org", "foo", "v1.2.3")
+	exePrefix := filepath.Join(zpkgDir, "other.org", "bar", "v2.0.0")
 	for _, d := range []string{filepath.Join(libPrefix, "lib"), filepath.Join(exePrefix, "bin")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -187,7 +187,7 @@ func TestWithoutAnRpathTheNamesAreLeftAlone(t *testing.T) {
 		}
 	}
 	var logged []string
-	if err := FixUp(Options{Prefix: exePrefix, Platform: "darwin", PkgxDir: pkgxDir,
+	if err := FixUp(Options{Prefix: exePrefix, Platform: "darwin", ZpkgDir: zpkgDir,
 		Log: func(s string) { logged = append(logged, s) }}); err != nil {
 		t.Fatal(err)
 	}

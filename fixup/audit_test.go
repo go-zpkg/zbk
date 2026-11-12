@@ -16,8 +16,8 @@ import (
 // The shape is git-scm.org 2.55.0's: a correctly QUALIFIED @rpath reference to
 // a sibling package, and one rpath — the build machine's own absolute path.
 func TestAuditRelocatableFindsTheBuilderOnlyRpath(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "git-scm.org", "v2.55.0")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "git-scm.org", "v2.55.0")
 	ref := machoCmd{lcLoadDylib, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"}
 
 	// libexec/git: reaches the sibling only through the builder's path.
@@ -28,7 +28,7 @@ func TestAuditRelocatableFindsTheBuilderOnlyRpath(t *testing.T) {
 	// lib/libok.dylib: a relative rpath that reaches $ZPKG_DIR from lib/.
 	place(t, filepath.Join(prefix, "lib", "libok.dylib"), ref, machoCmd{lcRpath, "@loader_path/../../.."})
 
-	checked, problems := AuditRelocatable(prefix, pkgxDir)
+	checked, problems := AuditRelocatable(prefix, zpkgDir)
 	if checked != 2 {
 		t.Fatalf("checked %d Mach-O, want 2", checked)
 	}
@@ -46,14 +46,14 @@ func TestAuditRelocatableFindsTheBuilderOnlyRpath(t *testing.T) {
 // TestAuditRelocatableIsQuietOnAHealthyPrefix: the negative control. Without
 // it the audit could report every bottle and still look like it works.
 func TestAuditRelocatableIsQuietOnAHealthyPrefix(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "lloyd.github.io", "yajl", "v2.1.0")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "lloyd.github.io", "yajl", "v2.1.0")
 	place(t, filepath.Join(prefix, "lib", "libyajl.2.dylib"),
 		machoCmd{lcLoadDylib, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"},
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcRpath, "/Users/runner/.pkgx"})
 
-	checked, problems := AuditRelocatable(prefix, pkgxDir)
+	checked, problems := AuditRelocatable(prefix, zpkgDir)
 	if checked != 1 {
 		t.Fatalf("checked %d Mach-O, want 1", checked)
 	}
@@ -262,15 +262,15 @@ func placeSigned(t *testing.T, path string, img signedImage) {
 // published project@versions went out in a state where Apple silicon SIGKILLs
 // them at the first page fault — with no dyld error and no output at all.
 func TestAuditRelocatableFindsTheStaleSignature(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "gnu.org", "libtool", "v2.6.2")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "gnu.org", "libtool", "v2.6.2")
 
 	bad := filepath.Join(prefix, "lib", "libltdl.7.dylib")
 	placeSigned(t, bad, buildSignedMachO(t, "@loader_path/../../../..", sigOpts{badHashes: true}))
 	placeSigned(t, filepath.Join(prefix, "lib", "libok.dylib"),
 		buildSignedMachO(t, "@loader_path/../../../..", sigOpts{}))
 
-	checked, problems := AuditRelocatable(prefix, pkgxDir)
+	checked, problems := AuditRelocatable(prefix, zpkgDir)
 	if checked != 2 {
 		t.Fatalf("checked %d Mach-O, want 2", checked)
 	}
@@ -291,14 +291,14 @@ func TestAuditRelocatableFindsTheStaleSignature(t *testing.T) {
 // compute is reported, not silently passed. Reading "no verdict" as "sound" is
 // how an unrunnable bottle gets published.
 func TestAuditRelocatableSurfacesAnUnreadableSignature(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "x", "v1")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "x", "v1")
 
 	img := buildSignedMachO(t, "@loader_path/../../..", sigOpts{})
 	img.raw[img.cdOff+37] = 99 // a hash algorithm we cannot compute
 	placeSigned(t, filepath.Join(prefix, "lib", "libx.dylib"), img)
 
-	_, problems := AuditRelocatable(prefix, pkgxDir)
+	_, problems := AuditRelocatable(prefix, zpkgDir)
 	if len(problems) != 1 {
 		t.Fatalf("reported %d problem(s), want 1: %v", len(problems), problems)
 	}
@@ -314,15 +314,15 @@ func TestAuditRelocatableSurfacesAnUnreadableSignature(t *testing.T) {
 // `/opt/homebrew/opt/gettext/lib/libintl.8.dylib` — a path that exists on the
 // runner that built it and on no user's machine.
 func TestAuditRelocatableFindsTheHomebrewReference(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "git-scm.org", "v2.55.0")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "git-scm.org", "v2.55.0")
 
 	bad := filepath.Join(prefix, "libexec", "git-receive-pack")
 	place(t, bad,
 		machoCmd{lcLoadDylib, "/opt/homebrew/opt/gettext/lib/libintl.8.dylib"},
 		machoCmd{lcRpath, "@loader_path/../../.."})
 
-	_, problems := AuditRelocatable(prefix, pkgxDir)
+	_, problems := AuditRelocatable(prefix, zpkgDir)
 	if len(problems) != 1 {
 		t.Fatalf("reported %d problem(s), want 1: %v", len(problems), problems)
 	}
@@ -338,14 +338,14 @@ func TestAuditRelocatableFindsTheHomebrewReference(t *testing.T) {
 // stops the rule from condemning every binary on the machine. Linking
 // libSystem and a system framework by absolute path is how macOS works.
 func TestAuditRelocatableAllowsTheSystemLibraries(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "lloyd.github.io", "yajl", "v2.1.0")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "lloyd.github.io", "yajl", "v2.1.0")
 	place(t, filepath.Join(prefix, "lib", "libyajl.2.dylib"),
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"},
 		machoCmd{lcLoadDylib, "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation"},
 		machoCmd{lcRpath, "@loader_path/../../../.."})
 
-	_, problems := AuditRelocatable(prefix, pkgxDir)
+	_, problems := AuditRelocatable(prefix, zpkgDir)
 	if len(problems) != 0 {
 		t.Errorf("reported %v for the system libraries every Mach-O links", problems)
 	}
@@ -355,13 +355,13 @@ func TestAuditRelocatableAllowsTheSystemLibraries(t *testing.T) {
 // reference. A package installed under an absolute prefix names itself that
 // way and asks dyld for nothing.
 func TestAuditRelocatableIgnoresItsOwnInstallName(t *testing.T) {
-	pkgxDir := t.TempDir()
-	prefix := filepath.Join(pkgxDir, "x", "v1")
+	zpkgDir := t.TempDir()
+	prefix := filepath.Join(zpkgDir, "x", "v1")
 	place(t, filepath.Join(prefix, "lib", "libx.dylib"),
 		machoCmd{lcIDDylib, "/opt/x/v1/lib/libx.dylib"},
 		machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"})
 
-	_, problems := AuditRelocatable(prefix, pkgxDir)
+	_, problems := AuditRelocatable(prefix, zpkgDir)
 	if len(problems) != 0 {
 		t.Errorf("condemned a package for what it calls itself: %v", problems)
 	}
@@ -396,7 +396,7 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 		prefix := filepath.Join(pkgx, "acme.org", "v1.0.0")
 		placeSigned(t, filepath.Join(prefix, "lib", "libacme.dylib"),
 			buildSignedMachO(t, "@loader_path/../../..", sigOpts{badHashes: true}))
-		err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx})
+		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
 		if !errors.Is(err, ErrStaleSignature) {
 			t.Errorf("FixUp = %v, want ErrStaleSignature", err)
 		}
@@ -407,7 +407,7 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 		place(t, filepath.Join(prefix, "bin", "acme"),
 			machoCmd{lcLoadDylib, "/opt/homebrew/opt/gettext/lib/libintl.8.dylib"},
 			machoCmd{lcRpath, "@loader_path/../../.."})
-		err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx})
+		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx})
 		if !errors.Is(err, ErrAbsoluteRef) {
 			t.Errorf("FixUp = %v, want ErrAbsoluteRef", err)
 		}
@@ -424,7 +424,7 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 			machoCmd{lcRpath, "@loader_path/.."}, // stops short of the store
 			machoCmd{lcLoadDylib, dep})
 		var logged []string
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx,
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx,
 			Log: func(s string) { logged = append(logged, s) }}); err != nil {
 			t.Fatalf("FixUp refused the fallback: %v", err)
 		}
@@ -441,7 +441,7 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 			machoCmd{lcLoadDylib, "@rpath/gnome.org/libxml2/v2/lib/libxml2.2.dylib"},
 			machoCmd{lcRpath, "@loader_path/../../.."})
 		var logged []string
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgx,
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: pkgx,
 			Log: func(s string) { logged = append(logged, s) }}); err != nil {
 			t.Fatalf("FixUp = %v, want it reported and tolerated", err)
 		}
@@ -460,7 +460,7 @@ func TestCheckRefExistsReportsAnUnreadableFile(t *testing.T) {
 	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkRefExists(p, Options{PkgxDir: dir}); err == nil {
+	if err := checkRefExists(p, Options{ZpkgDir: dir}); err == nil {
 		t.Error("want an error for a file that is not a Mach-O")
 	}
 }
@@ -479,7 +479,7 @@ func TestCheckRefExistsAcceptsAReferenceThatResolves(t *testing.T) {
 	write(t, filepath.Join(pkgx, filepath.FromSlash(dep)), "x")
 	p := filepath.Join(pkgx, "other.org", "v2.0.0", "bin", "bar")
 	place(t, p, machoCmd{lcLoadDylib, "@rpath/" + dep})
-	if err := checkRefExists(p, Options{PkgxDir: pkgx}); err != nil {
+	if err := checkRefExists(p, Options{ZpkgDir: pkgx}); err != nil {
 		t.Errorf("checkRefExists = %v, want nil for a reference the store answers", err)
 	}
 }
@@ -491,10 +491,10 @@ func TestCheckRefExistsAcceptsAReferenceUnderTheStagingPrefix(t *testing.T) {
 	pkgx := t.TempDir()
 	prefix := filepath.Join(pkgx, "acme.org", "v1.0.0")
 	dep := "acme.org/v1.0.0/lib/libself.dylib"
-	write(t, staged(filepath.Join(pkgx, filepath.FromSlash(dep)), Options{Prefix: prefix, PkgxDir: pkgx}), "x")
+	write(t, staged(filepath.Join(pkgx, filepath.FromSlash(dep)), Options{Prefix: prefix, ZpkgDir: pkgx}), "x")
 	p := filepath.Join(prefix, "bin", "acme")
 	place(t, p, machoCmd{lcLoadDylib, "@rpath/" + dep})
-	if err := checkRefExists(p, Options{PkgxDir: pkgx, Prefix: prefix}); err != nil {
+	if err := checkRefExists(p, Options{ZpkgDir: pkgx, Prefix: prefix}); err != nil {
 		t.Errorf("checkRefExists = %v, want nil while the file is still staged", err)
 	}
 }

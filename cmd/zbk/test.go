@@ -102,14 +102,14 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	// Absolute, for the same reason runBuild does it: the script runs under a
 	// sanitized PATH of /usr/bin:/bin:/usr/sbin:/sbin, which excludes the two
 	// directories pkgx is normally installed into.
-	pkgxBin := *pkgx
-	if abs, err := lookPath(pkgxBin); err == nil {
-		pkgxBin = abs
+	zpkgxBin := *pkgx
+	if abs, err := lookPath(zpkgxBin); err == nil {
+		zpkgxBin = abs
 	}
 
 	state, _ := runRecipeTest(testRequest{
 		Recipe: rec, RecipeDir: filepath.Dir(*recipe), Project: project,
-		Version: *version, Target: tgt, Sandbox: *sandbox, PkgxBin: pkgxBin,
+		Version: *version, Target: tgt, Sandbox: *sandbox, ZpkgxBin: zpkgxBin,
 	}, stdout, stderr)
 	return state.exit()
 }
@@ -151,7 +151,7 @@ type testRequest struct {
 	Version   string // exact; empty resolves the latest the recipe offers
 	Target    target.Target
 	Sandbox   string // empty computes the testbed
-	PkgxBin   string
+	ZpkgxBin  string
 	// BuildHash is the identity of the build to test, which the install
 	// prefix now carries. Empty means "find it": `--test-only` tests an
 	// already-published bottle and never ran a build, so it has no identity
@@ -204,9 +204,9 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 	// a package nobody asked about.
 	hash := req.BuildHash
 	if hash == "" {
-		p, ok := bottle.ResolveBuild(config.PkgxDir(), req.Project, bottle.Ver{Raw: ver})
+		p, ok := bottle.ResolveBuild(config.ZpkgDir(), req.Project, bottle.Ver{Raw: ver})
 		if !ok {
-			err := fmt.Errorf("no installed build of %s %s to test in %s", req.Project, ver, config.PkgxDir())
+			err := fmt.Errorf("no installed build of %s %s to test in %s", req.Project, ver, config.ZpkgDir())
 			fmt.Fprintln(stderr, "error:", err)
 			return testNotRun, err
 		}
@@ -253,7 +253,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 		shimDir = ""
 	}
 
-	script, err := renderTest(req.Recipe, req.Project, ver, tag, req.Target, paths, box, req.RecipeDir, req.PkgxBin, shimDir)
+	script, err := renderTest(req.Recipe, req.Project, ver, tag, req.Target, paths, box, req.RecipeDir, req.ZpkgxBin, shimDir)
 	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)
 		return testNotRun, err
@@ -278,7 +278,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 	// which is what the GitHub API they call needs. No `build:` block in the
 	// pantry references it, so SanitizedEnv stopped passing it and this is
 	// where the measured need actually is.
-	env := build.SanitizedEnv(paths.Home, config.PkgxDir())
+	env := build.SanitizedEnv(paths.Home, config.ZpkgDir())
 	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
 		env = append(env, "GITHUB_TOKEN="+tok)
 	}
@@ -313,7 +313,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 
 // renderTest turns the recipe's test node into the runnable script.
 func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
-	paths config.Paths, box, recipeDir, pkgxBin, shimDir string) (string, error) {
+	paths config.Paths, box, recipeDir, zpkgxBin, shimDir string) (string, error) {
 	// {{prefix}} is the INSTALLED prefix, not the build's staging directory.
 	// That is the whole difference between this and a build: the test reads
 	// the package where a consumer would find it, so a file the build made and
@@ -325,7 +325,7 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 	toks = append(toks,
 		moustache.Token{From: "srcroot", To: box},
 		moustache.Token{From: "props", To: recipeDir},
-		moustache.Token{From: "pkgx.prefix", To: config.PkgxDir()},
+		moustache.Token{From: "pkgx.prefix", To: config.ZpkgDir()},
 	)
 	// {{deps.<project>.prefix}} and .version, for the eleven recipes whose
 	// TEST names one. gnu.org/glibc is among them:
@@ -355,7 +355,7 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 	// them, so offering their prefixes would render a path to something
 	// that is not there.
 	if strings.Contains(fmt.Sprint(rec.Test), "{{deps.") {
-		dt, _, err := build.DepTokens(rec.Dependencies, testDepMap(rec.Test), tgt, config.PkgxDir(), resolveTestDep)
+		dt, _, err := build.DepTokens(rec.Dependencies, testDepMap(rec.Test), tgt, config.ZpkgDir(), resolveTestDep)
 		if err != nil {
 			return "", fmt.Errorf("resolve test deps: %w", err)
 		}
@@ -379,8 +379,8 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 		Compiler: needsCompiler(user),
 		Home:     paths.Home,
 		Sandbox:  box,
-		PkgxDir:  config.PkgxDir(),
-		PkgxBin:  pkgxBin,
+		ZpkgDir:  config.ZpkgDir(),
+		ZpkgxBin: zpkgxBin,
 		BashPath: "/bin/bash",
 		ShimDir:  shimDir,
 		Host:     target.Host(),

@@ -145,7 +145,7 @@ func TestBuildCommandErrors(t *testing.T) {
 	}
 }
 
-func TestBuildResolvesPkgxPath(t *testing.T) {
+func TestBuildResolvesZpkgxPath(t *testing.T) {
 	tempEnv(t)
 	oldF, oldL := buildFactory, lookPath
 	defer func() { buildFactory, lookPath = oldF, oldL }()
@@ -268,7 +268,7 @@ func TestRealBuildRunner(t *testing.T) {
 		r.Run == nil || r.FixUp == nil || r.WriteBottle == nil || r.ResolveDep == nil ||
 		// Unwired, this field silently disables the whole closure question
 		// and bootstrap goes back to asking the weaker one.
-		r.ToolInstallable == nil || r.PkgxBin == "" || r.BashPath == "" {
+		r.ToolInstallable == nil || r.ZpkgxBin == "" || r.BashPath == "" {
 		t.Errorf("realBuildRunner not fully wired: %+v", r)
 	}
 }

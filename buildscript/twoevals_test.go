@@ -16,7 +16,7 @@ func TestWrapEmitsTwoClosuresToolsFirst(t *testing.T) {
 		Deps:       []string{"unicode.org^71", "freetype.org"},
 		ToolDeps:   []string{"nodejs.org", "gnu.org/autoconf"},
 		Target:     darwinTgt(), Host: darwinTgt(),
-		PkgxBin: "/bin/pkgx",
+		ZpkgxBin: "/bin/pkgx",
 	})
 	tool := strings.Index(s, `"+nodejs.org"`)
 	link := strings.Index(s, `"+unicode.org^71"`)
@@ -49,7 +49,7 @@ func TestWrapEmitsTwoClosuresToolsFirst(t *testing.T) {
 func TestWrapWithNoToolDepsEmitsOneEval(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Deps: []string{"zlib.net"},
-		Target: darwinTgt(), Host: darwinTgt(), PkgxBin: "/bin/pkgx",
+		Target: darwinTgt(), Host: darwinTgt(), ZpkgxBin: "/bin/pkgx",
 	})
 	if strings.Contains(s, "the tool environment failed") {
 		t.Errorf("an empty tool closure still emitted an eval:\n%s", s)
@@ -105,7 +105,7 @@ func TestHasCompilerAndBootstrapAreSeparateReasons(t *testing.T) {
 	}
 }
 
-// TestBootstrapTellsPkgxTheHostHasALibc.
+// TestBootstrapTellsZpkgxTheHostHasALibc.
 //
 // The last of the implicit injections, and the one that stops everything
 // rather than one thing: bottle adds gnu.org/glibc to EVERY linux closure, so
@@ -115,7 +115,7 @@ func TestHasCompilerAndBootstrapAreSeparateReasons(t *testing.T) {
 // The export goes in the SCRIPT, not the process environment, so the reason a
 // seed build differs is visible in the artefact that ran it. This test reads
 // the script for that reason.
-func TestBootstrapTellsPkgxTheHostHasALibc(t *testing.T) {
+func TestBootstrapTellsZpkgxTheHostHasALibc(t *testing.T) {
 	opts := func(boot bool) WrapOptions {
 		return WrapOptions{
 			UserScript: "make\n",

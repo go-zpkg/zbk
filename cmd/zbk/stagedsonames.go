@@ -31,9 +31,9 @@ import (
 // purpose, and the staging step's job is to stage; refusing here would turn a
 // useful census into a gate nobody can land a change past. The build that
 // follows is the verdict.
-func auditStagedSonames(pkgxDir string) string {
-	provided, needed := scanSonames(pkgxDir)
-	return reportSonames("builder", provided, needed, pkgxDir)
+func auditStagedSonames(zpkgDir string) string {
+	provided, needed := scanSonames(zpkgDir)
+	return reportSonames("builder", provided, needed, zpkgDir)
 }
 
 // scanSonames walks a tree and returns what it PROVIDES and what it NEEDS.
@@ -43,11 +43,11 @@ func auditStagedSonames(pkgxDir string) string {
 // seed order cannot be installed together — cmake wants curl `>=5<8.13` and
 // cargo wants `8` — so a union over separate trees is the only way to ask
 // "which soname does NOBODY here provide".
-func scanSonames(pkgxDir string) (provided map[string]bool, needed map[string][]string) {
+func scanSonames(zpkgDir string) (provided map[string]bool, needed map[string][]string) {
 	provided = map[string]bool{}
 	needed = map[string][]string{} // soname -> the files that ask for it
 
-	_ = filepath.WalkDir(pkgxDir, func(p string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(zpkgDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !d.Type().IsRegular() {
 			return nil
 		}
@@ -74,7 +74,7 @@ func scanSonames(pkgxDir string) (provided map[string]bool, needed map[string][]
 
 	// A symlink is a provider too, and WalkDir does not report its target as a
 	// regular file when it points outside the tree — so count link NAMES.
-	_ = filepath.WalkDir(pkgxDir, func(p string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(zpkgDir, func(p string, d fs.DirEntry, err error) error {
 		if err == nil && d.Type()&os.ModeSymlink != 0 && strings.Contains(d.Name(), ".so") {
 			provided[d.Name()] = true
 		}

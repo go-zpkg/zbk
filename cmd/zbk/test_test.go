@@ -378,7 +378,7 @@ func TestTestCommandIsDispatched(t *testing.T) {
 // answers are exercised HERE rather than left to the machine: pkgx is on a
 // developer's PATH and not on CI's, so leaving it implicit makes this branch
 // covered in one place and not the other — which is how it first arrived red.
-func TestRunTestResolvesPkgxToAnAbsolutePath(t *testing.T) {
+func TestRunTestResolvesZpkgxToAnAbsolutePath(t *testing.T) {
 	testTestbed(t)
 	got := stubRun(t, nil)
 	prev := lookPath
@@ -399,7 +399,7 @@ func TestRunTestResolvesPkgxToAnAbsolutePath(t *testing.T) {
 	}
 }
 
-func TestRunTestKeepsTheGivenPkgxWhenItCannotBeResolved(t *testing.T) {
+func TestRunTestKeepsTheGivenZpkgxWhenItCannotBeResolved(t *testing.T) {
 	testTestbed(t)
 	got := stubRun(t, nil)
 	prev := lookPath

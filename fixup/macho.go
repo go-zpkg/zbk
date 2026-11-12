@@ -563,16 +563,16 @@ func underDir(p, dir string) (string, bool) {
 // location states the depth, so the relative spelling is derived from two
 // things already in hand — the same footing as deriving an install name from
 // where the file is.
-func relativeRpath(exe, rpath, pkgxDir string) (string, bool) {
+func relativeRpath(exe, rpath, zpkgDir string) (string, bool) {
 	// exe must be absolute too, not merely under an absolute dir: it is what
 	// makes the filepath.Rel below total, so the call needs no error branch —
 	// and a branch no test can reach is a line the coverage gate is right to
 	// refuse.
-	if pkgxDir == "" || !filepath.IsAbs(rpath) || !filepath.IsAbs(exe) {
+	if zpkgDir == "" || !filepath.IsAbs(rpath) || !filepath.IsAbs(exe) {
 		return rpath, false
 	}
 	clean := filepath.Clean(rpath)
-	dir := filepath.Clean(pkgxDir)
+	dir := filepath.Clean(zpkgDir)
 	if _, under := underDir(clean, dir); !under && clean != dir {
 		return rpath, false
 	}
@@ -602,14 +602,14 @@ func rewriteMacho(exe string, opts Options) error {
 	// (a duplicate of an entry bk linked in, or a file that is not under the
 	// store yet). It is a search root that only means something on the build
 	// machine, so it goes: the relative entries are the mechanism (go-zpkg/bk#395).
-	n, err := dropRpaths(exe, func(s string) bool { return builderRpath(s, opts.PkgxDir) })
+	n, err := dropRpaths(exe, func(s string) bool { return builderRpath(s, opts.ZpkgDir) })
 	if err != nil {
 		return err
 	}
 	if n == 0 {
 		return nil
 	}
-	opts.log("macho %s: removed %d absolute rpath(s) into the builder's store %s", exe, n, opts.PkgxDir)
+	opts.log("macho %s: removed %d absolute rpath(s) into the builder's store %s", exe, n, opts.ZpkgDir)
 	// Removing every rpath of a file that still names @rpath/… would leave it
 	// unloadable anywhere; say so now rather than at someone's dyld.
 	return checkRpathResolvable(exe, opts)
@@ -655,24 +655,24 @@ func rewriteMachoRefs(exe string, opts Options) error {
 	// everything downstream, which is a break. The leak is the better trade,
 	// and the reaching relative rpath the guard asks for is present either way.
 	taken := map[string]bool{}
-	if opts.PkgxDir != "" {
+	if opts.ZpkgDir != "" {
 		rpaths, err := machoRpaths(exe)
 		if err != nil {
 			return err
 		}
-		toRpath = rpathReaches(exe, opts.PkgxDir, rpaths)
+		toRpath = rpathReaches(exe, opts.ZpkgDir, rpaths)
 		for _, r := range rpaths {
 			taken[r] = true
 		}
 		for _, r := range rpaths {
-			rel, ok := relativeRpath(exe, r, opts.PkgxDir)
+			rel, ok := relativeRpath(exe, r, opts.ZpkgDir)
 			if ok && !taken[rel] {
 				relocRpath = true
 				break
 			}
 		}
 		if !toRpath {
-			opts.log("macho %s: no rpath reaching %s, leaving install names absolute", exe, opts.PkgxDir)
+			opts.log("macho %s: no rpath reaching %s, leaving install names absolute", exe, opts.ZpkgDir)
 		}
 	}
 	// An install name says where THIS file is; whether it resolves depends on
@@ -733,7 +733,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 		// thing worth saying about a search root is where it is: an absolute
 		// one names a directory on the build machine.
 		if cmd == lcRpath {
-			r, ok := relativeRpath(exe, s, opts.PkgxDir)
+			r, ok := relativeRpath(exe, s, opts.ZpkgDir)
 			if ok && !taken[r] {
 				taken[r] = true
 				return r
@@ -789,14 +789,14 @@ func rewriteMachoRefs(exe string, opts Options) error {
 			if q, ok := qualifyRef(exe, rest, opts); ok {
 				return q
 			}
-			full := filepath.Join(opts.PkgxDir, rest)
+			full := filepath.Join(opts.ZpkgDir, rest)
 			t := abiOrMajor(full, opts, useABI)
-			if short, ok := underDir(t, opts.PkgxDir); ok {
+			if short, ok := underDir(t, opts.ZpkgDir); ok {
 				return "@rpath/" + short
 			}
 			return s
 		}
-		if _, ok := underDir(s, opts.PkgxDir); ok {
+		if _, ok := underDir(s, opts.ZpkgDir); ok {
 			// Major-versioned, exactly as the ELF side does to its RUNPATH
 			// entries, and for the reason measured on the published grep bottle:
 			// it named
@@ -814,7 +814,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 			// libraries keep their full version: they ship together and cannot
 			// disagree.
 			t := abiOrMajor(s, opts, useABI)
-			rest, _ := underDir(t, opts.PkgxDir)
+			rest, _ := underDir(t, opts.ZpkgDir)
 			return "@rpath/" + rest
 		}
 		return s
@@ -863,7 +863,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 // either written correctly or is handled by the absolute branch, and an
 // @loader_path/@executable_path one is already anchored to something real.
 func qualifyID(exe, id string, opts Options) (string, bool) {
-	if opts.PkgxDir == "" {
+	if opts.ZpkgDir == "" {
 		return "", false
 	}
 	// Two spellings of the same defect. @rpath/<soname> is CMake's; a plain
@@ -888,7 +888,7 @@ func qualifyID(exe, id string, opts Options) (string, bool) {
 	if _, err := osStat(filepath.Join(dir, rest)); err != nil {
 		rest = filepath.Base(self)
 	}
-	rel, ok := underDir(filepath.Join(dir, rest), opts.PkgxDir)
+	rel, ok := underDir(filepath.Join(dir, rest), opts.ZpkgDir)
 	if !ok {
 		return "", false
 	}
@@ -905,7 +905,7 @@ func qualifyID(exe, id string, opts Options) (string, bool) {
 // a guess about which package a soname came from, and an invented reference is
 // worse than the bare one — it would point somewhere plausible and wrong.
 func qualifyRef(exe, soname string, opts Options) (string, bool) {
-	if opts.PkgxDir == "" || soname == "" || strings.Contains(soname, "/") {
+	if opts.ZpkgDir == "" || soname == "" || strings.Contains(soname, "/") {
 		return "", false
 	}
 	self := unstage(exe, opts)
@@ -920,7 +920,7 @@ func qualifyRef(exe, soname string, opts Options) (string, bool) {
 		if !exists(cand) && !exists(staged(cand, opts)) {
 			continue
 		}
-		if rel, ok := underDir(cand, opts.PkgxDir); ok {
+		if rel, ok := underDir(cand, opts.ZpkgDir); ok {
 			return "@rpath/" + rel, true
 		}
 	}
@@ -958,7 +958,7 @@ func closureOwner(soname string, opts Options) (string, bool) {
 	var hits []string
 	seen := map[string]bool{}
 	for _, depth := range []string{"*/v*/lib/", "*/*/v*/lib/"} {
-		matches, err := filepathGlob(filepath.Join(opts.PkgxDir, depth+soname))
+		matches, err := filepathGlob(filepath.Join(opts.ZpkgDir, depth+soname))
 		if err != nil {
 			continue
 		}
@@ -980,7 +980,7 @@ func closureOwner(soname string, opts Options) (string, bool) {
 	// no not-under-$ZPKG_DIR case to handle, and a branch no test can reach is
 	// a line the coverage gate is right to refuse.
 	t := transformRpath(hits[0], filepath.Dir(opts.Prefix))
-	rel, _ := underDir(t, opts.PkgxDir)
+	rel, _ := underDir(t, opts.ZpkgDir)
 	return "@rpath/" + rel, true
 }
 
@@ -1042,7 +1042,7 @@ func checkRpathResolvable(exe string, opts Options) error {
 		if len(rpaths) == 0 {
 			return fmt.Errorf("%w: %s references %s", ErrDeadRpath, exe, s)
 		}
-		if siblingRef(s) && opts.PkgxDir != "" && !relRpathReaches(exe, opts.PkgxDir, rpaths) {
+		if siblingRef(s) && opts.ZpkgDir != "" && !relRpathReaches(exe, opts.ZpkgDir, rpaths) {
 			return fmt.Errorf("%w: %s references %s but its only rpaths are %s",
 				ErrBuilderOnlyRpath, exe, s, strings.Join(rpaths, ", "))
 		}

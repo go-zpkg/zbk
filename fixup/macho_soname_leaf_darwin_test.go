@@ -68,11 +68,11 @@ func TestAPatchUpgradeOfADependencyDoesNotOrphanItsDependents(t *testing.T) {
 	// the version directory, exactly as pkgx installs one — plus a program
 	// linked against the full-version file, as a build does when that is the
 	// library's install name.
-	build := func(name string) (pkgxDir, libPrefix, exePrefix, exe string) {
+	build := func(name string) (zpkgDir, libPrefix, exePrefix, exe string) {
 		t.Helper()
-		pkgxDir = filepath.Join(root, name)
-		libPrefix = filepath.Join(pkgxDir, "zlib.example", "v1.3.1")
-		exePrefix = filepath.Join(pkgxDir, "other.org", "bar", "v2.0.0")
+		zpkgDir = filepath.Join(root, name)
+		libPrefix = filepath.Join(zpkgDir, "zlib.example", "v1.3.1")
+		exePrefix = filepath.Join(zpkgDir, "other.org", "bar", "v2.0.0")
 		if err := os.MkdirAll(filepath.Join(libPrefix, "lib"), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -85,18 +85,18 @@ func TestAPatchUpgradeOfADependencyDoesNotOrphanItsDependents(t *testing.T) {
 		if err := os.Symlink("libz.1.3.1.dylib", filepath.Join(libPrefix, "lib", "libz.1.dylib")); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink("v1.3.1", filepath.Join(pkgxDir, "zlib.example", "v1")); err != nil {
+		if err := os.Symlink("v1.3.1", filepath.Join(zpkgDir, "zlib.example", "v1")); err != nil {
 			t.Fatal(err)
 		}
 		run(cc, "-o", exe, mainC, dylib, "-Wl,-rpath,@loader_path/../../../..")
-		return pkgxDir, libPrefix, exePrefix, exe
+		return zpkgDir, libPrefix, exePrefix, exe
 	}
 
 	// upgrade is the event the major link is for: 1.3.2 replaces 1.3.1, ships
 	// its own full-version file and soname link, and v1 follows.
-	upgrade := func(pkgxDir string) {
+	upgrade := func(zpkgDir string) {
 		t.Helper()
-		proj := filepath.Join(pkgxDir, "zlib.example")
+		proj := filepath.Join(zpkgDir, "zlib.example")
 		newLib := filepath.Join(proj, "v1.3.2", "lib")
 		if err := os.MkdirAll(newLib, 0o755); err != nil {
 			t.Fatal(err)
@@ -121,22 +121,22 @@ func TestAPatchUpgradeOfADependencyDoesNotOrphanItsDependents(t *testing.T) {
 	// the previous code produced. Written by hand so the control does not
 	// depend on the code under test to be wrong.
 	{
-		pkgxDir, _, _, exe := build("control")
+		zpkgDir, _, _, exe := build("control")
 		if got, err := runsFrom(exe); err != nil || got != "zed=42" {
 			t.Fatalf("the control did not run in place: %q %v", got, err)
 		}
-		old := filepath.Join(pkgxDir, "zlib.example", "v1.3.1", "lib", "libz.1.3.1.dylib")
+		old := filepath.Join(zpkgDir, "zlib.example", "v1.3.1", "lib", "libz.1.3.1.dylib")
 		run("install_name_tool", "-change", old, "@rpath/zlib.example/v1/lib/libz.1.3.1.dylib", exe)
 		run("codesign", "-f", "-s", "-", exe)
-		upgrade(pkgxDir)
+		upgrade(zpkgDir)
 		if got, err := runsFrom(exe); err == nil {
 			t.Fatalf("a patch-level filename survived the upgrade (%q): this machine cannot tell the two forms apart, so the test below would prove nothing", got)
 		}
 	}
 
-	pkgxDir, libPrefix, exePrefix, exe := build("pkgx")
+	zpkgDir, libPrefix, exePrefix, exe := build("pkgx")
 	for _, prefix := range []string{libPrefix, exePrefix} {
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", PkgxDir: pkgxDir}); err != nil {
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgDir}); err != nil {
 			t.Fatalf("fixup %s: %v", prefix, err)
 		}
 	}
@@ -160,7 +160,7 @@ func TestAPatchUpgradeOfADependencyDoesNotOrphanItsDependents(t *testing.T) {
 	}
 
 	// And the outcome the control could not reach.
-	upgrade(pkgxDir)
+	upgrade(zpkgDir)
 	got, err := runsFrom(exe)
 	if err != nil {
 		t.Fatalf("the fixed-up program did not survive its dependency's patch upgrade: %v\noutput: %q", err, got)
