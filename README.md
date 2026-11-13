@@ -689,11 +689,11 @@ minted on every forced run would bump `N` each time a lane was retried after
 failing at the publish step, littering the registry with tags nobody asked
 for. A rebuild that *supersedes* is a decision about meaning, so it is stated.
 
-⛔ **Upstream pkgx cannot read a `_N` tag.** libpkgx's `SemVer` constructor
+⛔ **pkgx cannot read a `_N` tag.** libpkgx's `SemVer` constructor
 (`src/utils/semver.ts:26-41`, read 2026-11-02) splits on `.` and accepts a
 part only on `/^(\d+)([a-z])$/` — last part only — or `/^\d+$/`, else throws
 `invalid version`. `3.3.11_1` has the part `11_1`, which matches neither. So
-**pointing an upstream pkgx client at this registry is unsupported** once a
+**pointing a pkgx client at this registry is unsupported** once a
 project carries a rebuild. That was weighed and accepted: it throws rather
 than resolving the wrong bottle, which is the better of the two failures. The
 alternatives are in bottle's README, with why each was rejected.
