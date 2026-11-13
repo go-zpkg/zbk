@@ -84,15 +84,15 @@ func TestAuditRelocatableSkipsNonMachO(t *testing.T) {
 // signature, a publish and an inspection without anything complaining, until
 // github.com/facebookincubator/fizz failed to link against folly.
 func TestAuditRefusesADuplicateRpath(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "foo", "v1.0.0")
 	exe := filepath.Join(prefix, "lib", "libfoo.dylib")
 	place(t, exe,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/other.org/bar/v1/lib/libbar.dylib"},
 	)
-	checked, problems := AuditRelocatable(prefix, zpkgx)
+	checked, problems := AuditRelocatable(prefix, zpkx)
 	if checked != 1 {
 		t.Fatalf("checked %d files, want 1", checked)
 	}
@@ -115,15 +115,15 @@ func TestAuditRefusesADuplicateRpath(t *testing.T) {
 
 // One rpath named once is not a duplicate, however many other rpaths there are.
 func TestAuditAcceptsDistinctRpaths(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "foo", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "foo", "v1.0.0")
 	exe := filepath.Join(prefix, "lib", "libfoo.dylib")
 	place(t, exe,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcRpath, "@loader_path/../../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/other.org/bar/v1/lib/libbar.dylib"},
 	)
-	_, problems := AuditRelocatable(prefix, zpkgx)
+	_, problems := AuditRelocatable(prefix, zpkx)
 	for _, p := range problems {
 		if errors.Is(p, ErrDuplicateRpath) {
 			t.Errorf("distinct rpaths reported as duplicate: %v", p)
@@ -392,22 +392,22 @@ func TestCheckAbsoluteRefsReportsAnUnreadableFile(t *testing.T) {
 // factory produced.
 func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 	t.Run("a stale signature is refused", func(t *testing.T) {
-		zpkgx := t.TempDir()
-		prefix := filepath.Join(zpkgx, "acme.org", "v1.0.0")
+		zpkx := t.TempDir()
+		prefix := filepath.Join(zpkx, "acme.org", "v1.0.0")
 		placeSigned(t, filepath.Join(prefix, "lib", "libacme.dylib"),
 			buildSignedMachO(t, "@loader_path/../../..", sigOpts{badHashes: true}))
-		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx})
+		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx})
 		if !errors.Is(err, ErrStaleSignature) {
 			t.Errorf("FixUp = %v, want ErrStaleSignature", err)
 		}
 	})
 	t.Run("a reference to another machine is refused", func(t *testing.T) {
-		zpkgx := t.TempDir()
-		prefix := filepath.Join(zpkgx, "acme.org", "v1.0.0")
+		zpkx := t.TempDir()
+		prefix := filepath.Join(zpkx, "acme.org", "v1.0.0")
 		place(t, filepath.Join(prefix, "bin", "acme"),
 			machoCmd{lcLoadDylib, "/opt/homebrew/opt/gettext/lib/libintl.8.dylib"},
 			machoCmd{lcRpath, "@loader_path/../../.."})
-		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx})
+		err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx})
 		if !errors.Is(err, ErrAbsoluteRef) {
 			t.Errorf("FixUp = %v, want ErrAbsoluteRef", err)
 		}
@@ -417,14 +417,14 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 		// because "@rpath would resolve to nothing, which is worse than a path
 		// that at least works on one machine". Refusing it would fail a build
 		// that today produces something usable.
-		zpkgx := t.TempDir()
-		prefix := filepath.Join(zpkgx, "other.org", "v2.0.0")
-		dep := filepath.Join(zpkgx, "acme.org", "v1.2.3", "lib", "libfoo.dylib")
+		zpkx := t.TempDir()
+		prefix := filepath.Join(zpkx, "other.org", "v2.0.0")
+		dep := filepath.Join(zpkx, "acme.org", "v1.2.3", "lib", "libfoo.dylib")
 		place(t, filepath.Join(prefix, "bin", "bar"),
 			machoCmd{lcRpath, "@loader_path/.."}, // stops short of the store
 			machoCmd{lcLoadDylib, dep})
 		var logged []string
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx,
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx,
 			Log: func(s string) { logged = append(logged, s) }}); err != nil {
 			t.Fatalf("FixUp refused the fallback: %v", err)
 		}
@@ -435,13 +435,13 @@ func TestFixUpGuardsWhatWeBuild(t *testing.T) {
 	t.Run("a dangling @rpath target is reported, not refused", func(t *testing.T) {
 		// 51 of 272 installed closures carry one, and qt.io is among them and
 		// runs: a dangling reference in a module nothing loads never faults.
-		zpkgx := t.TempDir()
-		prefix := filepath.Join(zpkgx, "acme.org", "v1.0.0")
+		zpkx := t.TempDir()
+		prefix := filepath.Join(zpkx, "acme.org", "v1.0.0")
 		place(t, filepath.Join(prefix, "bin", "acme"),
 			machoCmd{lcLoadDylib, "@rpath/gnome.org/libxml2/v2/lib/libxml2.2.dylib"},
 			machoCmd{lcRpath, "@loader_path/../../.."})
 		var logged []string
-		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx,
+		if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx,
 			Log: func(s string) { logged = append(logged, s) }}); err != nil {
 			t.Fatalf("FixUp = %v, want it reported and tolerated", err)
 		}
@@ -474,12 +474,12 @@ func TestCheckRefExistsReportsAnUnreadableFile(t *testing.T) {
 // makes the case host-independent, which is what a line that has nothing to do
 // with the host deserves.
 func TestCheckRefExistsAcceptsAReferenceThatResolves(t *testing.T) {
-	zpkgx := t.TempDir()
+	zpkx := t.TempDir()
 	dep := "acme.org/v1.2.3/lib/libfoo.dylib"
-	write(t, filepath.Join(zpkgx, filepath.FromSlash(dep)), "x")
-	p := filepath.Join(zpkgx, "other.org", "v2.0.0", "bin", "bar")
+	write(t, filepath.Join(zpkx, filepath.FromSlash(dep)), "x")
+	p := filepath.Join(zpkx, "other.org", "v2.0.0", "bin", "bar")
 	place(t, p, machoCmd{lcLoadDylib, "@rpath/" + dep})
-	if err := checkRefExists(p, Options{ZpkgDir: zpkgx}); err != nil {
+	if err := checkRefExists(p, Options{ZpkgDir: zpkx}); err != nil {
 		t.Errorf("checkRefExists = %v, want nil for a reference the store answers", err)
 	}
 }
@@ -488,13 +488,13 @@ func TestCheckRefExistsAcceptsAReferenceThatResolves(t *testing.T) {
 // files are still under <prefix>+brewing, so a reference into its own tree
 // resolves only through staged().
 func TestCheckRefExistsAcceptsAReferenceUnderTheStagingPrefix(t *testing.T) {
-	zpkgx := t.TempDir()
-	prefix := filepath.Join(zpkgx, "acme.org", "v1.0.0")
+	zpkx := t.TempDir()
+	prefix := filepath.Join(zpkx, "acme.org", "v1.0.0")
 	dep := "acme.org/v1.0.0/lib/libself.dylib"
-	write(t, staged(filepath.Join(zpkgx, filepath.FromSlash(dep)), Options{Prefix: prefix, ZpkgDir: zpkgx}), "x")
+	write(t, staged(filepath.Join(zpkx, filepath.FromSlash(dep)), Options{Prefix: prefix, ZpkgDir: zpkx}), "x")
 	p := filepath.Join(prefix, "bin", "acme")
 	place(t, p, machoCmd{lcLoadDylib, "@rpath/" + dep})
-	if err := checkRefExists(p, Options{ZpkgDir: zpkgx, Prefix: prefix}); err != nil {
+	if err := checkRefExists(p, Options{ZpkgDir: zpkx, Prefix: prefix}); err != nil {
 		t.Errorf("checkRefExists = %v, want nil while the file is still staged", err)
 	}
 }

@@ -430,7 +430,7 @@ func TestSplitToolchainSpec(t *testing.T) {
 // Our prefix is zpkg: the user store is ~/.zpkg (artifact.Dir), the environment
 // variable is ZPKG_DIR, and the guest root inside the build container is the
 // last thing that said otherwise. It carries no x: this is the STORE, like
-// ZPKG_DIR, not the zpkgx runtime.
+// ZPKG_DIR, not the zpkx runtime.
 func TestTheGuestRootIsZpkg(t *testing.T) {
 	if guestZpkgDir != "/zpkg" {
 		t.Errorf("guestZpkgDir = %q, want /zpkg", guestZpkgDir)

@@ -106,8 +106,8 @@ func configGuessTriple(platform, arch string) string {
 	return ""
 }
 
-// WriteLibexecFor is WriteLibexec plus the compiler shims when libcZpkgx is set.
-func WriteLibexecFor(dir string, libcZpkgx bool, triple, platform, arch string) error {
+// WriteLibexecFor is WriteLibexec plus the compiler shims when libcZpkx is set.
+func WriteLibexecFor(dir string, libcZpkx bool, triple, platform, arch string) error {
 	if err := WriteLibexec(dir); err != nil {
 		return err
 	}
@@ -137,9 +137,9 @@ func WriteLibexecFor(dir string, libcZpkgx bool, triple, platform, arch string) 
 	// EVERY target gets the compiler shims. In pkgx-libc and wasip1 modes they
 	// carry $ZPKB_CC's sovereign flags; in every mode they append
 	// -ffile-prefix-map=$ZPKB_FILE_PREFIX_MAP, the one setting a recipe's own
-	// CFLAGS/CXXFLAGS/CC cannot drop (go-zpkg/bk#387). libcZpkgx no longer gates
+	// CFLAGS/CXXFLAGS/CC cannot drop (go-zpkg/bk#387). libcZpkx no longer gates
 	// the shims; it is kept for the callers' signature.
-	_ = libcZpkgx
+	_ = libcZpkx
 	self, err := osExecutable()
 	if err != nil {
 		return err

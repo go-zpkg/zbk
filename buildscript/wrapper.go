@@ -37,7 +37,7 @@ type WrapOptions struct {
 	Install     string        // the final install prefix ($ZPKG_DIR/project/vX.Y.Z)
 	Project     string        // the project being built, so we never preset a tool IT provides
 	BrewkitPath string        // dir prepended to PATH for the build shims (optional)
-	ZpkgxBin    string        // path to the zpkgx binary (for the deps eval + $ZPKGX)
+	ZpkxBin     string        // path to the zpkx binary (for the deps eval + $ZPKGX)
 	BashPath    string        // shebang interpreter (default /bin/bash)
 	HasCompiler bool          // a compiler (llvm.org / gnu.org/gcc) is already a dep
 	// Bootstrap takes the compiler from the HOST instead of adding the llvm.org
@@ -49,8 +49,8 @@ type WrapOptions struct {
 	// Without it --bootstrap stops one step further along than it used to and
 	// no further:
 	//
-	//	zpkgx: GET https://dist.pkgx.dev/llvm.org/linux/s390x/versions.txt: Not Found
-	//	zpkb: the dependency environment failed: zpkgx +llvm.org
+	//	zpkx: GET https://dist.pkgx.dev/llvm.org/linux/s390x/versions.txt: Not Found
+	//	zpkb: the dependency environment failed: zpkx +llvm.org
 	//
 	// which reads as a network fault and is not one. artifact falls back to the
 	// upstream dist for a project our registry does not carry -- right for
@@ -58,15 +58,15 @@ type WrapOptions struct {
 	// s390x at all.
 	Bootstrap   bool
 	HasBinutils bool // gnu.org/binutils is a dep (darwin AR/RANLIB workaround)
-	// LibcZpkgx targets the pkgx gnu.org/glibc artifact instead of the build
+	// LibcZpkx targets the pkgx gnu.org/glibc artifact instead of the build
 	// container's system glibc (linux only): the output links its crt objects,
 	// libc and dynamic linker from the artifact, so the artifact owes nothing to the
 	// debian build container — the sovereign FROM-scratch end state. Opt-in
 	// (default off); the caller also adds gnu.org/glibc to Deps so the artifact is
 	// present in the eval. C-only for now: the pkgx llvm.org artifact ships no
 	// libc++/libunwind, so C++ recipes still need the system libstdc++.
-	LibcZpkgx bool
-	// Glibc, when set (with LibcZpkgx), pins the exact pkgx gnu.org/glibc version
+	LibcZpkx bool
+	// Glibc, when set (with LibcZpkx), pins the exact pkgx gnu.org/glibc version
 	// used as the sysroot — so the output links THAT glibc's symbols and runs on
 	// any host whose kernel satisfies it (a chosen HPC floor, e.g. "2.27.0").
 	// Empty = newest available. wrapFlags then resolves that sole installed
@@ -124,27 +124,39 @@ func Wrap(o WrapOptions) string {
 		b.WriteString("export ZPKG_IMPLICIT_ROOTS=none\n")
 	}
 
-	zpkgxBin := o.ZpkgxBin
-	if zpkgxBin == "" {
-		zpkgxBin = "zpkgx"
+	zpkxBin := o.ZpkxBin
+	if zpkxBin == "" {
+		zpkxBin = "zpkx"
 	}
-	// Tools first: each variable zpkgx writes PREPENDS, so whatever is evaluated
+	// Tools first: each variable zpkx writes PREPENDS, so whatever is evaluated
 	// last comes first on the path. The link closure must win.
-	writeDepEval(&b, zpkgxBin, o.toolPlus(), "tool", 1)
-	writeDepEval(&b, zpkgxBin, o.depPlus(), "dependency", 1)
+	writeDepEval(&b, zpkxBin, o.toolPlus(), "tool", 1)
+	writeDepEval(&b, zpkxBin, o.depPlus(), "dependency", 1)
 	if o.BrewkitPath != "" {
 		fmt.Fprintf(&b, "export PATH=\"%s:$PATH\"\n", o.BrewkitPath)
 	}
 	if o.ZpkgDir != "" {
 		fmt.Fprintf(&b, "export CMAKE_PREFIX_PATH=\"%s${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}\"\n", o.ZpkgDir)
 	}
-	// ⛔ $ZPKGX, MEASURED SAFE RATHER THAN ASSUMED. A recipe may read this, so
+	// ⛔ $ZPKX, MEASURED SAFE RATHER THAN ASSUMED. A recipe may read this, so
 	// the question was how many do. Of the 1700 recipes in pkgxdev/pantry
 	// (shallow clone, 2026-11-10): 21 name PKGX_DIR — which this builder
 	// already exports as ZPKG_DIR, a separate and older gap — and ZERO read a
 	// bare $PKGX. Our own overlay's two mentions are PKGX_DIR as well.
-	if o.ZpkgxBin != "" {
-		fmt.Fprintf(&b, "export ZPKGX=\"%s\"\n", o.ZpkgxBin)
+	//
+	// ⛔⛔ BOTH NAMES ARE EXPORTED, because the OLD one is the published side
+	// of a rename and a build script is not a place that can refuse. Every
+	// other retired spelling in this fleet is refused with a message naming
+	// its replacement — ZPKGM_PREFIX, ZPKGE_SPECS, PKGX_DIR — but that works
+	// only where a command reads a variable and can stop. Here WE are the
+	// writer: a recipe reading $ZPKGX gets nothing and fails somewhere else
+	// entirely, with no line connecting it to this rename. Writing both costs
+	// one line of generated script and cannot break a recipe either way.
+	// Measured above: nothing in our trees reads it, so this protects only
+	// recipes we cannot see — which is exactly who a published name is for.
+	if o.ZpkxBin != "" {
+		fmt.Fprintf(&b, "export ZPKX=\"%s\"\n", o.ZpkxBin)
+		fmt.Fprintf(&b, "export ZPKGX=\"%s\"\n", o.ZpkxBin) // retired spelling
 	}
 	fmt.Fprintf(&b, "export HOME=%q\n", o.Home)
 	fmt.Fprintf(&b, "export SRCROOT=%q\n", o.SrcRoot)
@@ -165,7 +177,7 @@ func Wrap(o WrapOptions) string {
 	}
 	b.WriteString(toolVars(o.Project))
 	b.WriteString("mkdir -p $HOME\n")
-	for _, f := range wrapFlags(o.Target, o.ZpkgDir, o.Install, o.HasBinutils, o.LibcZpkgx) {
+	for _, f := range wrapFlags(o.Target, o.ZpkgDir, o.Install, o.HasBinutils, o.LibcZpkx) {
 		b.WriteString(f + "\n")
 	}
 	// A redacted DUMP of the environment into the build log, not an unset —
@@ -202,13 +214,13 @@ func Wrap(o WrapOptions) string {
 // from "the thing I ran said no". A build has no use for the distinction —
 // either way it did not build — so it passes 1. A test does: see
 // EnvFailExit.
-func writeDepEval(b *strings.Builder, zpkgx, plus, what string, code int) {
+func writeDepEval(b *strings.Builder, zpkx, plus, what string, code int) {
 	if plus == "" {
 		return
 	}
 	b.WriteString("set -a\n")
-	fmt.Fprintf(b, "__bk_deps_env=\"$(CLICOLOR_FORCE=1 %s %s)\" || {\n", zpkgx, plus)
-	fmt.Fprintf(b, "  echo \"zpkb: the %s environment failed: %s %s\" >&2\n", what, zpkgx, plus)
+	fmt.Fprintf(b, "__bk_deps_env=\"$(CLICOLOR_FORCE=1 %s %s)\" || {\n", zpkx, plus)
+	fmt.Fprintf(b, "  echo \"zpkb: the %s environment failed: %s %s\" >&2\n", what, zpkx, plus)
 	fmt.Fprintf(b, "  exit %d\n}\n", code)
 	b.WriteString("eval \"$__bk_deps_env\"\n")
 	b.WriteString("unset __bk_deps_env\n")
@@ -247,7 +259,7 @@ func (o WrapOptions) depPlus() string {
 	// kernel headers (linux/*.h, asm/*.h) glibc's own headers include — glibc's
 	// recipe depends on it for exactly this reason; the artifact doesn't bundle
 	// them and --sysroot cuts off the container's copy.
-	if o.LibcZpkgx && o.Target.Platform == "linux" {
+	if o.LibcZpkx && o.Target.Platform == "linux" {
 		// gnu.org/binutils supplies ar/ranlib (the pkgx llvm.org artifact ships
 		// llvm-ar, not a plain `ar`, and the sovereign mode must not fall back to
 		// the container's binutils). Linking still uses lld via -fuse-ld=lld.
@@ -421,7 +433,7 @@ var rpathExtraDepths = []int{1, 2, 3, 4, 5}
 
 // wrapFlags returns the target-keyed compiler/linker FLAGS exports. A windows
 // target gets none (PEs have no rpath and mingw rejects -pie).
-func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkgx bool) []string {
+func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkx bool) []string {
 	var out []string
 	var ld []string
 	switch tgt.Platform {
@@ -514,7 +526,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 	// otherwise pull (fine for exception-free C — the mode's scope). The result
 	// links its interpreter + libc from the artifact, not the debian container.
 	var glibcCC, glibcCXX, glibcLD string
-	if libcZpkgx && tgt.Platform == "linux" {
+	if libcZpkx && tgt.Platform == "linux" {
 		// Resolve the newest installed version dir of each artifact. Two hazards:
 		// pkgx creates a symlink literally NAMED "v*" (alongside v2, v2.44,
 		// v2.44.0) which a "v*/" glob would match and — worse — sort -V ranks

@@ -378,7 +378,7 @@ func TestTestCommandIsDispatched(t *testing.T) {
 // answers are exercised HERE rather than left to the machine: pkgx is on a
 // developer's PATH and not on CI's, so leaving it implicit makes this branch
 // covered in one place and not the other — which is how it first arrived red.
-func TestRunTestResolvesZpkgxToAnAbsolutePath(t *testing.T) {
+func TestRunTestResolvesZpkxToAnAbsolutePath(t *testing.T) {
 	testTestbed(t)
 	got := stubRun(t, nil)
 	prev := lookPath
@@ -399,7 +399,7 @@ func TestRunTestResolvesZpkgxToAnAbsolutePath(t *testing.T) {
 	}
 }
 
-func TestRunTestKeepsTheGivenZpkgxWhenItCannotBeResolved(t *testing.T) {
+func TestRunTestKeepsTheGivenZpkxWhenItCannotBeResolved(t *testing.T) {
 	testTestbed(t)
 	got := stubRun(t, nil)
 	prev := lookPath
@@ -408,7 +408,7 @@ func TestRunTestKeepsTheGivenZpkgxWhenItCannotBeResolved(t *testing.T) {
 
 	p := writeTestRecipe(t, okRecipe)
 	var out, errOut bytes.Buffer
-	if code := runTest([]string{"--recipe", p, "--zpkgx", "/my/zpkgx", "proj.org"}, &out, &errOut); code != 0 {
+	if code := runTest([]string{"--recipe", p, "--zpkx", "/my/zpkx", "proj.org"}, &out, &errOut); code != 0 {
 		t.Fatalf("want 0, got %d (%s)", code, errOut.String())
 	}
 	script, err := os.ReadFile(*got)
@@ -417,8 +417,8 @@ func TestRunTestKeepsTheGivenZpkgxWhenItCannotBeResolved(t *testing.T) {
 	}
 	// Kept as given: an explicit path still works and the original error
 	// stays legible instead of being replaced by an empty string.
-	if !strings.Contains(string(script), "/my/zpkgx") {
-		t.Errorf("the given zpkgx was lost:\n%s", script)
+	if !strings.Contains(string(script), "/my/zpkx") {
+		t.Errorf("the given zpkx was lost:\n%s", script)
 	}
 }
 

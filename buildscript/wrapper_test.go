@@ -17,7 +17,7 @@ func TestWrapLinux(t *testing.T) {
 		Deps:       []string{"openssl.org@1.1", "zlib.net"},
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		BrewkitPath: "/bk/libexec", ZpkgxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
+		BrewkitPath: "/bk/libexec", ZpkxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
 	})
 	wants := []string{
 		"#!/opt/bash\n",
@@ -136,20 +136,20 @@ func TestWrapHasCompilerAndDefaults(t *testing.T) {
 	}
 	// no-deps linux still gets the llvm.org default => an eval block appears
 	s3 := Wrap(WrapOptions{UserScript: "x", Target: linuxTgt(), Host: linuxTgt()})
-	if !strings.Contains(s3, `__bk_deps_env="$(CLICOLOR_FORCE=1 zpkgx "+llvm.org")" || {`) {
-		t.Errorf("no-dep linux should still eval default llvm.org via `zpkgx`: %s", s3)
+	if !strings.Contains(s3, `__bk_deps_env="$(CLICOLOR_FORCE=1 zpkx "+llvm.org")" || {`) {
+		t.Errorf("no-dep linux should still eval default llvm.org via `zpkx`: %s", s3)
 	}
 }
 
 func linuxArm64Tgt() target.Target { return target.Target{Platform: "linux", Arch: "aarch64"} }
 
-func TestWrapLibcZpkgxLinuxX86(t *testing.T) {
+func TestWrapLibcZpkxLinuxX86(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make install\n",
 		Deps:       []string{"zlib.net"},
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
+		ZpkxBin: "/opt/pkgx/bin/pkgx", LibcZpkx: true,
 	})
 	wants := []string{
 		// glibc + kernel-headers + binutils + libcxx artifacts join the eval.
@@ -191,10 +191,10 @@ func TestWrapLibcZpkgxLinuxX86(t *testing.T) {
 // glibc's off its search path, and -nostdinc cannot remove an -isystem the
 // driver prepends. Asserted as "no -isystem anywhere in the value" so that a
 // later flag added to the hosted driver cannot leak in unnoticed.
-func TestWrapLibcZpkgxFreestandingDriver(t *testing.T) {
+func TestWrapLibcZpkxFreestandingDriver(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
-		ZpkgDir: "/opt/pkgx", LibcZpkgx: true,
+		ZpkgDir: "/opt/pkgx", LibcZpkx: true,
 	})
 	const want = `export ZPKB_CC_FREESTANDING="clang"`
 	if !strings.Contains(s, want) {
@@ -212,7 +212,7 @@ func TestWrapLibcZpkgxFreestandingDriver(t *testing.T) {
 
 // Outside pkgx-libc mode nothing injects a libc include directory, so there is
 // nothing to escape and no variable to offer.
-func TestWrapFreestandingDriverOnlyInLibcZpkgx(t *testing.T) {
+func TestWrapFreestandingDriverOnlyInLibcZpkx(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
 		ZpkgDir: "/opt/pkgx",
@@ -222,10 +222,10 @@ func TestWrapFreestandingDriverOnlyInLibcZpkgx(t *testing.T) {
 	}
 }
 
-func TestWrapLibcZpkgxArm64Loader(t *testing.T) {
+func TestWrapLibcZpkxArm64Loader(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make\n", Target: linuxArm64Tgt(), Host: linuxArm64Tgt(),
-		ZpkgDir: "/opt/pkgx", LibcZpkgx: true,
+		ZpkgDir: "/opt/pkgx", LibcZpkx: true,
 	})
 	if !strings.Contains(s, `ld-linux-aarch64.so.1`) {
 		t.Errorf("arm64 loader wrong:\n%s", s)
@@ -239,13 +239,13 @@ func TestWrapLibcZpkgxArm64Loader(t *testing.T) {
 	}
 }
 
-func TestWrapLibcZpkgxNonLinuxIgnored(t *testing.T) {
-	// LibcZpkgx only affects linux: darwin gets neither the glibc dep nor flags.
+func TestWrapLibcZpkxNonLinuxIgnored(t *testing.T) {
+	// LibcZpkx only affects linux: darwin gets neither the glibc dep nor flags.
 	s := Wrap(WrapOptions{
-		UserScript: "make\n", Target: darwinTgt(), Host: linuxTgt(), LibcZpkgx: true,
+		UserScript: "make\n", Target: darwinTgt(), Host: linuxTgt(), LibcZpkx: true,
 	})
 	if strings.Contains(s, "gnu.org/glibc") || strings.Contains(s, "ZPKB_GLIBC") || strings.Contains(s, "--dynamic-linker") {
-		t.Errorf("darwin target must ignore LibcZpkgx:\n%s", s)
+		t.Errorf("darwin target must ignore LibcZpkx:\n%s", s)
 	}
 }
 
@@ -270,14 +270,14 @@ func TestGlibcLoader(t *testing.T) {
 	}
 }
 
-// TestWrapLibcZpkgxGlibcPin: -glibc pins the exact glibc version in the eval.
-func TestWrapLibcZpkgxGlibcPin(t *testing.T) {
+// TestWrapLibcZpkxGlibcPin: -glibc pins the exact glibc version in the eval.
+func TestWrapLibcZpkxGlibcPin(t *testing.T) {
 	for _, in := range []string{"2.27.0", "=2.27.0"} {
 		s := Wrap(WrapOptions{
 			UserScript: "make install\n",
 			Target:     linuxTgt(), Host: linuxTgt(),
 			Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-			ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true, Glibc: in,
+			ZpkxBin: "/opt/pkgx/bin/pkgx", LibcZpkx: true, Glibc: in,
 		})
 		// `@<version>`, no operator: pkgx REJECTS `@=2.27.0` ("invalid semver")
 		// and that error aborts the ENTIRE env eval, so nothing installs and the
@@ -295,7 +295,7 @@ func TestWrapLibcZpkgxGlibcPin(t *testing.T) {
 	// no pin -> unversioned (newest)
 	s := Wrap(WrapOptions{
 		Target: linuxTgt(), Host: linuxTgt(), Home: "/h", SrcRoot: "/b",
-		ZpkgDir: "/opt/pkgx", ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
+		ZpkgDir: "/opt/pkgx", ZpkxBin: "/opt/pkgx/bin/pkgx", LibcZpkx: true,
 	})
 	if !strings.Contains(s, `"+gnu.org/glibc"`) || strings.Contains(s, "glibc@") {
 		t.Errorf("no-pin should use unversioned glibc:\n%s", s)
@@ -308,7 +308,7 @@ func TestWrapLibcZpkgxGlibcPin(t *testing.T) {
 func TestWrapDepEnvIsFatal(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Deps: []string{"zlib.net"},
-		Target: linuxTgt(), Host: linuxTgt(), ZpkgxBin: "/opt/pkgx/bin/pkgx",
+		Target: linuxTgt(), Host: linuxTgt(), ZpkxBin: "/opt/pkgx/bin/pkgx",
 	})
 	for _, w := range []string{
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+zlib.net" "+llvm.org")" || {`,
@@ -331,16 +331,16 @@ func TestWrapDepEnvIsFatal(t *testing.T) {
 	}
 }
 
-// TestWrapLibcZpkgxUndefinedVersion: lld 17 defaults to --no-undefined-version,
+// TestWrapLibcZpkxUndefinedVersion: lld 17 defaults to --no-undefined-version,
 // where GNU ld — which every recipe is written against — merely warns. Without
 // restoring the permissive behaviour, a version script that names a symbol the
 // build did not produce is fatal: gnu.org/gettext dies on
 // 'iconv_ostream_create' because libtextstyle's script exports symbols its
 // configure left out.
-func TestWrapLibcZpkgxUndefinedVersion(t *testing.T) {
+func TestWrapLibcZpkxUndefinedVersion(t *testing.T) {
 	s := Wrap(WrapOptions{
 		UserScript: "make", Target: target.Target{Platform: "linux", Arch: "aarch64"},
-		Host: target.Target{Platform: "linux", Arch: "aarch64"}, LibcZpkgx: true,
+		Host: target.Target{Platform: "linux", Arch: "aarch64"}, LibcZpkx: true,
 	})
 	if !strings.Contains(s, "-Wl,--undefined-version") {
 		t.Errorf("the lld strict default must be relaxed:\n%s", s)
@@ -370,7 +370,7 @@ func TestIncompatibleFunctionPointerFlagIsClangOnly(t *testing.T) {
 		UserScript: "make install\n",
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		ZpkgxBin: "/opt/pkgx/bin/pkgx",
+		ZpkxBin: "/opt/pkgx/bin/pkgx",
 	})
 	if strings.Contains(gcc, flag) {
 		t.Errorf("the clang-only flag reached a gcc build:\n%s", gcc)
@@ -387,7 +387,7 @@ func TestIncompatibleFunctionPointerFlagIsClangOnly(t *testing.T) {
 		UserScript: "make install\n",
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
+		ZpkxBin: "/opt/pkgx/bin/pkgx", LibcZpkx: true,
 	})
 	if !strings.Contains(clang, flag) {
 		t.Errorf("sovereign (clang) build lost the flag gnu.org/gettext needs:\n%s", clang)
@@ -418,7 +418,7 @@ func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
 	}
 	sovereign := opts
-	sovereign.LibcZpkgx = true
+	sovereign.LibcZpkx = true
 	got := Wrap(sovereign)
 	// Resolved from the tree, never spelled out: both the triple and the
 	// version in lib/gcc/<triple>/<version> move with the artifact.

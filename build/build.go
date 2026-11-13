@@ -636,8 +636,8 @@ func ProvidedCommands(provides any, tgt target.Target) []string {
 // github.com/besser82/libxcrypt build-depends on perl.org, perl.org WAS in the
 // seed registry, and the build still died —
 //
-//	zpkb: the tool environment failed: zpkgx +freedesktop.org/pkg-config~0.29 +perl.org
-//	zpkgx: GET …/github.com/besser82/libxcrypt/linux/s390x/versions.txt: Not Found
+//	zpkb: the tool environment failed: zpkx +freedesktop.org/pkg-config~0.29 +perl.org
+//	zpkx: GET …/github.com/besser82/libxcrypt/linux/s390x/versions.txt: Not Found
 //
 // because perl's closure needs github.com/besser82/libxcrypt — the project
 // being built. OUR OVERLAY declares that edge for linux (upstream's perl.org

@@ -271,8 +271,8 @@ func Override() (platform, arch string, ok bool, err error) {
 		// mistake actually made, since every other arch name here is shared.
 		// Refusing without saying so sends the reader looking for a missing
 		// port rather than at the two characters that differ.
-		if zpkgx := zpkgArch(arch); zpkgx != arch && IsPair(platform, zpkgx) {
-			return "", "", false, fmt.Errorf("unsupported target arch: %q (pkgx spells it %q)", arch, zpkgx)
+		if zpkx := zpkgArch(arch); zpkx != arch && IsPair(platform, zpkx) {
+			return "", "", false, fmt.Errorf("unsupported target arch: %q (pkgx spells it %q)", arch, zpkx)
 		}
 		return "", "", false, fmt.Errorf("unsupported target arch %q for platform %q", arch, platform)
 	}
