@@ -35,7 +35,7 @@ func TestAbiLine(t *testing.T) {
 	}
 }
 
-// Only when the link is really there. A dependency published before bottle
+// Only when the link is really there. A dependency published before artifact
 // wrote them keeps the v<major> form and behaves exactly as before, which is
 // what lets this land while most of the catalogue predates it.
 func TestAbiLineWithoutTheLink(t *testing.T) {
@@ -136,7 +136,7 @@ func TestRewriteBindsToTheABILineWhenOffered(t *testing.T) {
 // and which one it is depends on the DEPENDENCY's install name, not on
 // anything the consumer chose. libxml2's install name is already @rpath, so
 // hwloc arrives through this branch — and #183, which touched only the
-// absolute one, rewrote nothing for it: the rebuilt bottle still recorded
+// absolute one, rewrote nothing for it: the rebuilt artifact still recorded
 // @rpath/gnome.org/libxml2/v2/lib/libxml2.16.dylib and died the moment v2
 // named the 2.13 line.
 //
@@ -144,7 +144,7 @@ func TestRewriteBindsToTheABILineWhenOffered(t *testing.T) {
 // line is LONGER than the major it replaces, so a file whose linker left no
 // header padding cannot hold it — and the old code skipped such a file
 // ENTIRELY, which would have traded a working relocation for a builder path
-// baked into the bottle.
+// baked into the artifact.
 func TestRewriteBindsToTheABILineThroughTheRpathDoor(t *testing.T) {
 	for _, tc := range []struct {
 		name string

@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -16,7 +16,7 @@ import (
 
 func hasPrefix(b, p []byte) bool { return bytes.HasPrefix(b, p) }
 
-// Comparing two bottles entry by entry, which is the only way to learn
+// Comparing two artifacts entry by entry, which is the only way to learn
 // anything from "the digests differ".
 //
 // ⛔⛔ THIS EXISTS BECAUSE THE MEASUREMENT WAS DONE ONCE, BY HAND, AND FOUND A
@@ -31,12 +31,12 @@ func hasPrefix(b, p []byte) bool { return bytes.HasPrefix(b, p) }
 // run since, and a class of defect that is only ever found by hand is a class
 // that comes back. Two digests that differ say "differ"; this says WHAT.
 //
-// ⛔ IT CLASSIFIES, AND THE CLASS IS THE POINT. "The bottles differ" sends
+// ⛔ IT CLASSIFIES, AND THE CLASS IS THE POINT. "The artifacts differ" sends
 // someone to diff two tarballs. "Three directories differ in MODE ONLY" names
 // the umask, and "one file differs in CONTENT" names the compiler or an
 // embedded path or a timestamp — different problems with different fixes.
 
-// Diff is one difference between two bottles.
+// Diff is one difference between two artifacts.
 type Diff struct {
 	// Entry is the archive path. For OnlyInA/OnlyInB it is the missing one.
 	Entry string
@@ -54,13 +54,13 @@ func (d Diff) String() string {
 	return fmt.Sprintf("%-10s %s: %s vs %s", d.Kind, d.Entry, d.A, d.B)
 }
 
-// Report is the verdict on a pair of bottles.
+// Report is the verdict on a pair of artifacts.
 type Report struct {
 	Entries int // entries in A
 	Diffs   []Diff
 }
 
-// Identical reports whether the two bottles are the same bottle.
+// Identical reports whether the two artifacts are the same artifact.
 //
 // ⛔ AN EMPTY REPORT ON AN EMPTY PAIR IS NOT A PASS. Two archives that could
 // not be read, or that hold nothing, produce no differences — and a caller
@@ -71,7 +71,7 @@ func (r Report) Identical() bool { return r.Entries > 0 && len(r.Diffs) == 0 }
 
 // member is one archive member, reduced to what reproducibility cares about.
 //
-// Not `entry`: bottlepkg_test.go already has a type by that name, and the
+// Not `entry`: artifactpkg_test.go already has a type by that name, and the
 // compiler reports the collision against THIS file even though the test file
 // was there first.
 type member struct {
@@ -84,10 +84,10 @@ type member struct {
 	digest   string // sha256 of the content, "" for non-regular entries
 }
 
-// Compare reads two bottle tarballs and reports every difference between
+// Compare reads two artifact tarballs and reports every difference between
 // them, ordered by archive path.
 //
-// ⛔ ORDER IS IMPOSED, NOT ASSUMED. WriteBottle sorts paths, so two bottles
+// ⛔ ORDER IS IMPOSED, NOT ASSUMED. WriteArtifact sorts paths, so two artifacts
 // of one recipe normally arrive in the same order — but a report that
 // depended on that would turn "the entries came in a different order" into
 // hundreds of spurious content diffs, burying the one real difference. Both
@@ -130,7 +130,7 @@ func compareEntries(a, b map[string]member) Report {
 			rep.Diffs = append(rep.Diffs, Diff{Entry: n, Kind: "only-in-b"})
 			continue
 		}
-		// ⛔ EVERY FIELD, NOT THE FIRST ONE THAT DIFFERS. A bottle whose
+		// ⛔ EVERY FIELD, NOT THE FIRST ONE THAT DIFFERS. An artifact whose
 		// files differ in BOTH mode and content has two problems, and
 		// stopping at the first hides the second behind a fix for the first.
 		if ea.typeflag != eb.typeflag {
@@ -152,8 +152,8 @@ func compareEntries(a, b map[string]member) Report {
 		if ea.digest != eb.digest {
 			rep.Diffs = append(rep.Diffs, Diff{n, "content", short(ea.digest), short(eb.digest)})
 		}
-		// mtime LAST and reported like anything else. bottlepkg deliberately
-		// does not fix mtime to an epoch — a bottle's timestamps say when it
+		// mtime LAST and reported like anything else. artifactpkg deliberately
+		// does not fix mtime to an epoch — an artifact's timestamps say when it
 		// was made, and that is a policy choice this package documents. So
 		// two builds an hour apart WILL differ here, and the report says so
 		// plainly rather than pretending it is bit-identity.
@@ -210,21 +210,21 @@ func readEntries(path string) (map[string]member, error) {
 	}
 	defer f.Close()
 
-	// ⛔⛔ EVERY CODEC A BOTTLE IS PUBLISHED IN, AND THE FIRST VERSION OF THIS
-	// KNEW ONLY GZIP. `Codec` is `bottle.ExtTarZst` — zstd is what new bottles
+	// ⛔⛔ EVERY CODEC A ARTIFACT IS PUBLISHED IN, AND THE FIRST VERSION OF THIS
+	// KNEW ONLY GZIP. `Codec` is `artifact.ExtTarZst` — zstd is what new artifacts
 	// ARE — and the first run against the registry proved it:
 	//
 	//	mirror --from oci://ghcr.io/go-pkgx/packages zlib.net
 	//	  → zlib.net/darwin/aarch64/v1.3.2.tar.zst
 	//
-	// A gzip-only reader could not read a single published bottle. The unit
+	// A gzip-only reader could not read a single published artifact. The unit
 	// tests were green throughout, because they wrote their own fixtures with
 	// the codec the reader happened to support — which is the whole reason to
 	// run a new tool against real data before believing it.
 	//
 	// Sniffed by MAGIC, not by extension: a caller comparing a local rebuild
-	// against a published bottle has one of each, and `mirror` names files by
-	// the codec while `WriteBottle` names them by `Codec`. An extension can
+	// against a published artifact has one of each, and `mirror` names files by
+	// the codec while `WriteArtifact` names them by `Codec`. An extension can
 	// also simply be wrong, and a wrong extension must not read as corruption.
 	var r io.Reader = f
 	var magic [6]byte

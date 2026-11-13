@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// bottleAt writes a minimal bottle tarball: one directory and one file.
-func bottleAt(t *testing.T, path string, dirMode int64, body string, mt time.Time) string {
+// artifactAt writes a minimal artifact tarball: one directory and one file.
+func artifactAt(t *testing.T, path string, dirMode int64, body string, mt time.Time) string {
 	t.Helper()
 	f, err := os.Create(path)
 	if err != nil {
@@ -43,9 +43,9 @@ func bottleAt(t *testing.T, path string, dirMode int64, body string, mt time.Tim
 	return path
 }
 
-// bottleVersioned writes a bottle whose paths carry the version, the way a
+// artifactVersioned writes an artifact whose paths carry the version, the way a
 // real one does: `zlib.net/v<version>/…`.
-func bottleVersioned(t *testing.T, path, version string, mt time.Time) {
+func artifactVersioned(t *testing.T, path, version string, mt time.Time) {
 	t.Helper()
 	f, err := os.Create(path)
 	if err != nil {
@@ -86,12 +86,12 @@ func bottleVersioned(t *testing.T, path, version string, mt time.Time) {
 func TestReproduceNamesTheUmaskClassAndFails(t *testing.T) {
 	d := t.TempDir()
 	mt := time.Unix(1700000000, 0)
-	a := bottleAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
-	b := bottleAt(t, filepath.Join(d, "b.tar.gz"), 0o775, "ELF…", mt)
+	a := artifactAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
+	b := artifactAt(t, filepath.Join(d, "b.tar.gz"), 0o775, "ELF…", mt)
 
 	code, out, _ := run2(t, "reproduce", a, b)
 	if code == 0 {
-		t.Fatalf("two bottles differing in directory mode passed:\n%s", out)
+		t.Fatalf("two artifacts differing in directory mode passed:\n%s", out)
 	}
 	for _, want := range []string{"mode", "zlib.net/v1.3.2/lib", "0755", "0775"} {
 		if !strings.Contains(out, want) {
@@ -109,15 +109,15 @@ func TestReproduceNamesTheUmaskClassAndFails(t *testing.T) {
 	}
 }
 
-func TestReproducePassesOnTwoIdenticalBottles(t *testing.T) {
+func TestReproducePassesOnTwoIdenticalArtifacts(t *testing.T) {
 	d := t.TempDir()
 	mt := time.Unix(1700000000, 0)
-	a := bottleAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
-	b := bottleAt(t, filepath.Join(d, "b.tar.gz"), 0o755, "ELF…", mt)
+	a := artifactAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
+	b := artifactAt(t, filepath.Join(d, "b.tar.gz"), 0o755, "ELF…", mt)
 
 	code, out, errb := run2(t, "reproduce", a, b)
 	if code != 0 {
-		t.Fatalf("identical bottles failed: code=%d\n%s\n%s", code, out, errb)
+		t.Fatalf("identical artifacts failed: code=%d\n%s\n%s", code, out, errb)
 	}
 	if !strings.Contains(out, "bit-identical") {
 		t.Errorf("the verdict does not name the question asked:\n%s", out)
@@ -125,14 +125,14 @@ func TestReproducePassesOnTwoIdenticalBottles(t *testing.T) {
 }
 
 // ⛔ `-ignore-mtime` ASKS A DIFFERENT QUESTION, IT DOES NOT RELAX THIS ONE.
-// bottlepkg deliberately does not fix mtime to an epoch, so two builds an
+// artifactpkg deliberately does not fix mtime to an epoch, so two builds an
 // hour apart differ by design. The flag must say so in the output, must say
 // how many it set aside, and must NOT hide anything else.
 func TestIgnoreMTimeIsADifferentQuestionAndHidesNothingElse(t *testing.T) {
 	d := t.TempDir()
 	mt := time.Unix(1700000000, 0)
-	a := bottleAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
-	b := bottleAt(t, filepath.Join(d, "b.tar.gz"), 0o755, "ELF…", mt.Add(time.Hour))
+	a := artifactAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "ELF…", mt)
+	b := artifactAt(t, filepath.Join(d, "b.tar.gz"), 0o755, "ELF…", mt.Add(time.Hour))
 
 	// Without the flag: timestamps are a difference and it fails.
 	if code, out, _ := run2(t, "reproduce", a, b); code == 0 {
@@ -150,7 +150,7 @@ func TestIgnoreMTimeIsADifferentQuestionAndHidesNothingElse(t *testing.T) {
 	}
 
 	// And a real difference must still fail UNDER the flag.
-	c := bottleAt(t, filepath.Join(d, "c.tar.gz"), 0o775, "ELF…", mt.Add(time.Hour))
+	c := artifactAt(t, filepath.Join(d, "c.tar.gz"), 0o775, "ELF…", mt.Add(time.Hour))
 	if code, out, _ := run2(t, "reproduce", "-ignore-mtime", a, c); code == 0 {
 		t.Errorf("-ignore-mtime hid a mode difference:\n%s", out)
 	}
@@ -161,7 +161,7 @@ func TestIgnoreMTimeIsADifferentQuestionAndHidesNothingElse(t *testing.T) {
 // the defect a scan that could not read and reported zero is named after.
 func TestUnreadableAndEmptyAreNotPasses(t *testing.T) {
 	d := t.TempDir()
-	good := bottleAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "x", time.Unix(1700000000, 0))
+	good := artifactAt(t, filepath.Join(d, "a.tar.gz"), 0o755, "x", time.Unix(1700000000, 0))
 
 	bad := filepath.Join(d, "bad.tar.gz")
 	if err := os.WriteFile(bad, []byte("not an archive"), 0o644); err != nil {
@@ -202,10 +202,10 @@ func TestUnreadableAndEmptyAreNotPasses(t *testing.T) {
 }
 
 // ⛔ COMPARING TWO VERSIONS IS NOT AN UNREPRODUCIBLE BUILD, and the report
-// that says so is technically true and completely uninformative: a bottle's
+// that says so is technically true and completely uninformative: an artifact's
 // paths carry the version, so `zlib.net/v1.3.1/…` against
 // `zlib.net/v1.3.2/…` shares no path at all. Measured on the real published
-// bottles — 14 entries, 28 differences, every one only-in-a or only-in-b.
+// artifacts — 14 entries, 28 differences, every one only-in-a or only-in-b.
 // Without this the user reads "28 differences" and concludes the factory is
 // broken.
 func TestComparingTwoVersionsSaysSoRatherThanBlamingTheBuild(t *testing.T) {
@@ -213,8 +213,8 @@ func TestComparingTwoVersionsSaysSoRatherThanBlamingTheBuild(t *testing.T) {
 	mt := time.Unix(1700000000, 0)
 	a := filepath.Join(d, "a.tar.gz")
 	b := filepath.Join(d, "b.tar.gz")
-	bottleVersioned(t, a, "1.3.1", mt)
-	bottleVersioned(t, b, "1.3.2", mt)
+	artifactVersioned(t, a, "1.3.1", mt)
+	artifactVersioned(t, b, "1.3.2", mt)
 
 	code, out, errb := run2(t, "reproduce", "-quiet", a, b)
 	if code == 0 {

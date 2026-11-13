@@ -21,7 +21,7 @@ import (
 //
 // This is the bootstrap surface. Every command a recipe invokes is something
 // that must exist in the image the build runs in, and on a FROM-scratch image
-// nothing exists until a bottle puts it there. It is why bk injects fifteen
+// nothing exists until an artifact puts it there. It is why bk injects fifteen
 // base-toolchain projects into every build, and it is what turned two s390x
 // seed builds into `exit status 127` — cmake and ninja were left to the host,
 // and the host did not have them.

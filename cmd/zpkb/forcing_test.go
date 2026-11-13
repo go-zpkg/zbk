@@ -6,7 +6,7 @@ import (
 )
 
 // TestForceDoesNotRebuildTheClosure is the cost this fixes: a manual dispatch
-// sets --force to refresh the bottles it NAMED, and that used to force every
+// sets --force to refresh the artifacts it NAMED, and that used to force every
 // dependency the closure walk added as well.
 func TestForceDoesNotRebuildTheClosure(t *testing.T) {
 	h := newFactoryHarness(t)

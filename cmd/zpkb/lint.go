@@ -53,12 +53,12 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 		"fail a recipe that does not record which of the project's own files its build came from")
 	// ⛔⛔ AN OVERLAY ENTRY IS A FRAGMENT, AND A PANTRY CANNOT BE MADE OF
 	// FRAGMENTS. go-zpkg/pantry-overlay#50 reduced all 183 entries to the keys
-	// they CHANGE, which was right for an overlay: bottle merges it over
+	// they CHANGE, which was right for an overlay: artifact merges it over
 	// PantryBase, so an omitted key is inherited from upstream and a small
 	// curated tree can correct a stale constraint without forking 1700 files.
 	//
 	// It is exactly wrong for a pantry. `PantryBase` is still
-	// pkgxdev/pantry compiled in (bottle/pkgx.go:68) and the overlay is merged
+	// pkgxdev/pantry compiled in (artifact/pkgx.go:68) and the overlay is merged
 	// OVER it, so a fragment resolves only because somebody else's recipe is
 	// underneath — the recipe we may not copy (go-zpkg/packages#431). Measured
 	// here the day this flag was written: of 213 overlay recipes, 15 state a
@@ -217,7 +217,7 @@ func runLint(args []string, stdout, stderr io.Writer) int {
 //
 // `build` is in the list on purpose, though a fragment that lacked only `build`
 // would be unusual: these are the three keys the factory reads to produce a
-// bottle, and a list that held two of them would answer a narrower question
+// artifact, and a list that held two of them would answer a narrower question
 // than the one asked.
 // signatureExts are the names a DETACHED SIGNATURE goes by. `.sig` and `.asc`
 // are OpenPGP's two spellings (binary and armoured) and `.sign` is kernel.org's.

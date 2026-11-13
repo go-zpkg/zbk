@@ -11,10 +11,10 @@ import (
 	"github.com/klauspost/compress/zstd"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
-// A bottle is mostly not shared libraries, and none of the rest is an ABI
+// An artifact is mostly not shared libraries, and none of the rest is an ABI
 // anybody binds to.
 func TestSonamesFromTarballIgnoresNonLibraries(t *testing.T) {
 	var buf bytes.Buffer
@@ -41,7 +41,7 @@ func TestSonamesFromTarballIgnoresNonLibraries(t *testing.T) {
 		t.Fatal(err)
 	}
 	tb := gzBytes(buf.Bytes())
-	got, err := sonamesFromTarball(tb, bottle.ExtTarGz)
+	got, err := sonamesFromTarball(tb, artifact.ExtTarGz)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestSonamesFromTarballIgnoresNonLibraries(t *testing.T) {
 // The xz branch reads the same way.
 func TestSonamesFromTarballXZ(t *testing.T) {
 	tb := xzBytes(t, tarBytes(map[string][]byte{"bin/x": []byte("#!/bin/sh\n")}))
-	got, err := sonamesFromTarball(tb, bottle.ExtTarXz)
+	got, err := sonamesFromTarball(tb, artifact.ExtTarXz)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,17 +62,17 @@ func TestSonamesFromTarballXZ(t *testing.T) {
 	}
 }
 
-// A stream that is not a bottle is an error, not an empty answer: the caller
+// A stream that is not an artifact is an error, not an empty answer: the caller
 // logs it and publishes anyway, and the two must not look alike.
 func TestSonamesFromTarballOnGarbage(t *testing.T) {
-	if _, err := sonamesFromTarball([]byte("not a gzip"), bottle.ExtTarGz); err == nil {
+	if _, err := sonamesFromTarball([]byte("not a gzip"), artifact.ExtTarGz); err == nil {
 		t.Error("garbage gzip read as empty")
 	}
-	if _, err := sonamesFromTarball([]byte("not an xz"), bottle.ExtTarXz); err == nil {
+	if _, err := sonamesFromTarball([]byte("not an xz"), artifact.ExtTarXz); err == nil {
 		t.Error("garbage xz read as empty")
 	}
 	// A valid gzip whose contents are not a tar.
-	if _, err := sonamesFromTarball(gzBytes([]byte("still not a tar")), bottle.ExtTarGz); err == nil {
+	if _, err := sonamesFromTarball(gzBytes([]byte("still not a tar")), artifact.ExtTarGz); err == nil {
 		t.Error("garbage tar read as empty")
 	}
 }
@@ -84,7 +84,7 @@ func TestABIProvidesAnnotationKey(t *testing.T) {
 	}
 }
 
-// The answer, on a bottle that really contains a shared library.
+// The answer, on an artifact that really contains a shared library.
 //
 // testdata/libfoo.so.1 is a minimal ELF64 whose DT_SONAME is "libfoo.so.1",
 // generated once by fixup's own ELF builder so this package needs no second
@@ -98,7 +98,7 @@ func TestSonamesFromTarballReadsALibrary(t *testing.T) {
 		"lib/libfoo.so.1": lib,
 		"bin/foo":         []byte("#!/bin/sh\n"),
 	}))
-	got, err := sonamesFromTarball(tb, bottle.ExtTarGz)
+	got, err := sonamesFromTarball(tb, artifact.ExtTarGz)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestSonamesFromTarballReadsALibrary(t *testing.T) {
 
 // A tar cut off inside an entry is an error, not a short answer. The header
 // reads, the body does not, and returning what was found so far would describe
-// a bottle by the part of it that happened to arrive.
+// an artifact by the part of it that happened to arrive.
 func TestSonamesFromTarballOnATruncatedEntry(t *testing.T) {
 	lib, err := os.ReadFile(filepath.Join("testdata", "libfoo.so.1"))
 	if err != nil {
@@ -118,31 +118,31 @@ func TestSonamesFromTarballOnATruncatedEntry(t *testing.T) {
 	full := tarBytes(map[string][]byte{"lib/libfoo.so.1": lib})
 	// Keep the 512-byte header and half the body.
 	cut := full[:512+len(lib)/2]
-	if _, err := sonamesFromTarball(gzBytes(cut), bottle.ExtTarGz); err == nil {
-		t.Error("a truncated entry read as a complete bottle")
+	if _, err := sonamesFromTarball(gzBytes(cut), artifact.ExtTarGz); err == nil {
+		t.Error("a truncated entry read as a complete artifact")
 	}
 }
 
-// The whole point, end to end: a bottle that ships a shared library is
+// The whole point, end to end: an artifact that ships a shared library is
 // published with an annotation saying which ABI it provides.
-func TestPublishBottleAnnotatesTheABIItProvides(t *testing.T) {
+func TestPublishArtifactAnnotatesTheABIItProvides(t *testing.T) {
 	lib, err := os.ReadFile(filepath.Join("testdata", "libfoo.so.1"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var got map[string]string
 	oldPush := ociPush
-	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, _ []bottle.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, _ []artifact.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
 		got = ann
 		return ocispec.Descriptor{}, nil
 	}
 	defer func() { ociPush = oldPush }()
 
-	p := filepath.Join(t.TempDir(), "v1.0.0"+bottle.ExtTarGz)
+	p := filepath.Join(t.TempDir(), "v1.0.0"+artifact.ExtTarGz)
 	if err := os.WriteFile(p, gzBytes(tarBytes(map[string][]byte{"lib/libfoo.so.1": lib})), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := publishBottle(publishOptions{
+	if _, _, err := publishArtifact(publishOptions{
 		Dist: "oci://example.invalid/x", Project: "acme.org/tool", Version: "1.0.0",
 		OS: "linux", Arch: "aarch64", Path: p,
 	}); err != nil {
@@ -154,13 +154,13 @@ func TestPublishBottleAnnotatesTheABIItProvides(t *testing.T) {
 }
 
 // zstd is what this factory publishes by DEFAULT, and the first version of
-// this reader knew only gzip and xz. It failed on every real bottle —
+// this reader knew only gzip and xz. It failed on every real artifact —
 //
 //	bk: could not read the sonames of fftw.org 3.3.11: gzip: invalid header
 //
 // — so the annotation was written on nothing at all. This is the case that was
 // missing.
-func TestSonamesFromTarballReadsAZstdBottle(t *testing.T) {
+func TestSonamesFromTarballReadsAZstdArtifact(t *testing.T) {
 	lib, err := os.ReadFile(filepath.Join("testdata", "libfoo.so.1"))
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestSonamesFromTarballReadsAZstdBottle(t *testing.T) {
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	got, err := sonamesFromTarball(buf.Bytes(), bottle.ExtTarZst)
+	got, err := sonamesFromTarball(buf.Bytes(), artifact.ExtTarZst)
 	if err != nil {
 		t.Fatal(err)
 	}

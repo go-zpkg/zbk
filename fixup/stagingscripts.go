@@ -20,11 +20,11 @@ import (
 //	  my $perlpath = '…/perl.org/v5.28.0+brewing/bin/perl';
 //
 // Neither directory exists anywhere, on any machine, including the one that
-// built it. Pointing them at the final prefix does not make the bottle
+// built it. Pointing them at the final prefix does not make the artifact
 // relocatable — a consumer whose ZPKG_DIR differs is still out of luck, and
 // only the tool itself can fix that (bison's yacc, for one, carries gnulib's
 // relocatable-sh and works out its own prefix from $0) — but it turns a path
-// that is wrong everywhere into one that is right wherever the bottle is
+// that is wrong everywhere into one that is right wherever the artifact is
 // installed under the same ZPKG_DIR, which is the case for the factory's own
 // builds and for the sovereign builder.
 //
@@ -72,7 +72,7 @@ func walkScripts(dir, buildInstall, prefix string, log func(string, ...any)) err
 		// ar, nm and ranlib to `../../../binutils/v*/bin/…`, where the star is
 		// ESCAPED in the recipe and is not a glob at all: pkgx writes a `v*`
 		// alias beside `v<version>` when it installs a package
-		// (bottle.writeVersionLinks), so the target is a real path — for a
+		// (artifact.writeVersionLinks), so the target is a real path — for a
 		// ZPKG_DIR that has binutils in it. For one that does not, the link
 		// dangles, and the fix-up then said
 		//

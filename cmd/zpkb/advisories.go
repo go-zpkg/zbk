@@ -23,7 +23,7 @@ const advisoryFile = "advisories.yaml"
 
 // runAdvisories validates a tree of advisory files and says what state each
 // project is in. It is what a CI lane runs over the advisory repository; the
-// VEX document is emitted by whatever publishes a bottle, because only that
+// VEX document is emitted by whatever publishes an artifact, because only that
 // knows the digest a statement must name.
 func runAdvisories(args []string, stdout, stderr io.Writer) int {
 	fset := flag.NewFlagSet("advisories", flag.ContinueOnError)

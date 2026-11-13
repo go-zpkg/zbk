@@ -223,7 +223,7 @@ func TestClosureMergesAReducedOverlayEntry(t *testing.T) {
 	writeClosureRecipe(t, pan, "tool.org", "build: make\n")
 	writeClosureRecipe(t, pan, "idn.org", "build: make\n")
 	if err := os.WriteFile(filepath.Join(ovr, "lib.hcl"), []byte(
-		"project = \"lib.org\"\nwhy = \"the published bottle needs it and upstream does not say so\"\n"+
+		"project = \"lib.org\"\nwhy = \"the published artifact needs it and upstream does not say so\"\n"+
 			"edits = [{ path = \"dependencies[\\\"idn.org\\\"]\", set = \"*\" }]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

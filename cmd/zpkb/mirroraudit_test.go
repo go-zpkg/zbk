@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zpkb/bottlepkg"
+	"github.com/go-zpkg/artifact"
+	"github.com/go-zpkg/zpkb/artifactpkg"
 	"github.com/go-zpkg/zpkb/fixup"
 	"github.com/klauspost/compress/zstd"
 )
@@ -51,9 +51,9 @@ func machoBytes(cmds ...[2]any) []byte {
 	return buf
 }
 
-// gzBottle writes a .tar.gz whose entries are name->content, as a bottle
+// gzArtifact writes a .tar.gz whose entries are name->content, as an artifact
 // tarball is laid out: `<project>/v<version>/…`.
-func gzBottle(t *testing.T, files map[string][]byte) string {
+func gzArtifact(t *testing.T, files map[string][]byte) string {
 	t.Helper()
 	var raw bytes.Buffer
 	gz := gzip.NewWriter(&raw)
@@ -81,8 +81,8 @@ func gzBottle(t *testing.T, files map[string][]byte) string {
 	return p
 }
 
-// zstBottle is gzBottle in the codec the factory actually publishes.
-func zstBottle(t *testing.T, files map[string][]byte) string {
+// zstArtifact is gzArtifact in the codec the factory actually publishes.
+func zstArtifact(t *testing.T, files map[string][]byte) string {
 	t.Helper()
 	var raw bytes.Buffer
 	zw, err := zstd.NewWriter(&raw)
@@ -118,23 +118,23 @@ const (
 	lcRpath = uint32(0x8000001c)
 )
 
-// TestAuditMirroredBottleFindsWhatFixupNeverSaw reproduces git-scm.org 2.55.0's
+// TestAuditMirroredArtifactFindsWhatFixupNeverSaw reproduces git-scm.org 2.55.0's
 // shape: a qualified @rpath reference to a sibling package, and one rpath —
 // the build machine's own absolute path. A mirror is never unpacked, so no
 // guard has ever seen it.
-func TestAuditMirroredBottleFindsWhatFixupNeverSaw(t *testing.T) {
-	tb := gzBottle(t, map[string][]byte{
+func TestAuditMirroredArtifactFindsWhatFixupNeverSaw(t *testing.T) {
+	tb := gzArtifact(t, map[string][]byte{
 		"git-scm.org/v2.55.0/libexec/git": machoBytes(
 			[2]any{lcLoad, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"},
 			[2]any{lcRpath, "/Users/runner/.pkgx"}),
 		"git-scm.org/v2.55.0/lib/libok.dylib": machoBytes(
 			[2]any{lcLoad, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"},
 			[2]any{lcRpath, "@loader_path/../../.."}),
-		// Most of a bottle is not Mach-O and must cost nothing.
+		// Most of an artifact is not Mach-O and must cost nothing.
 		"git-scm.org/v2.55.0/bin/git":              []byte("#!/bin/sh\nexec true\n"),
 		"git-scm.org/v2.55.0/share/man/man1/git.1": []byte(".TH GIT 1\n"),
 	})
-	checked, problems, err := auditMirroredBottle(tb, bottle.ExtTarGz, "git-scm.org", "2.55.0")
+	checked, problems, err := auditMirroredArtifact(tb, artifact.ExtTarGz, "git-scm.org", "2.55.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,16 +152,16 @@ func TestAuditMirroredBottleFindsWhatFixupNeverSaw(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleIsQuietOnARelocatableOne is the negative control: the
+// TestAuditMirroredArtifactIsQuietOnARelocatableOne is the negative control: the
 // same reference, reachable through a relative rpath, is not a finding.
-func TestAuditMirroredBottleIsQuietOnARelocatableOne(t *testing.T) {
-	tb := gzBottle(t, map[string][]byte{
+func TestAuditMirroredArtifactIsQuietOnARelocatableOne(t *testing.T) {
+	tb := gzArtifact(t, map[string][]byte{
 		"lloyd.github.io/yajl/v2.1.0/lib/libyajl.2.dylib": machoBytes(
 			[2]any{lcLoad, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"},
 			[2]any{lcRpath, "@loader_path/../../../.."},
 			[2]any{lcRpath, "/Users/runner/.pkgx"}),
 	})
-	checked, problems, err := auditMirroredBottle(tb, bottle.ExtTarGz, "lloyd.github.io/yajl", "2.1.0")
+	checked, problems, err := auditMirroredArtifact(tb, artifact.ExtTarGz, "lloyd.github.io/yajl", "2.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,17 +170,17 @@ func TestAuditMirroredBottleIsQuietOnARelocatableOne(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleSaysWhenItCouldNotRead: a compression the audit cannot
+// TestAuditMirroredArtifactSaysWhenItCouldNotRead: a compression the audit cannot
 // open must report an error, never zero findings — a scan that could not read
 // is not a scan that found nothing.
-func TestAuditMirroredBottleSaysWhenItCouldNotRead(t *testing.T) {
-	tb := gzBottle(t, map[string][]byte{"x/v1/bin/x": []byte("hi")})
-	_, _, err := auditMirroredBottle(tb, ".tar.br", "x", "1")
+func TestAuditMirroredArtifactSaysWhenItCouldNotRead(t *testing.T) {
+	tb := gzArtifact(t, map[string][]byte{"x/v1/bin/x": []byte("hi")})
+	_, _, err := auditMirroredArtifact(tb, ".tar.br", "x", "1")
 	if err == nil {
 		t.Fatal("an unhandled compression returned no error")
 	}
 	// The EXTENSION, not a phrase. The wording moved when this stopped
-	// hand-rolling its decoder and asked bottle.Decompressor, and an assertion
+	// hand-rolling its decoder and asked artifact.Decompressor, and an assertion
 	// on the sentence would have made a correct change look like a regression.
 	// What a reader needs is which compression was refused.
 	if !strings.Contains(err.Error(), ".tar.br") {
@@ -191,9 +191,9 @@ func TestAuditMirroredBottleSaysWhenItCouldNotRead(t *testing.T) {
 	}
 }
 
-// rawBottle writes an archive body verbatim under a given name, so a test can
+// rawArtifact writes an archive body verbatim under a given name, so a test can
 // hand the audit bytes that are not what their extension claims.
-func rawBottle(t *testing.T, name string, body []byte) string {
+func rawArtifact(t *testing.T, name string, body []byte) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), name)
 	if err := os.WriteFile(p, body, 0o644); err != nil {
@@ -211,23 +211,23 @@ func TestLooksMachORejectsAShortRead(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleReportsWhatItCannotOpen covers the three ways the
+// TestAuditMirroredArtifactReportsWhatItCannotOpen covers the three ways the
 // archive itself refuses to be read. Each must return an error naming the
 // cause: a mirror that could not be audited must never read as one that was.
-func TestAuditMirroredBottleReportsWhatItCannotOpen(t *testing.T) {
+func TestAuditMirroredArtifactReportsWhatItCannotOpen(t *testing.T) {
 	for _, tc := range []struct {
 		name, ext, want string
 		path            func() string
 	}{
-		{"missing file", bottle.ExtTarGz, "no such file",
+		{"missing file", artifact.ExtTarGz, "no such file",
 			func() string { return filepath.Join(t.TempDir(), "absent.tar.gz") }},
-		{"not gzip", bottle.ExtTarGz, "gzip",
-			func() string { return rawBottle(t, "x.tar.gz", []byte("not a gzip stream at all")) }},
-		{"not xz", bottle.ExtTarXz, "xz",
-			func() string { return rawBottle(t, "x.tar.xz", []byte("not an xz stream at all")) }},
+		{"not gzip", artifact.ExtTarGz, "gzip",
+			func() string { return rawArtifact(t, "x.tar.gz", []byte("not a gzip stream at all")) }},
+		{"not xz", artifact.ExtTarXz, "xz",
+			func() string { return rawArtifact(t, "x.tar.xz", []byte("not an xz stream at all")) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, _, err := auditMirroredBottle(tc.path(), tc.ext, "p", "1")
+			_, _, err := auditMirroredArtifact(tc.path(), tc.ext, "p", "1")
 			if err == nil {
 				t.Fatalf("no error for %s", tc.name)
 			}
@@ -238,24 +238,24 @@ func TestAuditMirroredBottleReportsWhatItCannotOpen(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleStopsOnATruncatedArchive: a tar that ends mid-entry is
+// TestAuditMirroredArtifactStopsOnATruncatedArchive: a tar that ends mid-entry is
 // an unreadable archive, not an empty one.
-func TestAuditMirroredBottleStopsOnATruncatedArchive(t *testing.T) {
-	full := gzBottle(t, map[string][]byte{"p/v1/lib/a.dylib": machoBytes([2]any{lcRpath, "@loader_path"})})
+func TestAuditMirroredArtifactStopsOnATruncatedArchive(t *testing.T) {
+	full := gzArtifact(t, map[string][]byte{"p/v1/lib/a.dylib": machoBytes([2]any{lcRpath, "@loader_path"})})
 	b, err := os.ReadFile(full)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cut := rawBottle(t, "cut.tar.gz", b[:len(b)/2])
-	if _, _, err := auditMirroredBottle(cut, bottle.ExtTarGz, "p", "1"); err == nil {
+	cut := rawArtifact(t, "cut.tar.gz", b[:len(b)/2])
+	if _, _, err := auditMirroredArtifact(cut, artifact.ExtTarGz, "p", "1"); err == nil {
 		t.Error("a truncated archive reported no error")
 	}
 }
 
-// TestAuditMirroredBottleSkipsWhatIsNotAFile: directories and symlinks carry no
+// TestAuditMirroredArtifactSkipsWhatIsNotAFile: directories and symlinks carry no
 // content to audit, and an entry naming its way out of the tree is not written
 // anywhere — a tarball does not get to choose where the audit writes.
-func TestAuditMirroredBottleSkipsWhatIsNotAFile(t *testing.T) {
+func TestAuditMirroredArtifactSkipsWhatIsNotAFile(t *testing.T) {
 	var raw bytes.Buffer
 	gz := gzip.NewWriter(&raw)
 	tw := tar.NewWriter(gz)
@@ -282,8 +282,8 @@ func TestAuditMirroredBottleSkipsWhatIsNotAFile(t *testing.T) {
 	if err := gz.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p := rawBottle(t, "odd.tar.gz", raw.Bytes())
-	checked, problems, err := auditMirroredBottle(p, bottle.ExtTarGz, "p", "1")
+	p := rawArtifact(t, "odd.tar.gz", raw.Bytes())
+	checked, problems, err := auditMirroredArtifact(p, artifact.ExtTarGz, "p", "1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,12 +292,12 @@ func TestAuditMirroredBottleSkipsWhatIsNotAFile(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleReportsFilesystemFailures walks the four seams: each
+// TestAuditMirroredArtifactReportsFilesystemFailures walks the four seams: each
 // is a real failure a user could hit (a full disk, a read-only temp) and each
 // must surface rather than silently audit nothing.
-func TestAuditMirroredBottleReportsFilesystemFailures(t *testing.T) {
+func TestAuditMirroredArtifactReportsFilesystemFailures(t *testing.T) {
 	good := func(t *testing.T) string {
-		return gzBottle(t, map[string][]byte{
+		return gzArtifact(t, map[string][]byte{
 			"p/v1/lib/a.dylib": machoBytes([2]any{lcRpath, "@loader_path"}),
 		})
 	}
@@ -330,36 +330,36 @@ func TestAuditMirroredBottleReportsFilesystemFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tb := good(t)
 			tc.patch(t)
-			if _, _, err := auditMirroredBottle(tb, bottle.ExtTarGz, "p", "1"); !errors.Is(err, boom) {
+			if _, _, err := auditMirroredArtifact(tb, artifact.ExtTarGz, "p", "1"); !errors.Is(err, boom) {
 				t.Errorf("error is %v, want boom", err)
 			}
 		})
 	}
 }
 
-// TestAuditMirroredBottleReportsAnUnopenableArchive covers the os.Open seam,
+// TestAuditMirroredArtifactReportsAnUnopenableArchive covers the os.Open seam,
 // which a missing file already reaches — this pins the message.
-func TestAuditMirroredBottleReportsAnUnopenableArchive(t *testing.T) {
+func TestAuditMirroredArtifactReportsAnUnopenableArchive(t *testing.T) {
 	old := auditOpen
 	auditOpen = func(string) (*os.File, error) { return nil, errors.New("sealed") }
 	t.Cleanup(func() { auditOpen = old })
-	if _, _, err := auditMirroredBottle("whatever", bottle.ExtTarGz, "p", "1"); err == nil ||
+	if _, _, err := auditMirroredArtifact("whatever", artifact.ExtTarGz, "p", "1"); err == nil ||
 		!strings.Contains(err.Error(), "sealed") {
 		t.Errorf("error is %v, want sealed", err)
 	}
 }
 
-// TestRunFactoryMirrorReportsANonRelocatableBottle is the wiring: a darwin
+// TestRunFactoryMirrorReportsANonRelocatableArtifact is the wiring: a darwin
 // mirror run says, at publish time, what fixup's guards never got to see.
 // Five broken files, so the "… and N more" cut-off is exercised too.
-func TestRunFactoryMirrorReportsANonRelocatableBottle(t *testing.T) {
+func TestRunFactoryMirrorReportsANonRelocatableArtifact(t *testing.T) {
 	files := map[string][]byte{}
 	for _, n := range []string{"git", "git-remote-https", "scalar", "git-shell", "git-cvsserver"} {
 		files["git-scm.org/v2.55.0/libexec/"+n] = machoBytes(
 			[2]any{lcLoad, "@rpath/zlib.net/v1.3.2/lib/libz.1.dylib"},
 			[2]any{lcRpath, "/Users/runner/.pkgx"})
 	}
-	body, err := os.ReadFile(gzBottle(t, files))
+	body, err := os.ReadFile(gzArtifact(t, files))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestRunFactoryMirrorReportsANonRelocatableBottle(t *testing.T) {
 		func(_, _, _, _ string) ([]byte, string, error) { return body, ".tar.gz", nil })
 
 	if code := h.run(t, "--platform", "darwin/aarch64", "--recipes", "git-scm.org",
-		"--mirror-from", "https://dist.pkgx.dev/", "--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--mirror-from", "https://dist.pkgx.dev/", "--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	errs := h.errb.String()
@@ -383,7 +383,7 @@ func TestRunFactoryMirrorReportsANonRelocatableBottle(t *testing.T) {
 			t.Fatalf("stderr missing %q:\n%s", want, errs)
 		}
 	}
-	// It REPORTS: the bottle is still published. Refusing is packages#147's call.
+	// It REPORTS: the artifact is still published. Refusing is packages#147's call.
 	if !strings.Contains(h.out.String(), "✅ MIRRORED git-scm.org 2.55.0 darwin/aarch64") {
 		t.Errorf("the audit must not stop the publish:\n%s", h.out.String())
 	}
@@ -398,7 +398,7 @@ func TestRunFactoryMirrorSaysWhenItCouldNotAudit(t *testing.T) {
 		func(_, _, _, _ string) ([]byte, string, error) { return []byte("zzzz"), ".tar.br", nil })
 
 	if code := h.run(t, "--platform", "darwin/aarch64", "--recipes", "git-scm.org",
-		"--mirror-from", "https://d", "--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--mirror-from", "https://d", "--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	if !strings.Contains(h.errb.String(), "not audited: cannot audit") {
@@ -415,7 +415,7 @@ func TestRunFactoryMirrorDoesNotAuditLinux(t *testing.T) {
 		func(_, _, _, _ string) ([]byte, string, error) { return []byte("not even an archive"), ".tar.gz", nil })
 
 	if code := h.run(t, "--recipes", "gnu.org/glibc", "--mirror-from", "https://d",
-		"--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
 	if strings.Contains(h.errb.String(), "not audited") || strings.Contains(h.errb.String(), "NOT RELOCATABLE") {
@@ -423,19 +423,19 @@ func TestRunFactoryMirrorDoesNotAuditLinux(t *testing.T) {
 	}
 }
 
-// TestAuditMirroredBottleReadsTheDEFAULTCodec. The switch this replaced knew xz
-// and gzip and sent .tar.zst — which is what bottlepkg.Codec is — down its
-// error arm. The audit therefore refused every bottle the factory publishes
+// TestAuditMirroredArtifactReadsTheDEFAULTCodec. The switch this replaced knew xz
+// and gzip and sent .tar.zst — which is what artifactpkg.Codec is — down its
+// error arm. The audit therefore refused every artifact the factory publishes
 // today, and said so politely enough that it read as a gap rather than as
 // total coverage of nothing.
-func TestAuditMirroredBottleReadsTheDEFAULTCodec(t *testing.T) {
-	if bottlepkg.Codec != bottle.ExtTarZst {
-		t.Skipf("the default codec is %s; this test is about the one that is published", bottlepkg.Codec)
+func TestAuditMirroredArtifactReadsTheDEFAULTCodec(t *testing.T) {
+	if artifactpkg.Codec != artifact.ExtTarZst {
+		t.Skipf("the default codec is %s; this test is about the one that is published", artifactpkg.Codec)
 	}
-	tb := zstBottle(t, map[string][]byte{
+	tb := zstArtifact(t, map[string][]byte{
 		"x/v1/lib/a.dylib": machoBytes([2]any{lcRpath, "@loader_path/../../.."}),
 	})
-	checked, problems, err := auditMirroredBottle(tb, bottle.ExtTarZst, "x", "1")
+	checked, problems, err := auditMirroredArtifact(tb, artifact.ExtTarZst, "x", "1")
 	if err != nil {
 		t.Fatalf("the default codec must be auditable: %v", err)
 	}

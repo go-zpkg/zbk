@@ -24,8 +24,8 @@ const downloadAttempts = 5
 // to — cannot recover from a truncated transfer: the extractor has already
 // consumed and written part of the archive when the read fails, and the only
 // signal is `unexpected EOF`. That is exactly how kernel.org/linux failed: a
-// ~150 MB xz tarball, the largest source we fetch, cut mid-transfer. bottle
-// learned the same lesson on bottle blobs (Range resume + retries); this is the
+// ~150 MB xz tarball, the largest source we fetch, cut mid-transfer. artifact
+// learned the same lesson on artifact blobs (Range resume + retries); this is the
 // source-side half of it.
 func download(url string) (string, error) {
 	f, err := osCreateTemp("", "bk-fetch-*")

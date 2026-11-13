@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/fetch"
 )
 
@@ -20,21 +20,21 @@ const sourceMirrorProject = "sources"
 
 // newSourceStore is a seam: the tests drive the hook without a registry.
 var newSourceStore = func(base string) (sourceStore, error) {
-	c, err := bottle.NewOCIClient(base)
+	c, err := artifact.NewOCIClient(base)
 	if err != nil {
 		return nil, err
 	}
 	return ociSourceStore{c}, nil
 }
 
-// sourceStore is the half of bottle's source API this needs.
+// sourceStore is the half of artifact's source API this needs.
 type sourceStore interface {
 	HasSource(project, sha256hex string) (bool, error)
 	PushSource(project string, data []byte, uri string) error
 	PinnedDigest(project, uri string) (string, error)
 }
 
-type ociSourceStore struct{ c *bottle.OCIClient }
+type ociSourceStore struct{ c *artifact.OCIClient }
 
 func (s ociSourceStore) HasSource(project, sha string) (bool, error) {
 	return s.c.HasSource(project, sha)
@@ -113,14 +113,14 @@ func installSourceMirror(base string, stderr io.Writer, strict bool) error {
 //     was down — but "cannot read the pin" and "there is no pin" are not the
 //     same fact, and treating them alike is how trust-on-first-use quietly
 //     becomes trust-every-time. So they are distinguished here, said out
-//     loud, and which one is fatal is the operator's choice. bottle's
+//     loud, and which one is fatal is the operator's choice. artifact's
 //     PinnedDigest refuses to conflate them, which is what makes the choice
 //     available at all.
 func pinChecker(store sourceStore, stderr io.Writer, strict bool) func(string, string) error {
 	return func(url, sha string) error {
 		want, err := store.PinnedDigest(sourceMirrorProject, url)
 		switch {
-		case errors.Is(err, bottle.ErrSourceAbsent):
+		case errors.Is(err, artifact.ErrSourceAbsent):
 			return nil
 		case err != nil:
 			if strict {

@@ -45,7 +45,7 @@
 // So there is no ZPKG_PYTHON, no temporary file, no rename and no lock. A
 // read-only store works, an NFS home works, two hosts sharing one home work,
 // and every signature stays valid because nothing is rewritten. The repair
-// mechanism was removed rather than kept "just in case": a bottle built before
+// mechanism was removed rather than kept "just in case": an artifact built before
 // this carries the old SCRIPT launcher, not this binary, so there is no
 // deployment in which the repair could ever run.
 package main

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/target"
 )
 
@@ -23,19 +23,19 @@ import (
 // filters on "has a sha256", so the two readers do not see each other's
 // entries.
 
-// attestedEnv is one entry of a published bottle's recorded build environment.
+// attestedEnv is one entry of a published artifact's recorded build environment.
 type attestedEnv struct {
 	Project string
 	Version string
 }
 
-// envAttestedBy reads the build environment a published bottle records.
+// envAttestedBy reads the build environment a published artifact records.
 //
 // ⛔ "NOT RECORDED" AND "COULD NOT BE READ" ARE DIFFERENT ANSWERS, and this
-// returns them as different errors, because every bottle published before
+// returns them as different errors, because every artifact published before
 // bk v0.17.0 records nothing and a sweep that folded those into failures
 // would report the whole registry as broken.
-func envAttestedBy(refs []bottle.Referrer) ([]attestedEnv, error) {
+func envAttestedBy(refs []artifact.Referrer) ([]attestedEnv, error) {
 	var raw []byte
 	for _, r := range refs {
 		if r.ArtifactType == artifactInToto {
@@ -61,9 +61,9 @@ func envAttestedBy(refs []bottle.Referrer) ([]attestedEnv, error) {
 	var out []attestedEnv
 	for _, d := range stmt.Predicate.BuildDefinition.ResolvedDependencies {
 		// ⛔ BOTH SPELLINGS ARE READ HERE AND ONLY THE CURRENT ONE IS MINTED.
-		// Every bottle published before the purl moved to `pkg:generic/`
+		// Every artifact published before the purl moved to `pkg:generic/`
 		// records `pkg:pkgx/`, and this function's whole job is to answer
-		// about bottles that already exist; cutPurl keeps the last-"@" rule
+		// about artifacts that already exist; cutPurl keeps the last-"@" rule
 		// this loop used to carry.
 		project, version, ok := cutPurl(d.URI)
 		if !ok {
@@ -79,7 +79,7 @@ func envAttestedBy(refs []bottle.Referrer) ([]attestedEnv, error) {
 }
 
 var (
-	errNoProvenance  = errors.New("the bottle carries no provenance attestation")
+	errNoProvenance  = errors.New("the artifact carries no provenance attestation")
 	errNoEnvironment = errors.New("the provenance records no build environment")
 )
 
@@ -98,18 +98,18 @@ func parseRequirement(s string) (requirement, error) {
 		return requirement{}, fmt.Errorf("%q is not project@version", s)
 	}
 	r := requirement{Project: s[:i], Version: s[i+1:]}
-	if err := bottle.ValidateVersionString(r.Version); err != nil {
+	if err := artifact.ValidateVersionString(r.Version); err != nil {
 		return requirement{}, fmt.Errorf("%q: %w", s, err)
 	}
 	return r, nil
 }
 
-// envVerdict is what a requirement says about one bottle's recorded environment.
+// envVerdict is what a requirement says about one artifact's recorded environment.
 type envVerdict int
 
 const (
-	// vUnknown: the bottle records no environment, so nothing can be said.
-	// Every bottle published before bk v0.17.0 is here.
+	// vUnknown: the artifact records no environment, so nothing can be said.
+	// Every artifact published before bk v0.17.0 is here.
 	vUnknown envVerdict = iota
 	// vStale: it records the project, at an older version. Rebuild.
 	vStale
@@ -125,7 +125,7 @@ const (
 	vNotUsed
 )
 
-// judge applies a requirement to one bottle's recorded environment.
+// judge applies a requirement to one artifact's recorded environment.
 func judge(env []attestedEnv, want requirement) envVerdict {
 	if len(env) == 0 {
 		return vUnknown
@@ -134,7 +134,7 @@ func judge(env []attestedEnv, want requirement) envVerdict {
 		if e.Project != want.Project {
 			continue
 		}
-		if bottle.ParseVer(e.Version).Satisfies(">=" + want.Version) {
+		if artifact.ParseVer(e.Version).Satisfies(">=" + want.Version) {
 			return vOK
 		}
 		return vStale
@@ -142,10 +142,10 @@ func judge(env []attestedEnv, want requirement) envVerdict {
 	return vNotUsed
 }
 
-// runBuildEnv reports what build environment published bottles record.
+// runBuildEnv reports what build environment published artifacts record.
 //
 // It exists because the question "should this be rebuilt for a toolchain
-// vulnerability?" needs a BEFORE. Measured 2026-10-09, a published bottle said
+// vulnerability?" needs a BEFORE. Measured 2026-10-09, a published artifact said
 // nothing at all about what compiled it: builder.id was a constant and
 // buildDefinition was `{}`. bk v0.17.0 records it; this says how much of the
 // registry predates that, which is what decides whether a rebuild counter can
@@ -153,10 +153,10 @@ func judge(env []attestedEnv, want requirement) envVerdict {
 func runBuildEnv(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("buildenv", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dist := fs.String("dist", bottle.DistBase, "the registry the bottles were published to")
+	dist := fs.String("dist", artifact.DistBase, "the registry the artifacts were published to")
 	platform := fs.String("platform", "", "os/arch to read, e.g. linux/aarch64 (default: this machine)")
 	list := fs.String("list", "", "file of `project version` lines to sweep instead of one project")
-	needs := fs.String("needs", "", "judge each bottle against a requirement on its build environment, e.g. -needs go.dev@1.27.2: which bottles were built with something older, which record nothing, and which never used it at all")
+	needs := fs.String("needs", "", "judge each artifact against a requirement on its build environment, e.g. -needs go.dev@1.27.2: which artifacts were built with something older, which record nothing, and which never used it at all")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -213,7 +213,7 @@ func buildEnvPlatform(p string) (osn, arch string, err error) {
 	return osn, arch, nil
 }
 
-// buildEnvOf fetches a published bottle's attestations and reads the build
+// buildEnvOf fetches a published artifact's attestations and reads the build
 // environment out of them.
 //
 // ⛔ NOT A SEAM, deliberately, and it was one for a day. sourceAttestations is
@@ -285,7 +285,7 @@ func sweepBuildEnv(path, dist, osn, arch string, want requirement, stdout, stder
 		// release, folded into OK it would make the figure meaningless.
 		fmt.Fprintf(stdout, "of those: %d need rebuilding for %s>=%s · %d already have it · %d never used it\n",
 			stale, want.Project, want.Version, ok, notUsed)
-		// The bottles that CANNOT be judged are the ones to act on first, and
+		// The artifacts that CANNOT be judged are the ones to act on first, and
 		// they are the whole registry until it has been rebuilt once under
 		// bk v0.17.0 or later.
 		if none > 0 {
@@ -299,7 +299,7 @@ func sweepBuildEnv(path, dist, osn, arch string, want requirement, stdout, stder
 }
 
 // versionOf is the version the recorded environment holds for a project, or
-// "" — used only to say WHICH version a stale bottle has, because "it is old"
+// "" — used only to say WHICH version a stale artifact has, because "it is old"
 // without the number sends the reader back to the registry.
 func versionOf(env []attestedEnv, project string) string {
 	for _, e := range env {

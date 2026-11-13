@@ -49,7 +49,7 @@ func namesUnder(t *testing.T, dir string) []string {
 
 // TestZipStripCountsALeadingDotLikeTarDoes: the two extractors must agree about
 // what `strip-components` means. The expectations match GNU tar's on the same
-// shape, measured in go-zpkg/bottle#69.
+// shape, measured in go-zpkg/artifact#69.
 func TestZipStripCountsALeadingDotLikeTarDoes(t *testing.T) {
 	data := zipOf(t, "./top/CMakeLists.txt", "./top/sub/CMakeLists.txt")
 	for _, tc := range []struct {

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/buildscript"
 	"github.com/go-zpkg/zpkb/config"
 	"github.com/go-zpkg/zpkb/fixup"
@@ -34,7 +34,7 @@ type Runner struct {
 	PickVersion func(project, constraint string) (string, error)
 	// ResolveVersion resolves the MAIN project version from the recipe's own
 	// `versions:` spec, so it matches the distributable URL's {{version.raw}}
-	// rather than dist's already-built (possibly normalised) bottle list. It
+	// rather than dist's already-built (possibly normalised) artifact list. It
 	// also returns the raw upstream git tag the version was resolved from, for
 	// the {{version.tag}} moustache used in GitHub release download URLs.
 	ResolveVersion func(spec any, constraint string) (version, tag string, err error)
@@ -45,11 +45,11 @@ type Runner struct {
 	// FetchSHA reads the checksum a recipe's `sha:` URL declares for an archive.
 	// Nil disables verification — what a test that does not care about it wants;
 	// the real runner always sets it.
-	FetchSHA    func(shaURL, archiveName string) (string, error)
-	Touch       func(dir string) error
-	Run         func(scriptPath string, env []string) error
-	FixUp       func(fixup.Options) error
-	WriteBottle func(installDir, project, version, osn, arch, outDir string) (string, error)
+	FetchSHA      func(shaURL, archiveName string) (string, error)
+	Touch         func(dir string) error
+	Run           func(scriptPath string, env []string) error
+	FixUp         func(fixup.Options) error
+	WriteArtifact func(installDir, project, version, osn, arch, outDir string) (string, error)
 	// ResolveDep, when set, resolves each dependency to a version so the build
 	// gets {{deps.<project>.prefix}}/{{deps.<project>.version}} tokens.
 	ResolveDep func(project, constraint string) (string, error)
@@ -72,17 +72,17 @@ type Runner struct {
 	// moustache (pkgx's convention). Empty disables the behaviour.
 	RecipeDir string
 	// LibcMode selects the C library the build links against. "zpkgx" targets
-	// the gnu.org/glibc bottle (sovereign FROM-scratch, linux only, C recipes);
+	// the gnu.org/glibc artifact (sovereign FROM-scratch, linux only, C recipes);
 	// anything else (default "") keeps the build container's system glibc.
 	LibcMode string
-	// Glibc pins the exact glibc bottle version to link against in LibcMode
+	// Glibc pins the exact glibc artifact version to link against in LibcMode
 	// "zpkgx" (a chosen HPC floor, e.g. "2.27.0"); empty = newest.
 	Glibc string
 	// Bootstrap runs the build WITHOUT the base toolchain in its environment,
 	// taking those tools from the host instead. It is for the first generation
 	// on an architecture no registry has: see BootstrapToolDeps for why nothing
 	// can otherwise be built first. It must not be set for an ordinary build --
-	// a bottle made this way was driven by tools nobody pinned.
+	// an artifact made this way was driven by tools nobody pinned.
 	Bootstrap bool
 
 	// LookPath finds a host binary, for the one case bootstrap has to ask the
@@ -126,17 +126,17 @@ type SourceRef struct {
 
 // Result reports what a build produced.
 type Result struct {
-	Version    string
-	Install    string
-	ScriptPath string
-	BottlePath string
+	Version      string
+	Install      string
+	ScriptPath   string
+	ArtifactPath string
 	// Concrete is what this build IS: the platform, the resolved closure and
 	// the digest of the canonical recipe. It is published verbatim as the
-	// bottle's SpecAnnotation, which is what makes the identity below
+	// artifact's SpecAnnotation, which is what makes the identity below
 	// RECOMPUTABLE by a reader rather than merely asserted.
-	Concrete bottle.Concrete
+	Concrete artifact.Concrete
 	// SpecHash is Concrete.Hash(), the address: in `Install`, in the registry
-	// tag, and checked against the annotation by bottle.VerifySpec.
+	// tag, and checked against the annotation by artifact.VerifySpec.
 	//
 	// ⛔ IT IS A FUNCTION OF THE INPUTS, NEVER OF THE OUTPUT. It has to be,
 	// because it is in `Install` — baked into every binary the build produces
@@ -148,7 +148,7 @@ type Result struct {
 	Source SourceRef
 	// BuildEnv is every dependency this build resolved, at the version it
 	// actually used — the compiler, its libc, and the tools the recipe
-	// invoked. It is what makes a published bottle able to say what compiled
+	// invoked. It is what makes a published artifact able to say what compiled
 	// it, and the axis along which a rebuild for a toolchain vulnerability
 	// differs from the build before it.
 	//
@@ -163,9 +163,9 @@ type Result struct {
 // two give it.
 //
 // ⛔⛔ IT EXISTS SO THE "ALREADY PUBLISHED?" QUESTION CAN BE ASKED ABOUT A
-// BUILD. While a bottle was addressed by its version, the factory could ask
+// BUILD. While an artifact was addressed by its version, the factory could ask
 // that before resolving anything — and got the wrong answer whenever a recipe
-// had changed, because the version had not. Now a bottle is addressed by its
+// had changed, because the version had not. Now an artifact is addressed by its
 // identity, the identity is a function of the resolved closure, and so the
 // question cannot be asked until the closure exists. Nix and Spack both
 // evaluate to a hash before consulting a binary cache, for this reason.
@@ -178,9 +178,9 @@ type Plan struct {
 	// the raw upstream git tag it came from.
 	Version string
 	Tag     string
-	// Concrete is what this build IS, in the form the published bottle
+	// Concrete is what this build IS, in the form the published artifact
 	// carries in its SpecAnnotation and a reader can verify against the tag.
-	Concrete bottle.Concrete
+	Concrete artifact.Concrete
 	// SpecHash is Concrete.Hash(): the 16 base32 characters a store path and
 	// an OCI tag can both hold. ⛔ NOT A SECOND DEFINITION — it is read off
 	// Concrete, so the prefix, the tag and the annotation cannot disagree.
@@ -263,7 +263,7 @@ func (r *Runner) Plan(recipe *pantry.Recipe, project, constraint string, tgt tar
 }
 
 // Build runs the pipeline for project@constraint built for tgt (running on host)
-// and, when distOut != "", packages a bottle there.
+// and, when distOut != "", packages an artifact there.
 //
 // It plans first. A caller that has already planned — the factory, which has
 // to know the identity before it can ask whether this build is published —
@@ -443,7 +443,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	toks = append(toks, depToks...)
 	// A recipe that build-depends on itself still interpolates its own prefix.
 	// Appended AFTER the resolved tokens so it can only fill a gap, never
-	// displace a real bottle's prefix: on an architecture where the bottle does
+	// displace a real artifact's prefix: on an architecture where the artifact does
 	// exist, nothing was dropped and this produces nothing.
 	if selfDropped {
 		toks = append(toks, HostPrefixForSelfDep(project, recipe.Provides, r.lookPath())...)
@@ -461,7 +461,7 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 	// do it: the list would be right today and silently short later.
 	if r.Bootstrap && strings.Contains(user, "{{deps.") {
 		return res, fmt.Errorf("bootstrap: %s builds from a dependency prefix we cannot provide here "+
-			"(an unresolved {{deps.…}} remains); it needs a bottle of its own build dependency first", project)
+			"(an unresolved {{deps.…}} remains); it needs an artifact of its own build dependency first", project)
 	}
 	// Materialise the build-shim helpers (fix-shebangs.ts, …) into a per-build
 	// libexec dir alongside the generated script, and prepend it to PATH via
@@ -557,11 +557,11 @@ func (r *Runner) BuildPlan(p Plan, recipe *pantry.Recipe, project string, tgt, h
 
 	// package
 	if distOut != "" {
-		p, err := r.WriteBottle(paths.Install, project, version, tgt.Platform, tgt.Arch, distOut)
+		p, err := r.WriteArtifact(paths.Install, project, version, tgt.Platform, tgt.Arch, distOut)
 		if err != nil {
 			return res, fmt.Errorf("package: %w", err)
 		}
-		res.BottlePath = p
+		res.ArtifactPath = p
 	}
 	return res, nil
 }

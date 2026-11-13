@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // fakePublication installs the two seams for the duration of a test:
@@ -17,17 +17,17 @@ import (
 func fakePublication(t *testing.T, published map[string]bool, newest map[string]string) {
 	t.Helper()
 	oldTag, oldPick := lockPublishedTagFor, lockPickPublished
-	lockPublishedTagFor = func(project string, v bottle.Ver, osn, arch string) (string, bool, error) {
+	lockPublishedTagFor = func(project string, v artifact.Ver, osn, arch string) (string, bool, error) {
 		if published[project+"@"+v.Raw] {
 			return v.Raw + "--" + osn + "-" + arch, true, nil
 		}
 		return "", false, nil
 	}
-	lockPickPublished = func(project, constraint, osn, arch string) (bottle.Ver, error) {
+	lockPickPublished = func(project, constraint, osn, arch string) (artifact.Ver, error) {
 		if v, ok := newest[project]; ok {
-			return bottle.ParseVer(v), nil
+			return artifact.ParseVer(v), nil
 		}
-		return bottle.Ver{}, errors.New("nothing published")
+		return artifact.Ver{}, errors.New("nothing published")
 	}
 	t.Cleanup(func() { lockPublishedTagFor, lockPickPublished = oldTag, oldPick })
 }
@@ -38,13 +38,13 @@ func fakeConstrainedPick(t *testing.T, answer func(project string, constraints [
 	t.Helper()
 	seen := map[string][]string{}
 	old := lockPickPublishedAll
-	lockPickPublishedAll = func(project string, constraints []string, osn, arch string) (bottle.Ver, error) {
+	lockPickPublishedAll = func(project string, constraints []string, osn, arch string) (artifact.Ver, error) {
 		seen[project] = constraints
 		v, err := answer(project, constraints)
 		if err != nil {
-			return bottle.Ver{}, err
+			return artifact.Ver{}, err
 		}
-		return bottle.ParseVer(v), nil
+		return artifact.ParseVer(v), nil
 	}
 	t.Cleanup(func() { lockPickPublishedAll = old })
 	return &seen
@@ -81,7 +81,7 @@ func TestLockNamesThePinsThePlatformCannotInstall(t *testing.T) {
 		t.Fatalf("found %d unpublished pins, want 2: %+v", len(bad), bad)
 	}
 	var b strings.Builder
-	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", bottle.PinsFromRecipes, 0)
+	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", artifact.PinsFromRecipes, 0)
 	got := b.String()
 	for _, want := range []string{
 		"2 of 5 pin(s) NOT published",
@@ -115,7 +115,7 @@ func TestLockSaysSoWhenEveryPinIsInstallable(t *testing.T) {
 		t.Fatalf("bad=%+v failed=%v", bad, failed)
 	}
 	var b strings.Builder
-	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", bottle.PinsFromRecipes, 0)
+	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", artifact.PinsFromRecipes, 0)
 	got := b.String()
 	if !strings.Contains(got, "1 of 1 pin(s) published") || !strings.Contains(got, "can run this file") {
 		t.Errorf("a clean lock said nothing useful:\n%s", got)
@@ -127,7 +127,7 @@ func TestLockSaysSoWhenEveryPinIsInstallable(t *testing.T) {
 // `pkgx outdated` printing nothing with the network down.
 func TestAFailedLookupIsNotTreatedAsPublished(t *testing.T) {
 	oldTag := lockPublishedTagFor
-	lockPublishedTagFor = func(string, bottle.Ver, string, string) (string, bool, error) {
+	lockPublishedTagFor = func(string, artifact.Ver, string, string) (string, bool, error) {
 		return "", false, errors.New("dial tcp: network is unreachable")
 	}
 	t.Cleanup(func() { lockPublishedTagFor = oldTag })
@@ -143,7 +143,7 @@ func TestAFailedLookupIsNotTreatedAsPublished(t *testing.T) {
 		t.Errorf("a failed lookup was reported as unpublished: %+v", bad)
 	}
 	var b strings.Builder
-	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", bottle.PinsFromRecipes, 0)
+	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", artifact.PinsFromRecipes, 0)
 	got := b.String()
 	if !strings.Contains(got, "could NOT be asked about") || !strings.Contains(got, "not an all-clear") {
 		t.Errorf("the report reads as a pass:\n%s", got)
@@ -164,7 +164,7 @@ func TestAProjectWithNothingPublishedSaysThat(t *testing.T) {
 		t.Fatalf("bad=%+v failed=%v", bad, failed)
 	}
 	var b strings.Builder
-	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", bottle.PinsFromRecipes, 0)
+	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", artifact.PinsFromRecipes, 0)
 	if !strings.Contains(b.String(), "nothing published here") {
 		t.Errorf("an unpublished project read as behind:\n%s", b.String())
 	}
@@ -177,14 +177,14 @@ func TestTheRemedyIsNotOfferedToSomebodyAlreadyUsingIt(t *testing.T) {
 	pins := []lockedPin{{Project: "a.org", Version: "2.0.0"}}
 	bad, failed := unpublishedPins(pins, "linux", "aarch64")
 	var b strings.Builder
-	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", bottle.PinsPublished, 0)
+	reportUnpublished(&b, pins, bad, failed, "linux/aarch64", artifact.PinsPublished, 0)
 	if strings.Contains(b.String(), "-runnable` pins") {
 		t.Errorf("-runnable was suggested to a -runnable run:\n%s", b.String())
 	}
 }
 
 func TestLockModeOfNamesTheTwoQuestions(t *testing.T) {
-	if lockModeOf(true) != bottle.PinsPublished || lockModeOf(false) != bottle.PinsFromRecipes {
+	if lockModeOf(true) != artifact.PinsPublished || lockModeOf(false) != artifact.PinsFromRecipes {
 		t.Errorf("lockModeOf: %q / %q", lockModeOf(true), lockModeOf(false))
 	}
 }
@@ -321,7 +321,7 @@ func TestRunnablePassesTheClosuresDemandsToTheResolver(t *testing.T) {
 // failure output while fixing something else.
 func TestAnEmptyPinSetIsNotReportedAsRunnable(t *testing.T) {
 	var b strings.Builder
-	reportUnpublished(&b, nil, nil, nil, "linux/aarch64", bottle.PinsFromRecipes, 0)
+	reportUnpublished(&b, nil, nil, nil, "linux/aarch64", artifact.PinsFromRecipes, 0)
 	got := b.String()
 	if strings.Contains(got, "can run this file") {
 		t.Errorf("an empty lock was endorsed:\n%s", got)
@@ -344,7 +344,7 @@ func TestAnEmptyPinSetIsNotReportedAsRunnable(t *testing.T) {
 func TestAVerdictSeesTheProjectsThatCouldNotBePinnedAtAll(t *testing.T) {
 	pins := []lockedPin{{Project: "curl.se", Version: "8.20"}}
 	var b strings.Builder
-	reportUnpublished(&b, pins, nil, nil, "linux/aarch64", bottle.PinsPublished, 1)
+	reportUnpublished(&b, pins, nil, nil, "linux/aarch64", artifact.PinsPublished, 1)
 	got := b.String()
 	if strings.Contains(got, "can run this file") {
 		t.Errorf("a lock with a hole was endorsed:\n%s", got)
@@ -355,7 +355,7 @@ func TestAVerdictSeesTheProjectsThatCouldNotBePinnedAtAll(t *testing.T) {
 	// AND THE POSITIVE CONTROL: with no holes, the same pins ARE endorsed —
 	// otherwise this would pass on a verdict that endorses nothing.
 	b.Reset()
-	reportUnpublished(&b, pins, nil, nil, "linux/aarch64", bottle.PinsPublished, 0)
+	reportUnpublished(&b, pins, nil, nil, "linux/aarch64", artifact.PinsPublished, 0)
 	if !strings.Contains(b.String(), "can run this file") {
 		t.Errorf("a complete lock was not endorsed:\n%s", b.String())
 	}

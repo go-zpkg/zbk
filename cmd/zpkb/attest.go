@@ -8,24 +8,24 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
-// runAttest says what a PUBLISHED bottle carries, and can fail when something
+// runAttest says what a PUBLISHED artifact carries, and can fail when something
 // expected is missing.
 //
 // # WHY THIS EXISTS
 //
-// Four kinds of thing are attached to a bottle as OCI referrers — a CycloneDX
+// Four kinds of thing are attached to an artifact as OCI referrers — a CycloneDX
 // SBOM, an in-toto SLSA provenance, a cosign signature, and (since bk v0.24.0)
-// an OpenVEX document. Nothing could be asked which of them a given bottle
+// an OpenVEX document. Nothing could be asked which of them a given artifact
 // actually has.
 //
 // That gap is not academic. `bk publish --advisories` attaches the VEX
 // document only when the advisory tree holds a record for the project, and the
 // factory passes the tree through six lanes, one of which mounts it into a
 // chroot. Every one of those is a place where the document can silently fail to
-// appear — and a bottle with no document looks exactly like a bottle nobody
+// appear — and an artifact with no document looks exactly like an artifact nobody
 // had anything to say about. `bk source` reads the provenance and `bk buildenv`
 // reads it too, but neither ENUMERATES, so "did it land?" had no answer but
 // curl against the referrers API.
@@ -42,8 +42,8 @@ import (
 func runAttest(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("attest", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dist := fs.String("dist", bottle.DistBase, "oci:// registry to read")
-	platform := fs.String("platform", "", "bottle os/arch, e.g. linux/x86-64 (default: this host's)")
+	dist := fs.String("dist", artifact.DistBase, "oci:// registry to read")
+	platform := fs.String("platform", "", "artifact os/arch, e.g. linux/x86-64 (default: this host's)")
 	require := fs.String("require", "", "comma-separated artifactTypes that MUST be present; exit non-zero if one is not")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -66,8 +66,8 @@ func runAttest(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	// ⛔ THE COUNT FIRST, AND ZERO IS A SENTENCE. A bottle with no referrers
-	// and a bottle this could not read about are the same silence otherwise,
+	// ⛔ THE COUNT FIRST, AND ZERO IS A SENTENCE. An artifact with no referrers
+	// and an artifact this could not read about are the same silence otherwise,
 	// and this fleet has published a zero that meant "could not read".
 	fmt.Fprintf(stdout, "%s %s %s/%s: %d referrer(s)\n", project, ver, osn, arch, len(refs))
 	present := map[string]bool{}
@@ -96,7 +96,7 @@ func runAttest(args []string, stdout, stderr io.Writer) int {
 // attestPlatform resolves the platform to read, defaulting to this host's.
 func attestPlatform(spec string) (string, string, bool) {
 	if spec == "" {
-		osn, arch := bottle.HostSlug()
+		osn, arch := artifact.HostSlug()
 		return osn, arch, true
 	}
 	return splitPlatform(spec)
@@ -104,8 +104,8 @@ func attestPlatform(spec string) (string, string, bool) {
 
 // attestFetch is the seam: the tests drive the whole command without a
 // registry.
-var attestFetch = func(dist, project, ver, osn, arch string) ([]bottle.Referrer, error) {
-	c, err := bottle.NewOCIClient(dist)
+var attestFetch = func(dist, project, ver, osn, arch string) ([]artifact.Referrer, error) {
+	c, err := artifact.NewOCIClient(dist)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +113,11 @@ var attestFetch = func(dist, project, ver, osn, arch string) ([]bottle.Referrer,
 	return refs, err
 }
 
-// sortReferrers orders by artifactType so two runs over one bottle print the
+// sortReferrers orders by artifactType so two runs over one artifact print the
 // same thing. A registry does not promise an order, and a report whose lines
 // move between runs cannot be diffed.
-func sortReferrers(refs []bottle.Referrer) []bottle.Referrer {
-	out := make([]bottle.Referrer, len(refs))
+func sortReferrers(refs []artifact.Referrer) []artifact.Referrer {
+	out := make([]artifact.Referrer, len(refs))
 	copy(out, refs)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].ArtifactType < out[j].ArtifactType })
 	return out
@@ -128,7 +128,7 @@ func sortReferrers(refs []bottle.Referrer) []bottle.Referrer {
 // It reads the blob rather than trusting the artifactType: a referrer whose
 // type says OpenVEX and whose body is empty is the failure this command exists
 // to catch, and "0 statement(s)" says so where a byte count would not.
-func summariseReferrer(r bottle.Referrer) string {
+func summariseReferrer(r artifact.Referrer) string {
 	switch r.ArtifactType {
 	case artifactOpenVEX:
 		var doc struct {
@@ -179,10 +179,10 @@ func summariseReferrer(r bottle.Referrer) string {
 			return "unreadable: " + err.Error()
 		}
 		return doc.Predicate.RunDetails.Builder.ID
-	case bottle.ArtifactTypeSignature:
+	case artifact.ArtifactTypeSignature:
 		// The signature itself lives in an annotation, not the blob, so its
 		// presence is the thing to report.
-		if r.Annotations[bottle.CosignSignatureAnnotation] == "" {
+		if r.Annotations[artifact.CosignSignatureAnnotation] == "" {
 			return "no signature in the annotation"
 		}
 		return "signed"

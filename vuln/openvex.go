@@ -39,19 +39,19 @@ const (
 // Product is the artefact a statement is about.
 //
 // Choosing it is the CALLER's job and it is not cosmetic: a `fixed` statement
-// asserts that THESE versions contain the fix, so naming a bottle that does not
+// asserts that THESE versions contain the fix, so naming an artifact that does not
 // is a false claim. Advisory.FixedBy is the check.
 //
 // The hash is what makes the statement checkable rather than merely plausible.
 // A purl names a version; a digest names the bytes, and it is the same digest
-// the bottle's SBOM, its SLSA provenance and its cosign payload are bound to —
+// the artifact's SBOM, its SLSA provenance and its cosign payload are bound to —
 // so all four attestations speak about one artefact instead of four
 // descriptions that happen to agree.
 type Product struct {
 	// ID is the IRI identifying the product. Optional in the spec; required
 	// here, because a statement whose subject cannot be named is not usable.
 	ID string
-	// Version is the version of OURS this product is, spelled as the bottle
+	// Version is the version of OURS this product is, spelled as the artifact
 	// tag spells it — "3.5.8_1", rebuild counter included.
 	//
 	// ⛔ REQUIRED, although the spec asks for no such field, because without
@@ -98,7 +98,7 @@ type VEXOptions struct {
 	// Author identifies who is asserting this. The spec asks for a machine
 	// readable identifier and says the identity SHOULD be cryptographically
 	// associated with the document's signature — which, here, is the cosign
-	// signature the bottle already carries.
+	// signature the artifact already carries.
 	Author string
 	// Role is optional.
 	Role string
@@ -261,7 +261,7 @@ var actionFor = map[string]string{
 //
 // Statements are ordered by vulnerability id within each subject, and subjects
 // by project, so the same records produce the same bytes — a document that
-// differed run to run could not be attached to a bottle and compared.
+// differed run to run could not be attached to an artifact and compared.
 func EncodeVEX(o VEXOptions) ([]byte, error) {
 	if err := o.check(); err != nil {
 		return nil, err
@@ -322,7 +322,7 @@ func (o VEXOptions) check() error {
 			// The spec makes @id optional and lets a product be identified by
 			// its `identifiers` alone. Required here: a statement whose
 			// subject has no name is one nobody can look up, and the caller
-			// always has one — the bottle's purl.
+			// always has one — the artifact's purl.
 			if strings.TrimSpace(p.ID) == "" {
 				return fmt.Errorf("vuln: vex: %s: a product has no @id", s.File.Project)
 			}
@@ -347,7 +347,7 @@ func (o VEXOptions) check() error {
 //
 // ⛔ A LIST, not a statement. Before #340 this returned exactly one statement
 // covering every product, which is only correct while every product is the
-// same version. The moment a determination made about 1.0.0 meets a bottle of
+// same version. The moment a determination made about 1.0.0 meets an artifact of
 // 2.0.0, one status cannot be right for both, and the shape of the function
 // was what made the wrong one unavoidable.
 func statementsFor(a Advisory, products []Product) ([]vexStatement, error) {

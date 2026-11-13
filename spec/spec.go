@@ -1,4 +1,4 @@
-// Package spec computes the identity of a build: what a bottle IS, as
+// Package spec computes the identity of a build: what an artifact IS, as
 // opposed to what it is called.
 //
 // # WHOSE IDEA THIS IS
@@ -30,7 +30,7 @@
 // # WHY IT LIVES HERE AND NOT IN cmd/zpkb
 //
 // It was written for `zpkb lock` and sat in `package main`, where the BUILD
-// could not reach it — so the factory shipped 42 756 bottles with no identity
+// could not reach it — so the factory shipped 42 756 artifacts with no identity
 // at all while a correct one sat two directories away (go-zpkg/zpkb#410). A
 // hash that only one command can compute is a hash the product does not have.
 package spec
@@ -62,7 +62,7 @@ const (
 	// ever written contains hashes computed under it, and `lock --check`
 	// compares them. Changing it invalidates every lock in existence.
 	DomainLock = "bk-lock-spec-hash v1"
-	// DomainBuild is the identity a bottle is built and published under.
+	// DomainBuild is the identity an artifact is built and published under.
 	DomainBuild = "zpkb-build-spec-hash v1"
 )
 
@@ -111,7 +111,7 @@ func hashRecipes(h io.Writer, recs []*pantry.Recipe, proj string) error {
 	return nil
 }
 
-// ⛔ THE SHORT FORM IS bottle.ShortHash's, AND IS NOT DUPLICATED HERE. A
-// store path and an OCI tag have to agree on it, and `bottle` is what writes
+// ⛔ THE SHORT FORM IS artifact.ShortHash's, AND IS NOT DUPLICATED HERE. A
+// store path and an OCI tag have to agree on it, and `artifact` is what writes
 // both. An OCI tag may hold `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}` and no `:`,
 // so the raw "sha256:…" cannot be a tag at all — the caller shortens.

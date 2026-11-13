@@ -58,7 +58,7 @@ var compilerShims = []string{"cc", "gcc", "c++", "g++", "clang", "clang++"}
 // autoconf reaches for before the bare ones.
 //
 // libisl's configure looks for `x86_64-pc-linux-gnu-gcc`, finds the bare gcc
-// the gnu.org/gcc bottle puts on PATH — without any of the sovereign sysroot,
+// the gnu.org/gcc artifact puts on PATH — without any of the sovereign sysroot,
 // crt or runtime flags — and stops at
 //
 //	checking whether the C compiler works... no

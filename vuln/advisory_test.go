@@ -96,7 +96,7 @@ advisories:
 }
 
 // ⛔ THE REBUILD IS THE POINT. An advisory fixed in 3.5.8_1 is NOT satisfied by
-// 3.5.8: they are different bottles and only one has the fix. This is the
+// 3.5.8: they are different artifacts and only one has the fix. This is the
 // comparison the whole rebuild counter exists for.
 func TestFixedByReadsTheRebuild(t *testing.T) {
 	const y = `schema-version: 1
@@ -213,7 +213,7 @@ func TestParseAdvisoriesRefusals(t *testing.T) {
 			"not one of OpenVEX's labels",
 		},
 		{
-			// The Debian/Alpine spelling of a rebuild, which bottle would
+			// The Debian/Alpine spelling of a rebuild, which artifact would
 			// read as no rebuild at all.
 			"a Debian-style revision",
 			head + "  - id: CVE-1\n    events:\n      - timestamp: 2024-01-01T00:00:00Z\n        type: fixed\n        fixed-version: 3.5.8-1\n",
@@ -273,7 +273,7 @@ advisories:
 
 // A trailing dash with nothing after it is not a Debian revision, and this
 // check does not pretend to be a version validator — it refuses the ONE
-// spelling bottle would misread. Pinned so the next person widening the guard
+// spelling artifact would misread. Pinned so the next person widening the guard
 // sees what it was scoped to.
 func TestATrailingDashIsNotARevision(t *testing.T) {
 	const y = `schema-version: 1

@@ -119,8 +119,8 @@ func SetRunpath(path, value string) error {
 	//	ld.so: elf_get_dynamic_info: Assertion `info[DT_RPATH] == NULL' failed!
 	//
 	// glibc's own loader refuses a DT_RPATH on the objects it processes, so a
-	// libc bottle fixed up this way cannot load its own libc — and since
-	// gnu.org/glibc provides bin/ldd and bottle puts glibc in every linux
+	// libc artifact fixed up this way cannot load its own libc — and since
+	// gnu.org/glibc provides bin/ldd and artifact puts glibc in every linux
 	// closure, `ldd` stops working for everything we publish there
 	// (go-zpkg/bk#256).
 	//
@@ -262,7 +262,7 @@ func rewriteRunpath(exe string, opts Options) error {
 			}
 		}
 	}
-	// Always reference the package's OWN lib dir $ORIGIN-relative, so a bottle
+	// Always reference the package's OWN lib dir $ORIGIN-relative, so an artifact
 	// binary finds its sibling shared libs (…/lib) from a FROM-scratch image with
 	// no LD_LIBRARY_PATH. From bin/ this is $ORIGIN/../lib; from lib/ itself it is
 	// $ORIGIN/. — both resolve to the package lib dir. Deduped if already present.
@@ -283,14 +283,14 @@ func rewriteRunpath(exe string, opts Options) error {
 // the earlier `v(\d+)\.(\d+\.)+\d+` did NOT: it required three components.
 // Two-component versions are ordinary here (curl.se v8.20, pcre.org/v2 v10.47),
 // and leaving them whole is what let a dependency's minor upgrade orphan its
-// dependents. Measured on the published gnu.org/grep bottle, which named
+// dependents. Measured on the published gnu.org/grep artifact, which named
 // pcre2 v10.47 on a machine that had v10.48: grep could not start, and curl's
 // configure reported it as "'grep' utility not found in 'PATH'".
 //
 // A leading `v` is required, so a soname (libpcre2-8.0.dylib) is not a version.
 var versionRE = regexp.MustCompile(`v(\d+)(\.\d+)+[a-z]?`)
 
-// transformRpath major-versions a full version path so bottles survive minor
+// transformRpath major-versions a full version path so artifacts survive minor
 // upgrades without a re-sign; $ORIGIN paths and references into the package's
 // own project dir are left untouched.
 func transformRpath(input, projectDir string) string {
@@ -314,7 +314,7 @@ func transformRpath(input, projectDir string) string {
 //
 //	$ORIGIN/../../v1.22.0+brewing/lib:$ORIGIN/../lib
 //
-// Measured on published bottles: openucx.org has it in 11 of its 13 ELFs and
+// Measured on published artifacts: openucx.org has it in 11 of its 13 ELFs and
 // sqlite.org in both of its. Neither is broken, because the entry that follows
 // resolves — but a dead entry costs a slot in a budget the in-place rewriter
 // has to fit, and it puts a build directory's name in an artefact we sign.
@@ -375,7 +375,7 @@ func walkExes(prefix string, fn func(string) error) error {
 // transformRpath majors the directory of a reference into another package —
 // v1.3.1 becomes v1 — so the reference follows that package's patch releases.
 // The leaf was carried over whole, and a full-version leaf undoes exactly what
-// majoring the directory bought. Measured on the published cairo 1.18.4 bottle:
+// majoring the directory bought. Measured on the published cairo 1.18.4 artifact:
 //
 //	libcairo.2.dylib -> @rpath/zlib.net/v1/lib/libz.1.3.1.dylib
 //
@@ -472,12 +472,12 @@ func isMajorSoname(leaf, cand string) bool {
 // its soname. libxml2 does not, so `open-mpi.org` — which needs hwloc's
 // libxml2.16 and gettext's libxml2.2 at once — has no closure at all.
 //
-// bottle now installs an `abi-<soname>` link beside the version aliases, from
-// what the bottle DECLARES it provides. Naming that instead of v<major> gives
+// artifact now installs an `abi-<soname>` link beside the version aliases, from
+// what the artifact DECLARES it provides. Naming that instead of v<major> gives
 // the same late binding — a patch or minor upgrade within the line still moves
 // the link — keyed on the thing that decides whether a consumer can load it.
 //
-// Only when the link is really there. A dependency published before bottle
+// Only when the link is really there. A dependency published before artifact
 // wrote them, or one whose soname this build did not name, keeps the v<major>
 // form and behaves exactly as before.
 func abiLine(orig, leaf, zpkgDir string) (string, bool) {
@@ -518,7 +518,7 @@ var abiVersionDirRE = regexp.MustCompile(`^(.+?)/(v[0-9][^/]*/)`)
 // absolute path or as @rpath/<rest>, and which one it is depends on the
 // dependency's own install name, not on anything the consumer chose. hwloc
 // comes through the @rpath door — libxml2's install name is already @rpath —
-// so #183 rewrote nothing for it, and the rebuilt bottle still recorded
+// so #183 rewrote nothing for it, and the rebuilt artifact still recorded
 //
 //	@rpath/gnome.org/libxml2/v2/lib/libxml2.16.dylib
 //

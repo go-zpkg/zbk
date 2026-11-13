@@ -10,15 +10,15 @@ import (
 	"os"
 	"path"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/target"
 )
 
 // sourceAttestations and sourcePuller are seams: the tests drive the whole
 // round trip without a registry.
 var (
-	sourceAttestations = func(dist, project, ver, osn, arch string) ([]bottle.Referrer, error) {
-		c, err := bottle.NewOCIClient(dist)
+	sourceAttestations = func(dist, project, ver, osn, arch string) ([]artifact.Referrer, error) {
+		c, err := artifact.NewOCIClient(dist)
 		if err != nil {
 			return nil, err
 		}
@@ -26,7 +26,7 @@ var (
 		return refs, err
 	}
 	sourcePuller = func(mirror, sha256hex string) ([]byte, error) {
-		c, err := bottle.NewOCIClient(mirror)
+		c, err := artifact.NewOCIClient(mirror)
 		if err != nil {
 			return nil, err
 		}
@@ -34,14 +34,14 @@ var (
 	}
 )
 
-// attestedSource is one entry of a bottle's provenance: the archive it was
+// attestedSource is one entry of an artifact's provenance: the archive it was
 // built from, and the digest that names it in the mirror.
 type attestedSource struct {
 	URI    string
 	SHA256 string
 }
 
-// sourcesAttestedBy reads the in-toto provenance of a published bottle and
+// sourcesAttestedBy reads the in-toto provenance of a published artifact and
 // returns the sources it names.
 //
 // The digest is the whole point. A URI can 404, be re-cut at different content,
@@ -49,7 +49,7 @@ type attestedSource struct {
 // tarball GitHub GENERATES on request — never have been a stored artefact at
 // all. The sha256 in `resolvedDependencies` is what the signature covers, and
 // it is the mirror's address.
-func sourcesAttestedBy(refs []bottle.Referrer) ([]attestedSource, error) {
+func sourcesAttestedBy(refs []artifact.Referrer) ([]attestedSource, error) {
 	var raw []byte
 	for _, r := range refs {
 		if r.ArtifactType == artifactInToto {
@@ -58,7 +58,7 @@ func sourcesAttestedBy(refs []bottle.Referrer) ([]attestedSource, error) {
 		}
 	}
 	if raw == nil {
-		return nil, errors.New("the bottle carries no provenance attestation")
+		return nil, errors.New("the artifact carries no provenance attestation")
 	}
 	var stmt struct {
 		Predicate struct {
@@ -113,7 +113,7 @@ func sourceOutputName(s attestedSource) string {
 	}
 }
 
-// runSource fetches the source a published bottle attests it was built from.
+// runSource fetches the source a published artifact attests it was built from.
 //
 // This is the consuming half of the source mirror (go-zpkg/bk#127): the
 // populating half keeps every archive a build downloads, addressed by its
@@ -122,10 +122,10 @@ func sourceOutputName(s attestedSource) string {
 func runSource(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("source", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dist := fs.String("dist", bottle.DistBase, "the registry the bottle was published to")
+	dist := fs.String("dist", artifact.DistBase, "the registry the artifact was published to")
 	mirror := fs.String("mirror", envOr("SOURCE_MIRROR", "oci://ghcr.io/go-zpkg"), "the source mirror to read from")
 	out := fs.String("o", "", "write the archive here (default: its name in the current directory)")
-	show := fs.Bool("print", false, "print what the bottle attests and fetch nothing")
+	show := fs.Bool("print", false, "print what the artifact attests and fetch nothing")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -164,8 +164,8 @@ func runSource(args []string, stdout, stderr io.Writer) int {
 	for _, s := range srcs {
 		data, err := sourcePuller(*mirror, s.SHA256)
 		if err != nil {
-			if errors.Is(err, bottle.ErrSourceAbsent) {
-				// The distinction that matters: the bottle is fine and the
+			if errors.Is(err, artifact.ErrSourceAbsent) {
+				// The distinction that matters: the artifact is fine and the
 				// mirror simply never saw this build. Fetching the URI instead
 				// would be a DIFFERENT artefact unless it still hashes right.
 				fmt.Fprintf(stderr, "error: the mirror does not hold %s (%s)\n", s.SHA256, s.URI)

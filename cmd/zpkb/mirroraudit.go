@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/fixup"
 )
 
 // machoMagic are the four leading bytes of a Mach-O, thin or fat, either
 // endianness. Matching on the bytes rather than on a path lets the scan skip
-// the scripts, headers and data that make up most of a bottle.
+// the scripts, headers and data that make up most of an artifact.
 var machoMagic = [][]byte{
 	{0xfe, 0xed, 0xfa, 0xce}, {0xce, 0xfa, 0xed, 0xfe}, // 32-bit
 	{0xfe, 0xed, 0xfa, 0xcf}, {0xcf, 0xfa, 0xed, 0xfe}, // 64-bit
@@ -45,10 +45,10 @@ func looksMachO(b []byte) bool {
 	return false
 }
 
-// auditMirroredBottle reports what FixUp's relocatability guards would have
-// said about a bottle that was never unpacked.
+// auditMirroredArtifact reports what FixUp's relocatability guards would have
+// said about an artifact that was never unpacked.
 //
-// A mirrored bottle is republished verbatim, so `fixup` never runs on it and
+// A mirrored artifact is republished verbatim, so `fixup` never runs on it and
 // `ErrDeadRpath`/`ErrBuilderOnlyRpath` have no bytes to look at.
 // `git-scm.org 2.55.0` reached the catalogue that way: 164 of its 164 Mach-O
 // files reach a sibling package only through `/Users/runner/.pkgx`, so `git`
@@ -59,24 +59,24 @@ func looksMachO(b []byte) bool {
 // question; what a publisher should not have to do is learn it from someone
 // else's dyld error.
 //
-// A bottle tarball's entries are already `<project>/v<ver>/…`, so extracting
+// An artifact tarball's entries are already `<project>/v<ver>/…`, so extracting
 // the Mach-O files alone into a temp directory reproduces the layout the guards
 // need: that directory is $ZPKG_DIR and the package prefix sits under it at its
 // real depth, which is exactly what an @loader_path rpath is measured against.
-func auditMirroredBottle(path, ext, proj, ver string) (checked int, problems []error, err error) {
+func auditMirroredArtifact(path, ext, proj, ver string) (checked int, problems []error, err error) {
 	f, err := auditOpen(path)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer f.Close()
 
-	// bottle.Decompressor, which knows every codec this factory publishes. The
+	// artifact.Decompressor, which knows every codec this factory publishes. The
 	// switch this replaces knew xz and gzip and sent .tar.zst — the DEFAULT —
-	// down its error arm, so the audit refused today's bottles by name. It was
+	// down its error arm, so the audit refused today's artifacts by name. It was
 	// honest about it, which is the reason nobody noticed: "unhandled
 	// compression" reads as a gap in the audit rather than as the audit
 	// covering nothing. An unknown codec still says so, from there.
-	r, closeFn, err := bottle.Decompressor(ext, f)
+	r, closeFn, err := artifact.Decompressor(ext, f)
 	if err != nil {
 		return 0, nil, fmt.Errorf("cannot audit %s: %w", path, err)
 	}

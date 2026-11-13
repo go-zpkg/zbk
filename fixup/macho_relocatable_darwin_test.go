@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-// What a darwin bottle is FOR: to work on a machine that is not the one that
+// What a darwin artifact is FOR: to work on a machine that is not the one that
 // built it. Everything else here checks a step; this checks the outcome.
 //
 // It builds a two-package $ZPKG_DIR the way bk lays one out — a library in
 // acme.org/foo/v1.2.3/lib, a program in other.org/bar/v2.0.0/bin — runs the
 // real FixUp over both, then MOVES the whole tree and runs the program from
-// its new home. A bottle whose dependency is named by absolute install name
-// cannot survive that move, and until this change every darwin bottle was.
-func TestBottleSurvivesBeingMoved(t *testing.T) {
+// its new home. An artifact whose dependency is named by absolute install name
+// cannot survive that move, and until this change every darwin artifact was.
+func TestArtifactSurvivesBeingMoved(t *testing.T) {
 	cc, err := exec.LookPath("cc")
 	if err != nil {
 		t.Skip("no cc: nothing to build a real Mach-O with")
@@ -104,7 +104,7 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 		movedExe := filepath.Join(moved, exe[len(zpkgDir)+1:])
 		_ = exePrefix
 		if got, err := runsFrom(movedExe); err == nil {
-			t.Fatalf("an unfixed bottle survived the move (%q): the absolute install name resolved, so this machine cannot tell the two apart", got)
+			t.Fatalf("an unfixed artifact survived the move (%q): the absolute install name resolved, so this machine cannot tell the two apart", got)
 		}
 	}
 
@@ -116,7 +116,7 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 	}
 
 	// The reference must now be relative to the rpath, version and all: pkgx
-	// installs each version in its own directory, and a bottle may not assume a
+	// installs each version in its own directory, and an artifact may not assume a
 	// major-version symlink exists at load time.
 	strs, err := ReadMachoStrings(exe)
 	if err != nil {
@@ -144,7 +144,7 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 	movedExe := filepath.Join(moved, exe[len(zpkgDir)+1:])
 	got, err := runsFrom(movedExe)
 	if err != nil {
-		t.Fatalf("the fixed-up bottle did not run after being moved: %v\noutput: %q", err, got)
+		t.Fatalf("the fixed-up artifact did not run after being moved: %v\noutput: %q", err, got)
 	}
 	if got != "foo=42" {
 		t.Errorf("output = %q, want foo=42", got)
@@ -152,8 +152,8 @@ func TestBottleSurvivesBeingMoved(t *testing.T) {
 }
 
 // A binary with no rpath reaching $ZPKG_DIR keeps its absolute install names.
-// Rewriting them to @rpath/… would resolve to nothing at all, trading a bottle
-// that works on one machine for a bottle that works on none.
+// Rewriting them to @rpath/… would resolve to nothing at all, trading an artifact
+// that works on one machine for an artifact that works on none.
 func TestWithoutAnRpathTheNamesAreLeftAlone(t *testing.T) {
 	cc, err := exec.LookPath("cc")
 	if err != nil {

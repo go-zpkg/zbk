@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 func attest(t *testing.T, args ...string) (int, string, string) {
@@ -16,12 +16,12 @@ func attest(t *testing.T, args ...string) (int, string, string) {
 	return rc, out.String(), errb.String()
 }
 
-// withAttestations fakes what a registry holds for one bottle.
-func withAttestations(t *testing.T, refs []bottle.Referrer, err error) *int {
+// withAttestations fakes what a registry holds for one artifact.
+func withAttestations(t *testing.T, refs []artifact.Referrer, err error) *int {
 	t.Helper()
 	n := 0
 	prev := attestFetch
-	attestFetch = func(_, _, _, _, _ string) ([]bottle.Referrer, error) {
+	attestFetch = func(_, _, _, _, _ string) ([]artifact.Referrer, error) {
 		n++
 		return refs, err
 	}
@@ -29,9 +29,9 @@ func withAttestations(t *testing.T, refs []bottle.Referrer, err error) *int {
 	return &n
 }
 
-// fourReferrers is what a signed bottle of a triaged project carries.
-func fourReferrers() []bottle.Referrer {
-	return []bottle.Referrer{
+// fourReferrers is what a signed artifact of a triaged project carries.
+func fourReferrers() []artifact.Referrer {
+	return []artifact.Referrer{
 		{
 			ArtifactType: artifactInToto, MediaType: artifactInToto,
 			Blob: []byte(`{"predicate":{"runDetails":{"builder":{"id":"https://github.com/go-zpkg/zpkb@v0.26.0"}}}}`),
@@ -47,14 +47,14 @@ func fourReferrers() []bottle.Referrer {
 			Blob: []byte(`{"metadata":{"component":{"name":"bitwarden.com","version":"1.22.1","purl":"pkg:pkgx/bitwarden.com@1.22.1"}}}`),
 		},
 		{
-			ArtifactType: bottle.ArtifactTypeSignature, MediaType: bottle.MediaSimpleSigning,
+			ArtifactType: artifact.ArtifactTypeSignature, MediaType: artifact.MediaSimpleSigning,
 			Blob:        []byte(`{}`),
-			Annotations: map[string]string{bottle.CosignSignatureAnnotation: "abc"},
+			Annotations: map[string]string{artifact.CosignSignatureAnnotation: "abc"},
 		},
 	}
 }
 
-func TestAttestListsWhatABottleCarries(t *testing.T) {
+func TestAttestListsWhatAArtifactCarries(t *testing.T) {
 	withAttestations(t, fourReferrers(), nil)
 	rc, out, errb := attest(t, "--platform", "linux/x86-64", "bitwarden.com", "1.22.1")
 	if rc != 0 {
@@ -66,7 +66,7 @@ func TestAttestListsWhatABottleCarries(t *testing.T) {
 		t.Errorf("want the header:\n%s", out)
 	}
 	for _, want := range []string{
-		artifactCycloneDX, artifactInToto, artifactOpenVEX, bottle.ArtifactTypeSignature,
+		artifactCycloneDX, artifactInToto, artifactOpenVEX, artifact.ArtifactTypeSignature,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("%s is absent:\n%s", want, out)
@@ -86,7 +86,7 @@ func TestAttestListsWhatABottleCarries(t *testing.T) {
 	}
 }
 
-// Ordered by artifactType, so two runs over one bottle print the same thing: a
+// Ordered by artifactType, so two runs over one artifact print the same thing: a
 // registry does not promise an order, and a report whose lines move cannot be
 // diffed.
 func TestAttestOutputIsOrdered(t *testing.T) {
@@ -104,7 +104,7 @@ func TestAttestOutputIsOrdered(t *testing.T) {
 	}
 }
 
-// ⛔ ZERO IS A SENTENCE. A bottle with no referrers and a bottle this could not
+// ⛔ ZERO IS A SENTENCE. An artifact with no referrers and an artifact this could not
 // read about are the same silence otherwise.
 func TestAttestSaysZeroOutLoud(t *testing.T) {
 	withAttestations(t, nil, nil)
@@ -128,7 +128,7 @@ func TestAttestRequireIsAGate(t *testing.T) {
 		}
 	})
 	t.Run("absent", func(t *testing.T) {
-		// A bottle with everything BUT the document — which is exactly what a
+		// An artifact with everything BUT the document — which is exactly what a
 		// lane that stopped passing --advisories produces.
 		refs := fourReferrers()[:1]
 		withAttestations(t, refs, nil)
@@ -168,7 +168,7 @@ func TestAttestRequireIsAGate(t *testing.T) {
 // IS present. So the summary has to.
 func TestAttestNamesAnEmptyOrUnreadableDocument(t *testing.T) {
 	t.Run("no statements", func(t *testing.T) {
-		withAttestations(t, []bottle.Referrer{{
+		withAttestations(t, []artifact.Referrer{{
 			ArtifactType: artifactOpenVEX, Blob: []byte(`{"statements":[]}`),
 		}}, nil)
 		_, out, _ := attest(t, "p", "1")
@@ -178,7 +178,7 @@ func TestAttestNamesAnEmptyOrUnreadableDocument(t *testing.T) {
 	})
 	t.Run("not JSON", func(t *testing.T) {
 		for _, typ := range []string{artifactOpenVEX, artifactCycloneDX, artifactInToto} {
-			withAttestations(t, []bottle.Referrer{{ArtifactType: typ, Blob: []byte(`{nope`)}}, nil)
+			withAttestations(t, []artifact.Referrer{{ArtifactType: typ, Blob: []byte(`{nope`)}}, nil)
 			_, out, _ := attest(t, "p", "1")
 			if !strings.Contains(out, "unreadable") {
 				t.Errorf("%s: want it called unreadable:\n%s", typ, out)
@@ -186,8 +186,8 @@ func TestAttestNamesAnEmptyOrUnreadableDocument(t *testing.T) {
 		}
 	})
 	t.Run("a signature with no signature", func(t *testing.T) {
-		withAttestations(t, []bottle.Referrer{{
-			ArtifactType: bottle.ArtifactTypeSignature, Blob: []byte(`{}`),
+		withAttestations(t, []artifact.Referrer{{
+			ArtifactType: artifact.ArtifactTypeSignature, Blob: []byte(`{}`),
 		}}, nil)
 		_, out, _ := attest(t, "p", "1")
 		if !strings.Contains(out, "no signature in the annotation") {
@@ -197,7 +197,7 @@ func TestAttestNamesAnEmptyOrUnreadableDocument(t *testing.T) {
 	t.Run("a type this command does not know", func(t *testing.T) {
 		// Reported with no summary rather than refused: a new attestation
 		// kind must not make this command fail.
-		withAttestations(t, []bottle.Referrer{{ArtifactType: "application/vnd.invented", Blob: []byte("x")}}, nil)
+		withAttestations(t, []artifact.Referrer{{ArtifactType: "application/vnd.invented", Blob: []byte("x")}}, nil)
 		rc, out, _ := attest(t, "p", "1")
 		if rc != 0 || !strings.Contains(out, "application/vnd.invented") {
 			t.Errorf("rc = %d, out = %q", rc, out)
@@ -212,10 +212,10 @@ func TestAttestRefusals(t *testing.T) {
 		if rc != 1 || !strings.Contains(errb, "404 manifest unknown") {
 			t.Errorf("rc = %d, stderr = %q", rc, errb)
 		}
-		// And it names WHICH bottle, because a 404 without one is a 404
+		// And it names WHICH artifact, because a 404 without one is a 404
 		// about nothing.
 		if !strings.Contains(errb, "p 1") {
-			t.Errorf("the bottle is not named: %q", errb)
+			t.Errorf("the artifact is not named: %q", errb)
 		}
 	})
 	t.Run("a bad platform", func(t *testing.T) {
@@ -242,12 +242,12 @@ func TestAttestRefusals(t *testing.T) {
 	})
 }
 
-// With no --platform it reads THIS host's, so a person checking a bottle on
+// With no --platform it reads THIS host's, so a person checking an artifact on
 // their own machine gets the one they would install.
 func TestAttestDefaultsToThisHost(t *testing.T) {
 	withAttestations(t, nil, nil)
 	_, out, _ := attest(t, "p", "1")
-	osn, arch := bottle.HostSlug()
+	osn, arch := artifact.HostSlug()
 	if !strings.Contains(out, osn+"/"+arch) {
 		t.Errorf("want this host's platform %s/%s in:\n%s", osn, arch, out)
 	}

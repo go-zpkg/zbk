@@ -75,7 +75,7 @@ func srcRoot() (string, error) {
 //
 //	bkpyvenv stage [--engine=poetry] <prefix> <version>
 //	    prepare the venv: create a git tag so setuptools-scm can see <version>
-//	    (pip engine), then `python -m venv` (Linux: --copies, so the bottle does
+//	    (pip engine), then `python -m venv` (Linux: --copies, so the artifact does
 //	    not bake an absolute symlink to the build python — pantry#8487) or, for
 //	    poetry, enable in-project virtualenvs. The recipe then pip-installs into
 //	    $PREFIX/venv between the two phases.
@@ -154,7 +154,7 @@ func pyStage(root, prefix, version, engine string) error {
 	venvArgs := []string{"-m", "venv"}
 	if pyGOOS == "linux" {
 		// --copies: embed the interpreter rather than an absolute symlink to the
-		// build-time python prefix, so the bottle relocates (pantry#8487).
+		// build-time python prefix, so the artifact relocates (pantry#8487).
 		venvArgs = append(venvArgs, "--copies")
 	}
 	venvArgs = append(venvArgs, venv)

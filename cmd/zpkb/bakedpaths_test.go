@@ -96,7 +96,7 @@ func TestTheTwoRealMechanismsAreBothCaught(t *testing.T) {
 // TestTheThreeShippedDefectsAreEachNamed is the measurement that rewrote this
 // check's scope, replayed as a test.
 //
-// Every string here was READ out of ~/.pkgx on 2026-11-09, from bottles the
+// Every string here was READ out of ~/.pkgx on 2026-11-09, from artifacts the
 // fleet ships today. The first version of this check — which looked only for
 // another project's versioned store path — passed all three.
 func TestTheThreeShippedDefectsAreEachNamed(t *testing.T) {
@@ -168,7 +168,7 @@ func TestAStagingPathHasNoDerogation(t *testing.T) {
 }
 
 // TestUpstreamsOwnBakedPathIsFoundByTheCensus uses the string go-zpkg/zpkb's
-// fix/libtool-baked-tool-paths branch found inside a PUBLISHED bottle.
+// fix/libtool-baked-tool-paths branch found inside a PUBLISHED artifact.
 //
 // It is not a store path — it is a CI runner's workspace — so rule A says
 // nothing about it. Rule C is what sees it, which is the reason rule C exists.
@@ -370,7 +370,7 @@ func TestAFileWhoseReadFailsIsAnError(t *testing.T) {
 // inside it is SEEN TWICE and must be REPORTED once.
 //
 // A double count is not cosmetic here — the report's "N reference(s)" is what a
-// reader uses to judge how bad a bottle is.
+// reader uses to judge how bad an artifact is.
 func TestAMatchInsideTheOverlapIsCountedOnce(t *testing.T) {
 	path := "/opt/zpkg/gnu.org/coreutils/v9.7.0/bin/sort"
 	// Wholly inside the retained tail of the first window.

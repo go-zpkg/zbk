@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // writeMachOAt builds a Mach-O by hand rather than compiling one, so these
@@ -96,7 +96,7 @@ func TestRunUnresolvedGivesEachProjectItsOwnStore(t *testing.T) {
 		dirs = append(dirs, d)
 		return d, os.MkdirAll(d, 0o755)
 	}
-	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		for p := range roots {
 			writeMachOAt(t, filepath.Join(dir, p, "v1/bin/tool"), "@rpath/gone.org/v2/lib/libgone.2.dylib")
 		}
@@ -117,7 +117,7 @@ func TestRunUnresolvedGivesEachProjectItsOwnStore(t *testing.T) {
 }
 
 // ⛔ THE PLATFORM REACHES THE INSTALL, or the audit is about the host
-// wearing another platform's name. Until bottle v0.55.0 this could only
+// wearing another platform's name. Until artifact v0.55.0 this could only
 // ask about the machine it ran on, so the sweep built on it covered
 // linux/x86-64 and reported nothing about the other five — which were not
 // clean, they were unasked.
@@ -126,7 +126,7 @@ func TestRunUnresolvedAuditsTheNamedPlatform(t *testing.T) {
 	defer func() { unresolvedInstall, unresolvedTempDir, unresolvedStdin = oldI, oldD, oldS }()
 	unresolvedTempDir = func(string, string) (string, error) { return t.TempDir(), nil }
 	var gotOS, gotArch string
-	unresolvedInstall = func(_ map[string]string, _, osn, arch string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(_ map[string]string, _, osn, arch string) ([]artifact.Resolved, error) {
 		gotOS, gotArch = osn, arch
 		return nil, nil
 	}
@@ -142,7 +142,7 @@ func TestRunUnresolvedAuditsTheNamedPlatform(t *testing.T) {
 
 	// Without the flag it is the host, unchanged — that is what every
 	// existing caller relies on.
-	wantOS, wantArch := bottle.HostSlug()
+	wantOS, wantArch := artifact.HostSlug()
 	gotOS, gotArch = "", ""
 	out.Reset()
 	unresolvedStdin = strings.NewReader("")
@@ -155,13 +155,13 @@ func TestRunUnresolvedAuditsTheNamedPlatform(t *testing.T) {
 }
 
 // ⛔ A HALF-PARSED PLATFORM IS A CLEAN-LOOKING CATASTROPHE: resolved
-// against an empty arch, every bottle is absent, every closure is empty,
+// against an empty arch, every artifact is absent, every closure is empty,
 // and the audit reports a flawless platform it never installed. Refused
 // before anything is fetched.
 func TestRunUnresolvedRefusesAMalformedPlatform(t *testing.T) {
 	oldI, oldS := unresolvedInstall, unresolvedStdin
 	defer func() { unresolvedInstall, unresolvedStdin = oldI, oldS }()
-	unresolvedInstall = func(map[string]string, string, string, string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(map[string]string, string, string, string) ([]artifact.Resolved, error) {
 		t.Error("it installed something despite a malformed platform")
 		return nil, nil
 	}
@@ -183,7 +183,7 @@ func TestRunUnresolvedOnACleanStore(t *testing.T) {
 	defer func() { unresolvedInstall, unresolvedTempDir = oldI, oldD }()
 	base := t.TempDir()
 	unresolvedTempDir = func(string, string) (string, error) { return base, nil }
-	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		writeMachOAt(t, filepath.Join(dir, "a.org/v1/lib/liba.dylib"))
 		return nil, nil
 	}
@@ -208,7 +208,7 @@ func TestRunUnresolvedKeepsGoingAfterAFailedInstall(t *testing.T) {
 		d := filepath.Join(base, string(rune('a'+k)))
 		return d, os.MkdirAll(d, 0o755)
 	}
-	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		if roots["bad.org"] != "" {
 			return nil, errors.New("no such project")
 		}
@@ -241,7 +241,7 @@ func TestRunUnresolvedThroughTheDispatch(t *testing.T) {
 	oldI := unresolvedInstall
 	defer func() { unresolvedInstall = oldI }()
 	store := t.TempDir()
-	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		writeMachOAt(t, filepath.Join(dir, "a.org/v1/bin/tool"), "@rpath/gone.org/v2/lib/libgone.2.dylib")
 		return nil, nil
 	}
@@ -260,7 +260,7 @@ func TestRunUnresolvedQuiet(t *testing.T) {
 	oldI := unresolvedInstall
 	defer func() { unresolvedInstall = oldI }()
 	store := t.TempDir()
-	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unresolvedInstall = func(roots map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		writeMachOAt(t, filepath.Join(dir, "a.org/v1/bin/tool"), "@rpath/gone.org/v2/lib/libgone.2.dylib")
 		return nil, nil
 	}

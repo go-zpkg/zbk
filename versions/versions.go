@@ -1,8 +1,8 @@
 // Package versions resolves a project's upstream version from a pantry
 // recipe's `versions:` specification.
 //
-// This is deliberately distinct from bottle.PickVersion (which lists pkgx's
-// already-built bottles at dist.pkgx.dev): dist may advertise a normalised
+// This is deliberately distinct from artifact.PickVersion (which lists pkgx's
+// already-built artifacts at dist.pkgx.dev): dist may advertise a normalised
 // version — e.g. ncurses 6.6.0 — that does not exist at the recipe's
 // distributable URL (upstream only ships ncurses-6.5.tar.gz). For a fresh
 // build the version MUST come from the recipe's own `versions:` field so it
@@ -523,7 +523,7 @@ func mergeTags(into, from map[string]string) map[string]string {
 }
 
 // dropVPrefix strips a leading "v" before a digit ("v5.8.3" -> "5.8.3"), matching
-// pkgx's tag normalisation (dist bottles are tagged without the v). Recipes whose
+// pkgx's tag normalisation (dist artifacts are tagged without the v). Recipes whose
 // `strip:` already removes the v are unaffected; this only catches github-tag
 // specs that don't.
 func dropVPrefix(s string) string {

@@ -12,7 +12,7 @@ import (
 // and nothing it can emit at link time reaches this far.
 const bundleUnder = "lib/perl5/darwin-thread-multi-2level/auto/Locale/gettext/gettext.bundle"
 
-// A bottle whose references are relocated but whose SEARCH ROOTS are the build
+// An artifact whose references are relocated but whose SEARCH ROOTS are the build
 // machine's runs on the build machine and nowhere else. This is the shape that
 // failed gnu.org/help2man 1.49.3's rebuild, reproduced from its guard message:
 //
@@ -59,7 +59,7 @@ func TestAbsoluteZpkgxRpathsBecomeLoaderPath(t *testing.T) {
 	}
 }
 
-// An rpath outside $ZPKG_DIR names something the bottle does not carry and did
+// An rpath outside $ZPKG_DIR names something the artifact does not carry and did
 // not build — making it relative would point it at the wrong tree.
 func TestRpathsOutsideZpkgDirAreLeftAlone(t *testing.T) {
 	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
@@ -123,7 +123,7 @@ func TestRelativeRpathRefusals(t *testing.T) {
 //	    .../facebook.com/folly/v2026.09.14.00/lib/libfolly.0.58.0-dev.dylib
 //	c++: error: linker command failed with exit code 1
 //
-// Measured on a bottle this factory published after the relativisation landed:
+// Measured on an artifact this factory published after the relativisation landed:
 // libfolly carried @loader_path/../../../.. twice — one linked in by bk, one
 // written by the rewrite — and github.com/facebookincubator/fizz could not link
 // against it at all.

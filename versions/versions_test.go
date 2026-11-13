@@ -181,7 +181,7 @@ func TestResolveGithubNonVTag(t *testing.T) {
 func TestResolveGithubDropsVPrefix(t *testing.T) {
 	saveSeams(t)
 	// github tags carry a leading "v" and the recipe has no strip → the result
-	// is normalised to the pkgx tag form (no v), matching dist bottle tags.
+	// is normalised to the pkgx tag form (no v), matching dist artifact tags.
 	gitLsRemoteTags = func(string) ([]string, error) {
 		return []string{"v5.8.2", "v5.8.3"}, nil
 	}

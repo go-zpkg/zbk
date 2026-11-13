@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// published records one bottle this run put in the registry, so the index can
+// published records one artifact this run put in the registry, so the index can
 // be checked once the batch is over.
 type published struct {
 	project string
@@ -20,7 +20,7 @@ type published struct {
 // a racing publisher dropped after the push had already verified itself.
 //
 // Publishing an index is a read-modify-write on one mutable tag, and the arch
-// jobs — plus the separate darwin workflow — race on it. bottle's per-push
+// jobs — plus the separate darwin workflow — race on it. artifact's per-push
 // reconcile confirms its write twice with a settle window between, which catches
 // a racer landing just behind it; it cannot catch one that lands after this
 // process moved on to the next package. An audit of the live registry found 137
@@ -29,10 +29,10 @@ type published struct {
 // build.
 //
 // Running at the END is the point: by then the other publishers have finished,
-// so a repair sticks. It is also cheap — one index read per bottle published,
+// so a repair sticks. It is also cheap — one index read per artifact published,
 // and nothing written in the common case.
 //
-// A failure here is reported, not fatal. The bottles are pushed and valid; a
+// A failure here is reported, not fatal. The artifacts are pushed and valid; a
 // broken index is repairable by the next run, and failing the whole build over
 // it would throw away work that succeeded.
 func repairIndexes(dist string, pubs []published, stdout, stderr io.Writer) int {
@@ -61,7 +61,7 @@ func repairIndexes(dist string, pubs []published, stdout, stderr io.Writer) int 
 
 // newOCIClient is a seam: the repair pass talks to the registry, and the tests
 // drive it without one.
-var newOCIClient = func(dist string) (indexEnsurer, error) { return bottle.NewOCIClient(dist) }
+var newOCIClient = func(dist string) (indexEnsurer, error) { return artifact.NewOCIClient(dist) }
 
 // indexEnsurer is the slice of the OCI client the repair pass needs.
 type indexEnsurer interface {

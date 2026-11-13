@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zpkb/bottlepkg"
+	"github.com/go-zpkg/artifact"
+	"github.com/go-zpkg/zpkb/artifactpkg"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/fetch"
 	"github.com/go-zpkg/zpkb/fixup"
@@ -33,10 +33,10 @@ var lookPath = exec.LookPath
 // constructor-error branch is testable.
 var newInterp = interp.New
 
-// pickVersion adapts bottle.PickVersion (which returns a Ver) to the Runner's
+// pickVersion adapts artifact.PickVersion (which returns a Ver) to the Runner's
 // string-version contract.
 func pickVersion(project, constraint string) (string, error) {
-	v, err := bottle.PickVersion(project, constraint)
+	v, err := artifact.PickVersion(project, constraint)
 	return v.Raw, err
 }
 
@@ -53,12 +53,12 @@ func pickVersion(project, constraint string) (string, error) {
 // that RUNS here. The link closure, which is built for the target, goes
 // through pickVersion and is untouched by this.
 func toolInstallable(project, constraint string) (string, error) {
-	osn, arch := bottle.HostSlug()
-	v, err := bottle.PickVersionFor(project, constraint, osn, arch)
+	osn, arch := artifact.HostSlug()
+	v, err := artifact.PickVersionFor(project, constraint, osn, arch)
 	if err != nil {
 		return "", err
 	}
-	if _, err := bottle.ResolveClosureFor(map[string]string{project: constraint}, osn, arch); err != nil {
+	if _, err := artifact.ResolveClosureFor(map[string]string{project: constraint}, osn, arch); err != nil {
 		return "", fmt.Errorf("%s %s is here but its closure is not: %w", project, v.Raw, err)
 	}
 	return v.Raw, nil
@@ -130,7 +130,7 @@ func runBashLimited(limit time.Duration, out, errOut io.Writer) func(string, []s
 	}
 }
 
-// realBuildRunner wires the real bk/bottle implementations into a Runner. Every
+// realBuildRunner wires the real bk/artifact implementations into a Runner. Every
 // field but pickVersion/runBash is a direct package function of matching shape.
 func realBuildRunner(zpkgxBin string) *build.Runner {
 	return &build.Runner{
@@ -142,7 +142,7 @@ func realBuildRunner(zpkgxBin string) *build.Runner {
 		Touch:           build.TouchAutotools,
 		Run:             runBash,
 		FixUp:           fixup.FixUp,
-		WriteBottle:     bottlepkg.WriteBottle,
+		WriteArtifact:   artifactpkg.WriteArtifact,
 		ResolveDep:      pickVersion,
 		ToolInstallable: toolInstallable,
 		ZpkgxBin:        zpkgxBin,
@@ -155,7 +155,7 @@ func realBuildRunner(zpkgxBin string) *build.Runner {
 func runBuild(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("build", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dist := fs.String("dist", "", "output dir for the packaged bottle (omit to skip packaging)")
+	dist := fs.String("dist", "", "output dir for the packaged artifact (omit to skip packaging)")
 	recipe := fs.String("recipe", "", "path to the package.yml recipe (required)")
 	version := fs.String("version", "", "exact version to build (default: latest resolvable)")
 	// ⛔ THE DEFAULT IS `zpkgx`, THE BINARY WE SHIP. It was `pkgx` until
@@ -165,7 +165,7 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	// SOMEBODY ELSE'S pantry. The five factory workflows passed
 	// `--zpkgx "$(command -v zpkgx)"` and never saw it.
 	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
-	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc bottle (sovereign FROM-scratch, linux, C recipes); default keeps the build container's system glibc`)
+	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc artifact (sovereign FROM-scratch, linux, C recipes); default keeps the build container's system glibc`)
 	glibc := fs.String("glibc", "", `with --libc=zpkgx, pin the exact glibc version to link against, e.g. -glibc 2.27.0 (a chosen HPC floor); default newest`)
 	jobs := fs.Int("jobs", envInt("JOBS"), "parallelism handed to a recipe's build (`hw.concurrency`); 0 = one per CPU")
 	if err := fs.Parse(args); err != nil {
@@ -225,8 +225,8 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	if d := res.Source.SHA256 + res.Source.Commit; d != "" {
 		fmt.Fprintf(stdout, "source: %s (%s)\n", res.Source.URI, d)
 	}
-	if res.BottlePath != "" {
-		fmt.Fprintln(stdout, "bottle:", res.BottlePath)
+	if res.ArtifactPath != "" {
+		fmt.Fprintln(stdout, "artifact:", res.ArtifactPath)
 	}
 	return 0
 }

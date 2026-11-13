@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
@@ -38,15 +38,15 @@ import (
 //	   symbol(s) not found for architecture arm64
 //
 // When the same disagreement happens to LINK instead of failing it is worse:
-// the bottle ships an @rpath reference to the version the headers came from
+// the artifact ships an @rpath reference to the version the headers came from
 // while declaring the constraint a consumer will resolve differently. That is
-// an uninstallable bottle, published green.
+// an uninstallable artifact, published green.
 //
 // ⛔ THE VERDICT IS "DIFFERENT VERSION", NOT "DIFFERENT TEXT". `*` and `>=1`
 // differ as strings and almost never as answers; `*` and ^20260526 differ as
 // answers. Only the second is worth a line, so the comparison resolves both
 // constraints against what the registry actually carries FOR THIS PLATFORM,
-// through bottle's own semver — the code pkgx uses at install, so a
+// through artifact's own semver — the code pkgx uses at install, so a
 // disagreement reported here is one a build will meet.
 func runDepsplit(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("depsplit", flag.ContinueOnError)
@@ -94,7 +94,7 @@ func runDepsplit(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stderr, "depsplit: %d pair(s) named in both lists with differing text; resolving\n", len(cand))
 
-	c, err := newDepsplitRegistry(bottle.DistBase)
+	c, err := newDepsplitRegistry(artifact.DistBase)
 	if err != nil {
 		fmt.Fprintln(stderr, "depsplit:", err)
 		return 1
@@ -257,7 +257,7 @@ type depsplitRegistry interface {
 }
 
 var newDepsplitRegistry = func(dist string) (depsplitRegistry, error) {
-	return bottle.NewOCIClient(dist)
+	return artifact.NewOCIClient(dist)
 }
 
 type registryPicker struct {
@@ -306,8 +306,8 @@ func (r *registryPicker) published(project, tag string) bool {
 // newestPublished picks the version a resolver would, so a difference
 // reported here is a difference a build will experience.
 //
-// ⛔ THE ORDERING IS bottle's. VersionsFromTags returns the versions a client
-// would consider, OLDEST FIRST, after dropping bottles built against another
+// ⛔ THE ORDERING IS artifact's. VersionsFromTags returns the versions a client
+// would consider, OLDEST FIRST, after dropping artifacts built against another
 // glibc flavour and folding "1.0", "1.0.0" and "v1.0.0" into one candidate.
 // Re-deriving that locally is how pkgx's `request` came to report nodejs
 // 26.8.1 an hour after 26.12.1 shipped: as text, "8" > "1".
@@ -318,7 +318,7 @@ func (r *registryPicker) published(project, tag string) bool {
 // published for darwin/aarch64 alone, which no build there can obtain. The
 // judge has to count the way the subject does.
 func newestPublished(tags []string, constraint string, published func(tag string) bool) string {
-	vers := bottle.VersionsFromTags(tags)
+	vers := artifact.VersionsFromTags(tags)
 	for i := len(vers) - 1; i >= 0; i-- {
 		if constraint != "" && !vers[i].Satisfies(constraint) {
 			continue

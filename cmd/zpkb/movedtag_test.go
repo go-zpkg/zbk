@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -20,14 +20,14 @@ func digestOfBytes(b []byte) string {
 // withPublishedDigest points the registry seam at one answer.
 func withPublishedDigest(t *testing.T, digest string, err error) {
 	t.Helper()
-	old := ociBottleDigest
-	ociBottleDigest = func(_, _, _, _, _ string) (string, error) { return digest, err }
-	t.Cleanup(func() { ociBottleDigest = old })
+	old := ociArtifactDigest
+	ociArtifactDigest = func(_, _, _, _, _ string) (string, error) { return digest, err }
+	t.Cleanup(func() { ociArtifactDigest = old })
 }
 
 // aSpec is a non-zero identity, so the tag under test is a HASHED one.
-func aSpec() bottle.Concrete {
-	return bottle.Concrete{Platform: "linux/x86-64", Recipe: "sha256:abc"}
+func aSpec() artifact.Concrete {
+	return artifact.Concrete{Platform: "linux/x86-64", Recipe: "sha256:abc"}
 }
 
 // ⛔⛔ THE WITNESS. A build's identity excludes the builder on purpose, so a
@@ -83,41 +83,41 @@ func TestNotKnowingDoesNotRefuse(t *testing.T) {
 		t.Errorf("a first publish was refused: %v", err)
 	}
 
-	// And a bottle with NO identity lands on the bare version, which has
+	// And an artifact with NO identity lands on the bare version, which has
 	// always been a moving tag — `bk publish` of something this process did
 	// not build cannot know what it is.
 	plain := publishOptions{Project: "p", Version: "1", OS: "linux", Arch: "x86-64"}
 	withPublishedDigest(t, digestOfBytes([]byte("something else")), nil)
 	if err := refuseToMoveATag(plain, "1", body); err != nil {
-		t.Errorf("an unidentified bottle was held to a hashed tag's rule: %v", err)
+		t.Errorf("an unidentified artifact was held to a hashed tag's rule: %v", err)
 	}
 }
 
-// ⛔ AND publishBottle ACTUALLY STOPS. refuseToMoveATag returning an error is
+// ⛔ AND publishArtifact ACTUALLY STOPS. refuseToMoveATag returning an error is
 // worth nothing if the caller pushes anyway, so this drives the real publish
 // path and asserts that NOTHING reached the registry.
-func TestPublishBottleStopsBeforeMovingATag(t *testing.T) {
+func TestPublishArtifactStopsBeforeMovingATag(t *testing.T) {
 	pushed := false
 	oldPush := ociPush
-	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, _ []bottle.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, _ []artifact.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
 		pushed = true
 		return ocispec.Descriptor{}, nil
 	}
 	t.Cleanup(func() { ociPush = oldPush })
 
 	body := []byte("this build's bytes")
-	p := filepath.Join(t.TempDir(), "v1.0.0"+bottle.ExtTarGz)
+	p := filepath.Join(t.TempDir(), "v1.0.0"+artifact.ExtTarGz)
 	if err := os.WriteFile(p, body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	withPublishedDigest(t, digestOfBytes([]byte("somebody else's bytes")), nil)
 
-	_, _, err := publishBottle(publishOptions{
+	_, _, err := publishArtifact(publishOptions{
 		Dist: "oci://example.invalid/x", Project: "acme.org/tool", Version: "1.0.0",
 		OS: "linux", Arch: "aarch64", Path: p, Concrete: aSpec(),
 	})
 	if err == nil {
-		t.Fatal("publishBottle pushed over a hashed tag holding other bytes")
+		t.Fatal("publishArtifact pushed over a hashed tag holding other bytes")
 	}
 	if pushed {
 		t.Error("the refusal was reported AND the push happened anyway")
@@ -131,7 +131,7 @@ type errRegistryUnreachable struct{}
 
 func (errRegistryUnreachable) Error() string { return "dial tcp: connection refused" }
 
-// The skip message names the factory that made the bottle already there, so a
+// The skip message names the factory that made the artifact already there, so a
 // skip a human cannot act on becomes one they can.
 func TestStaleBuilderNote(t *testing.T) {
 	old := factoryPublishedBuilder

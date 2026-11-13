@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // Override is one project's logical change, as a file states it.
@@ -42,12 +42,12 @@ type Override struct {
 
 // Parse reads an override file.
 //
-// Through bottle.HCLToMap, the same reader the recipes themselves go through.
+// Through artifact.HCLToMap, the same reader the recipes themselves go through.
 // A second HCL front-end here would be two readings of one format, and the day
 // they disagreed an override would mean one thing to the checker and another
 // to the builder.
 func Parse(src []byte, filename string) (*Override, error) {
-	doc, err := bottle.HCLToMap(src, filename)
+	doc, err := artifact.HCLToMap(src, filename)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", filename, err)
 	}

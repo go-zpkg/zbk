@@ -107,7 +107,7 @@ func SetInterp(path, value string) error {
 //
 // Two things wrong in one string. `+brewing` is Paths.BuildInstall, which
 // exists during the build and nowhere after it. `/home/linux1` is the runner's
-// home: a published, signed bottle naming the account that made it.
+// home: a published, signed artifact naming the account that made it.
 //
 // Measured when it was found (go-zpkg/bk#263): of 250 ELFs sampled in the
 // s390x store, exactly one carried a staging interpreter. So this is not a

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // `bk lock` wrote locks and `bk factory` could not build from one. The
@@ -14,18 +14,18 @@ import (
 // pantry commit, 2df061bd, resolved tcl to 9.0.4 and then to 9.1.0 four
 // hours apart.
 func TestFactoryBuildsFromALock(t *testing.T) {
-	d := bottle.Lock{
-		Version: bottle.LockfileVersion, Platform: "linux/x86-64",
-		Generated: "2026-10-06T09:00:00Z", BK: "v0.13.0",
+	d := artifact.Lock{
+		Version: artifact.LockfileVersion, Platform: "linux/x86-64",
+		Generated: "2026-10-06T09:00:00Z", ZBK: "v0.13.0",
 		Roots: []string{"curl.se"}, // ONE root
-		Pins: []bottle.LockPin{ // THREE pins
+		Pins: []artifact.LockPin{ // THREE pins
 			{Project: "curl.se", Version: "8.17.0", Spec: "sha256:a"},
 			{Project: "openssl.org", Version: "3.6.0", Spec: "sha256:b"},
 			{Project: "zlib.net", Version: "1.3.2", Spec: "sha256:c"},
 		},
 	}
 	p := filepath.Join(t.TempDir(), "seed.lock.hcl")
-	if err := os.WriteFile(p, []byte(bottle.RenderLock(d)), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(artifact.RenderLock(d)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,9 +58,9 @@ func TestFactoryBuildsFromALock(t *testing.T) {
 func TestALockBeatsRecipesAndRecipesFile(t *testing.T) {
 	dir := t.TempDir()
 	lock := filepath.Join(dir, "l.hcl")
-	if err := os.WriteFile(lock, []byte(bottle.RenderLock(bottle.Lock{
-		Version: bottle.LockfileVersion,
-		Pins:    []bottle.LockPin{{Project: "zlib.net", Version: "1.3.2", Spec: "sha256:c"}},
+	if err := os.WriteFile(lock, []byte(artifact.RenderLock(artifact.Lock{
+		Version: artifact.LockfileVersion,
+		Pins:    []artifact.LockPin{{Project: "zlib.net", Version: "1.3.2", Spec: "sha256:c"}},
 	})), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestABadLockFails(t *testing.T) {
 	if err := os.WriteFile(empty, []byte("lockfile_version = 1\nlocked = {\n  \"x\" = { version = \"\", spec = \"\" }\n}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// REFUSED EARLIER, AND BY NAME, since bottle v0.38.0: a version is a
+	// REFUSED EARLIER, AND BY NAME, since artifact v0.38.0: a version is a
 	// key, so an empty one is refused while the file is being parsed
 	// rather than noticed afterwards by counting what survived. The
 	// message names the pin — "x: not a version: empty" — which is more
@@ -117,14 +117,14 @@ func TestABadLockFails(t *testing.T) {
 // THE CONTRACT bk NOW DEPENDS ON, pinned here so that deleting the branch
 // above did not amount to trusting another repository.
 //
-// factoryWant no longer counts what survived its own loop, because bottle
+// factoryWant no longer counts what survived its own loop, because artifact
 // refuses an empty `locked` block and an empty version while parsing. If
 // that ever relaxes, a lock pinning nothing would reach `bk factory` as an
 // empty want list and the run would build NOTHING while reporting success —
 // which is how a build silently stops being locked.
 //
 // A test that goes red is worth more than a branch that cannot run.
-func TestBottleRefusesALockThatPinsNothing(t *testing.T) {
+func TestArtifactRefusesALockThatPinsNothing(t *testing.T) {
 	for name, body := range map[string]string{
 		"no locked block": "lockfile_version = 1\nplatform = \"linux/x86-64\"\n",
 		"an empty block":  "lockfile_version = 1\nlocked = {}\n",
@@ -133,8 +133,8 @@ func TestBottleRefusesALockThatPinsNothing(t *testing.T) {
 		"an empty project": "lockfile_version = 1\nlocked = {\n" +
 			"  \"\" = { version = \"1.0\", spec = \"\" }\n}\n",
 	} {
-		if _, err := bottle.ParseLock([]byte(body), name+".lock.hcl"); err == nil {
-			t.Errorf("bottle accepted a lock with %s; factoryWant would hand back an empty want list", name)
+		if _, err := artifact.ParseLock([]byte(body), name+".lock.hcl"); err == nil {
+			t.Errorf("artifact accepted a lock with %s; factoryWant would hand back an empty want list", name)
 		}
 	}
 }

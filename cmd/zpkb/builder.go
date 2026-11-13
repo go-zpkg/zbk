@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // runBuilder implements `bk builder`: stage a FROM-scratch build environment as
@@ -24,8 +24,8 @@ import (
 // while the thing that actually consumes a builder rootfs, a micro-VM, boots a
 // DIRECTORY (weft shares it over virtio-fs; an OCI image is unpacked back into
 // a directory before boot). So the directory is the primitive, and this
-// subcommand produces it directly, in Go, on any host: bottle.InstallFor and
-// bottle.StubBinsStaged already know how to materialise another platform's
+// subcommand produces it directly, in Go, on any host: artifact.InstallFor and
+// artifact.StubBinsStaged already know how to materialise another platform's
 // userland.
 //
 // Nothing here needs root, docker, or a linux machine.
@@ -37,7 +37,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 	toolchain := fs.String("toolchain", "", "file listing the toolchain packages, one `project[constraint]` per line (default: the built-in list)")
 	bkBin := fs.String("zpkb", "", "path to a target-arch zpkb binary to install at /usr/local/bin/zpkb")
 	zpkgxBin := fs.String("zpkgx", "", "path to a target-arch zpkgx binary to install at /usr/local/bin/zpkgx")
-	dist := fs.String("dist", "", "bottle registry to install from (default $ZPKG_DIST)")
+	dist := fs.String("dist", "", "artifact registry to install from (default $ZPKG_DIST)")
 	overlay := fs.String("overlay", "", "pantry overlay consulted before the upstream pantry (default $ZPKG_PANTRY_OVERLAY)")
 	microvm := fs.Bool("microvm", false, "also write .weft-microvm/config.json so `weft microvm run` can boot the directory as-is")
 	container := fs.Bool("container", false, "also write /etc/ld.so.conf listing every staged library directory, so the tree runs as a CONTAINER root and not only under bk's build wrapper")
@@ -55,10 +55,10 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *dist != "" {
-		bottle.DistBase = strings.TrimRight(*dist, "/")
+		artifact.DistBase = strings.TrimRight(*dist, "/")
 	}
 	if *overlay != "" {
-		bottle.PantryOverlay = strings.TrimRight(*overlay, "/")
+		artifact.PantryOverlay = strings.TrimRight(*overlay, "/")
 	}
 
 	roots, err := toolchainRoots(*toolchain)
@@ -80,8 +80,8 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 		ZpkgxBin:  *zpkgxBin,
 		MicroVM:   *microvm,
 		Container: *container,
-		Overlay:   bottle.PantryOverlay,
-		Dist:      bottle.DistBase,
+		Overlay:   artifact.PantryOverlay,
+		Dist:      artifact.DistBase,
 		Log:       func(s string) { fmt.Fprintln(stdout, s) },
 	}); err != nil {
 		fmt.Fprintln(stderr, "builder:", err)
@@ -91,7 +91,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 }
 
 // dryRunClosure answers one question, and it is the question asked before every
-// sovereign job: does this ARCHITECTURE have the bottles the toolchain names?
+// sovereign job: does this ARCHITECTURE have the artifacts the toolchain names?
 //
 // Resolution is the phase that fails when it does not. On 2026-08 the s390x
 // lane died ninety seconds in with
@@ -104,7 +104,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 // per-platform: a version picked for linux/s390x is a version the registry
 // lists for linux/s390x.
 //
-// What it does NOT prove is that each bottle can be unpacked and run — only
+// What it does NOT prove is that each artifact can be unpacked and run — only
 // staging and then building do that. It is a NECESSARY condition reported
 // cheaply, not a sufficient one, and saying so is the difference between a
 // pre-flight check and a false green.
@@ -154,7 +154,7 @@ func reportRootGaps(roots map[string]string, osn, arch string, stdout io.Writer)
 		}
 	}
 	if len(missing) == 0 {
-		fmt.Fprintf(stdout, "builder: every root resolves on its own — the refusal above is a CONFLICT between them, not a missing bottle\n")
+		fmt.Fprintf(stdout, "builder: every root resolves on its own — the refusal above is a CONFLICT between them, not a missing artifact\n")
 		return
 	}
 	fmt.Fprintf(stdout, "builder: %d of %d roots cannot resolve for %s/%s: %s\n",
@@ -166,18 +166,18 @@ func reportRootGaps(roots map[string]string, osn, arch string, stdout io.Writer)
 //
 // "Not found" is a fact about the LOOKUP as much as about the tree, and the
 // two readings send a person to different places. FindLoaderFor globs
-// `<dir>/gnu.org/glibc/v*/lib/glibc-*/<name>`; a bottle that puts its loader
-// one directory over satisfies none of it and looks exactly like a bottle
+// `<dir>/gnu.org/glibc/v*/lib/glibc-*/<name>`; an artifact that puts its loader
+// one directory over satisfies none of it and looks exactly like an artifact
 // that has no loader at all.
 //
 // Measured need: the s390x lane refused with this message AFTER the loader
-// NAME had been fixed (go-zpkg/bottle#105), so the name was right and the
+// NAME had been fixed (go-zpkg/artifact#105), so the name was right and the
 // path was the question — and the log said nothing about the path. One round
 // trip to a runner to learn a directory listing is one too many.
 //
 // Names only, and capped: this goes in an error, not a report.
 func glibcLayout(zpkgDir string) string {
-	roots, _ := filepath.Glob(filepath.Join(zpkgDir, bottle.GlibcProject, "v*"))
+	roots, _ := filepath.Glob(filepath.Join(zpkgDir, artifact.GlibcProject, "v*"))
 	if len(roots) == 0 {
 		return "\n  (no gnu.org/glibc directory under " + zpkgDir + ")"
 	}
@@ -219,7 +219,7 @@ func glibcLayout(zpkgDir string) string {
 				}
 				// The COUNT alone was not enough, measured the hard way: the
 				// s390x tree reported "2 entr(y/ies), ld*:" and a real glibc
-				// has two hundred. That says the bottle is nearly empty, and
+				// has two hundred. That says the artifact is nearly empty, and
 				// says nothing about WHICH two — which is the next question
 				// every time. Name a few.
 				fmt.Fprintf(&b, "\n  %s: %d entr(y/ies) [%s%s], ld*: %s",
@@ -233,8 +233,8 @@ func glibcLayout(zpkgDir string) string {
 }
 
 // alreadyStaged counts the closure members whose prefix is already on disk,
-// which is exactly what bottle.InstallFor will skip.
-func alreadyStaged(zpkgDir string, closure []bottle.Resolved) int {
+// which is exactly what artifact.InstallFor will skip.
+func alreadyStaged(zpkgDir string, closure []artifact.Resolved) int {
 	n := 0
 	for _, r := range closure {
 		if st, err := os.Stat(filepath.Join(zpkgDir, r.Project, "v"+r.Version.Raw)); err == nil && st.IsDir() {
@@ -244,22 +244,22 @@ func alreadyStaged(zpkgDir string, closure []bottle.Resolved) int {
 	return n
 }
 
-// guestZpkgDir is where the staged bottles live once the rootfs is the root:
+// guestZpkgDir is where the staged artifacts live once the rootfs is the root:
 // the stubs, the loader symlinks and ZPKG_DIR must all agree on it.
 //
 // ⛔ IT WAS "/pkgx" UNTIL 2026-11-12, AND THAT WAS THE LAST PLACE UPSTREAM'S
 // NAME DECIDED SOMETHING. Our prefix is zpkg: the user store is already
-// ~/.zpkg (bottle.Dir), the environment variable is ZPKG_DIR, and only the
+// ~/.zpkg (artifact.Dir), the environment variable is ZPKG_DIR, and only the
 // guest root inside the build container still said otherwise. A build
 // container that mounts somebody else's directory name has not been renamed,
-// it has been relabelled — the same sentence bottle/zpkg.go:373 uses about
+// it has been relabelled — the same sentence artifact/zpkg.go:373 uses about
 // what a command PRINTS.
 //
 // ⛔ This is a PRODUCT change, not a doc sweep: the stubs bake this path and
-// a bottle built before it moves carries the old one. The decision to take
-// it anyway is the user's, 2026-11-12 — published bottles are to be rebuilt
+// an artifact built before it moves carries the old one. The decision to take
+// it anyway is the user's, 2026-11-12 — published artifacts are to be rebuilt
 // if needed. The relocation stage (fixup/) is what makes that survivable:
-// a bottle's rpaths are rewritten at install time, so the guest root is a
+// an artifact's rpaths are rewritten at install time, so the guest root is a
 // build-time location rather than a promise to the artifact.
 const guestZpkgDir = "/zpkg"
 
@@ -279,7 +279,7 @@ var defaultToolchain = []string{
 	"llvm.org",                 // clang, lld, compiler-rt — the compiler itself
 	"gnu.org/glibc",            // libc, crt objects and the dynamic loader
 	"kernel.org/linux-headers", // glibc's headers include <linux/limits.h>
-	"gnu.org/binutils",         // ar/ranlib: the llvm bottle ships llvm-ar, not `ar`
+	"gnu.org/binutils",         // ar/ranlib: the llvm artifact ships llvm-ar, not `ar`
 	"gnu.org/make",             // the build driver most recipes use
 	"gnu.org/bash",             // `make` runs every recipe line through /bin/sh
 	"gnu.org/coreutils",        // mkdir, install, ln… the vocabulary of a Makefile
@@ -381,7 +381,7 @@ func stageBuilder(o stageOptions) error {
 	}
 	o.Log(fmt.Sprintf("builder: %d packages", len(closure)))
 	if n := alreadyStaged(zpkgDir, closure); n > 0 {
-		// bottle.InstallFor takes the EXISTENCE of <project>/v<ver> as "already
+		// artifact.InstallFor takes the EXISTENCE of <project>/v<ver> as "already
 		// present" and returns without fetching:
 		//
 		//	if st, err := os.Stat(prefix); err == nil && st.IsDir() {
@@ -413,7 +413,7 @@ func stageBuilder(o stageOptions) error {
 	}
 
 	// The loader and /bin/sh have to answer at their canonical absolute paths:
-	// every bottle ELF names PT_INTERP=/lib/ld-linux-*, and make runs each
+	// every artifact ELF names PT_INTERP=/lib/ld-linux-*, and make runs each
 	// recipe line through /bin/sh. Both symlinks must point at GUEST paths.
 	loader := findLoaderFor(zpkgDir, o.Arch)
 	if loader == "" {
@@ -428,18 +428,18 @@ func stageBuilder(o stageOptions) error {
 		//
 		// So name the architecture FIRST when it is the architecture, and
 		// keep the toolchain question for the case it actually describes.
-		if bottle.LoaderNameFor(o.Arch) == "" {
-			return fmt.Errorf("no loader name is known for %s — bottle.LoaderNameFor has no entry, "+
+		if artifact.LoaderNameFor(o.Arch) == "" {
+			return fmt.Errorf("no loader name is known for %s — artifact.LoaderNameFor has no entry, "+
 				"and the name cannot be derived from the other architectures' "+
 				"(s390x's is ld64.so.1, not ld-linux-s390x.so.1): read it off a published "+
-				"bottle for %s and add it there", o.Arch, o.Arch)
+				"artifact for %s and add it there", o.Arch, o.Arch)
 		}
 		return fmt.Errorf("no %s loader (%s) in the staged glibc — is gnu.org/glibc in the toolchain?%s",
-			o.Arch, bottle.LoaderNameFor(o.Arch), glibcLayout(zpkgDir))
+			o.Arch, artifact.LoaderNameFor(o.Arch), glibcLayout(zpkgDir))
 	}
-	shell := bottle.FindClosureBin(closure, zpkgDir, "gnu.org/bash", "bash")
-	if err := bottle.SetupScratchRootfsAt(o.Root,
-		bottle.LoaderNameFor(o.Arch),
+	shell := artifact.FindClosureBin(closure, zpkgDir, "gnu.org/bash", "bash")
+	if err := artifact.SetupScratchRootfsAt(o.Root,
+		artifact.LoaderNameFor(o.Arch),
 		guestPath(loader, zpkgDir),
 		guestPath(shell, zpkgDir),
 	); err != nil {
@@ -449,7 +449,7 @@ func stageBuilder(o stageOptions) error {
 	// /usr, not /usr/local: bk builds under a sanitised PATH that lists
 	// /usr/bin and /bin but not /usr/local/bin, so a stub outside it is a stub
 	// the build cannot call.
-	n, err := stubBinsStaged(closure, bottle.Stage{
+	n, err := stubBinsStaged(closure, artifact.Stage{
 		Dir:      zpkgDir,
 		GuestDir: guestZpkgDir,
 		Prefix:   filepath.Join(o.Root, "usr"),
@@ -519,7 +519,7 @@ func stageBuilder(o stageOptions) error {
 // The tree is not self-sufficient by its filesystem alone, and it took running
 // it as a container to see why:
 //
-//   - Most bottles are MIRRORED: linked against a distro glibc, they carry
+//   - Most artifacts are MIRRORED: linked against a distro glibc, they carry
 //     RUNPATH=$ORIGIN/../lib and find libc through the loader's search path.
 //   - That path is compiled into the loader, and the mirrored glibc's is
 //     /opt/gnu.org/glibc/<ver>+brewing/lib — upstream's build staging dir. Its
@@ -638,8 +638,8 @@ type microVMUser struct {
 // time, but a micro-VM's init execs the args verbatim. Without it the first
 // thing that happens in the guest is /bin/sh failing to find libc.so.6 —
 // measured, in exactly that way.
-func writeMicroVMConfig(o stageOptions, closure []bottle.Resolved, zpkgDir string) error {
-	libPath := strings.ReplaceAll(bottle.LibPath(closure, zpkgDir), zpkgDir, guestZpkgDir)
+func writeMicroVMConfig(o stageOptions, closure []artifact.Resolved, zpkgDir string) error {
+	libPath := strings.ReplaceAll(artifact.LibPath(closure, zpkgDir), zpkgDir, guestZpkgDir)
 	env := []string{
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		"LD_LIBRARY_PATH=" + libPath,
@@ -674,12 +674,12 @@ func writeMicroVMConfig(o stageOptions, closure []bottle.Resolved, zpkgDir strin
 // Seams. Staging talks to a registry over the network; the tests drive these
 // instead, so a builder test proves the ORCHESTRATION — closure before
 // install, install before loader, loader before stubs — rather than re-proving
-// bottle's transport.
+// artifact's transport.
 var (
-	resolveClosureFor = bottle.ResolveClosureFor
-	installFor        = bottle.InstallFor
-	findLoaderFor     = bottle.FindLoaderFor
-	stubBinsStaged    = bottle.StubBinsStaged
+	resolveClosureFor = artifact.ResolveClosureFor
+	installFor        = artifact.InstallFor
+	findLoaderFor     = artifact.FindLoaderFor
+	stubBinsStaged    = artifact.StubBinsStaged
 )
 
 // More seams, for the branches a filesystem will not produce on demand: a

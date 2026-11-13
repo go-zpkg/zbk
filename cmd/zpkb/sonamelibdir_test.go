@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // ⛔ TestATestFixtureIsNotAnABI is the published defect, with the exact path
@@ -13,14 +13,14 @@ import (
 //
 // The Go distribution ships `src/debug/elf/testdata/libtiffxx.so_`, a fixture
 // of the standard library's own ELF reader. sonamesFromTarball read every
-// regular file in the tarball, so the published go.dev 1.27.3 bottle
+// regular file in the tarball, so the published go.dev 1.27.3 artifact
 // announced `org.go-zpkg.abi.provides = libtiffxx.so.6` on BOTH
 // darwin/aarch64 and linux/x86-64 — measured against ghcr on 2026-11-01 — and
 // `abi-libtiffxx.so.6 -> v1.27.3` appeared inside the go.dev store directory
 // (go-zpkg/pkgm#73, second observation).
 //
 // Go ships no shared libraries. Since the resolver keys ABI compatibility on
-// sonames (go-zpkg/bottle#83), that annotation was an offer to satisfy a
+// sonames (go-zpkg/artifact#83), that annotation was an offer to satisfy a
 // libtiff consumer with the Go toolchain.
 func TestATestFixtureIsNotAnABI(t *testing.T) {
 	lib, err := os.ReadFile(filepath.Join("testdata", "libfoo.so.1"))
@@ -34,7 +34,7 @@ func TestATestFixtureIsNotAnABI(t *testing.T) {
 		"bin/go":                               []byte("#!/bin/sh\n"),
 		"pkg/tool/linux_amd64/link":            []byte("#!/bin/sh\n"),
 	}))
-	got, err := sonamesFromTarball(tb, bottle.ExtTarGz)
+	got, err := sonamesFromTarball(tb, artifact.ExtTarGz)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestATestFixtureIsNotAnABI(t *testing.T) {
 }
 
 // TestALibraryInEveryLibdirIsStillFound: the fix must not throw away the
-// answer it exists to give. These are exactly the directories bottle.LibDirs
+// answer it exists to give. These are exactly the directories artifact.LibDirs
 // puts on LD_LIBRARY_PATH, so each one must still be read.
 func TestALibraryInEveryLibdirIsStillFound(t *testing.T) {
 	lib, err := os.ReadFile(filepath.Join("testdata", "libfoo.so.1"))
@@ -58,7 +58,7 @@ func TestALibraryInEveryLibdirIsStillFound(t *testing.T) {
 		"lib/glibc-2.41/libfoo.so.1",
 	} {
 		t.Run(where, func(t *testing.T) {
-			got, err := sonamesFromTarball(gzBytes(tarBytes(map[string][]byte{where: lib})), bottle.ExtTarGz)
+			got, err := sonamesFromTarball(gzBytes(tarBytes(map[string][]byte{where: lib})), artifact.ExtTarGz)
 			if err != nil {
 				t.Fatal(err)
 			}

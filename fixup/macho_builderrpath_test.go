@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// go-zpkg/bk#395: every darwin bottle carried an absolute LC_RPATH into the
+// go-zpkg/bk#395: every darwin artifact carried an absolute LC_RPATH into the
 // builder's store ($ZPKG_DIR as the build ran). These tests derive that store
 // from the test's own ZpkgDir, as the build does, and never name a runner path.
 
@@ -99,7 +99,7 @@ func TestBuilderRpathRefusals(t *testing.T) {
 	}
 }
 
-// The guard FAILS THE BUILD. auditBuilt is what FixUp ends with; a bottle that
+// The guard FAILS THE BUILD. auditBuilt is what FixUp ends with; an artifact that
 // still carries the fallback must not pass it.
 func TestAuditBuiltRefusesAShippedBuilderRpath(t *testing.T) {
 	store := filepath.Join(t.TempDir(), ".pkgx")

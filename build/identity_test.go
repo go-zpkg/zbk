@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/moustache"
 	"github.com/go-zpkg/zpkb/pantry"
 	"github.com/go-zpkg/zpkb/target"
@@ -33,15 +33,15 @@ func mustHash(t *testing.T, rec *pantry.Recipe, tgt target.Target, deps []mousta
 	return got
 }
 
-// ⛔⛔ THE IDENTITY IS WHAT THE PUBLISHED BOTTLE SAYS IT IS. The tag carries
-// `-h<hash>` and the manifest carries the spec; bottle.VerifySpec recomputes
+// ⛔⛔ THE IDENTITY IS WHAT THE PUBLISHED ARTIFACT SAYS IT IS. The tag carries
+// `-h<hash>` and the manifest carries the spec; artifact.VerifySpec recomputes
 // the first from the second and refuses the pair when they disagree. So the
 // property that matters is not "we have a hash" but "the hash is a function
 // of the description we publish" — which is exactly what this asserts, by
 // going through the annotation the way a reader does.
 //
 // A hash computed any other way (this package had one, over inputs nothing
-// published carries) would make every bottle fail its own verification, with
+// published carries) would make every artifact fail its own verification, with
 // a message that reads as tampering.
 func TestTheIdentityIsRecomputableFromThePublishedSpec(t *testing.T) {
 	c, err := concreteOf(idRecipe(), idTarget, []moustache.Dep{
@@ -57,13 +57,13 @@ func TestTheIdentityIsRecomputableFromThePublishedSpec(t *testing.T) {
 
 	// The round trip a reader makes: split the hash out of the tag, read the
 	// annotation, and check the one against the other.
-	_, wantHash := bottle.SplitVariantHash(tag)
+	_, wantHash := artifact.SplitVariantHash(tag)
 	if wantHash == "" {
 		t.Fatalf("the tag %q does not read back as carrying a hash", tag)
 	}
-	got, err := bottle.VerifySpec(bottle.MarshalSpec(c), wantHash)
+	got, err := artifact.VerifySpec(artifact.MarshalSpec(c), wantHash)
 	if err != nil {
-		t.Fatalf("the bottle would not verify against its own tag: %v", err)
+		t.Fatalf("the artifact would not verify against its own tag: %v", err)
 	}
 	if got.Hash() != c.Hash() {
 		t.Errorf("the spec came back as a different build: %q vs %q", got.Hash(), c.Hash())
@@ -232,11 +232,11 @@ func TestADependencysOwnBuildReachesTheIdentityThroughItsPrefix(t *testing.T) {
 	// Two builds of one version of a dependency, installed as the installer
 	// installs them: hashed.
 	const dep, depVer = "zlib.net", "1.3.2"
-	v := bottle.Ver{Raw: depVer}
+	v := artifact.Ver{Raw: depVer}
 	var hashes []string
 	for _, seed := range []string{"a", "b"} {
-		h := bottle.StoreHash(v, "digest:"+seed, "")
-		if err := os.MkdirAll(bottle.StoreBuildPrefix(store, dep, v, h), 0o755); err != nil {
+		h := artifact.StoreHash(v, "digest:"+seed, "")
+		if err := os.MkdirAll(artifact.StoreBuildPrefix(store, dep, v, h), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		hashes = append(hashes, h)
@@ -257,7 +257,7 @@ func TestADependencysOwnBuildReachesTheIdentityThroughItsPrefix(t *testing.T) {
 
 	// With ONE installed, the edge carries that build's own hash — and the
 	// identity moves with it.
-	if err := os.RemoveAll(bottle.StoreBuildPrefix(store, dep, v, hashes[1])); err != nil {
+	if err := os.RemoveAll(artifact.StoreBuildPrefix(store, dep, v, hashes[1])); err != nil {
 		t.Fatal(err)
 	}
 	_, resolved, err = DepTokens(
@@ -275,7 +275,7 @@ func TestADependencysOwnBuildReachesTheIdentityThroughItsPrefix(t *testing.T) {
 	mine := mustHash(t, idRecipe(), idTarget, resolved)
 	other := mustHash(t, idRecipe(), idTarget, []moustache.Dep{{
 		Project: dep, Version: depVer,
-		Path: bottle.StoreBuildPrefix(store, dep, v, hashes[1]),
+		Path: artifact.StoreBuildPrefix(store, dep, v, hashes[1]),
 	}})
 	if mine == other {
 		t.Error("a dependency rebuilt into a different prefix left our identity alone")

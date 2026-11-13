@@ -33,7 +33,7 @@ func TestSonameOfELFWithout(t *testing.T) {
 }
 
 // Anything that is not an object file at all — a script, an archive, a
-// truncated read — yields nothing rather than an error: a bottle is full of
+// truncated read — yields nothing rather than an error: an artifact is full of
 // them and none is a shared library.
 func TestSonameOfNonObject(t *testing.T) {
 	for _, b := range [][]byte{

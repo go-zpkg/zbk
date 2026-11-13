@@ -11,7 +11,7 @@ import (
 // prefix WITHOUT modifying a byte, and reports what it found.
 //
 // `FixUp` runs these same checks while it rewrites a freshly built package, so
-// nothing it produces can reach the registry unrunnable. A MIRRORED bottle is
+// nothing it produces can reach the registry unrunnable. A MIRRORED artifact is
 // never unpacked — it is republished verbatim — so the guards have no bytes to
 // look at and cannot fire. `git-scm.org 2.55.0` reached the catalogue that way:
 // 164 of its 164 Mach-O files reach a sibling package only through
@@ -134,7 +134,7 @@ var systemLibDirs = []string{"/usr/lib/", "/System/"}
 // tolerate, when non-nil, is asked about each absolute reference before it is
 // refused. The build path uses it for the ONE absolute form that is deliberate
 // — a path into $ZPKG_DIR, left by rewriteMacho when no rpath reaches the store
-// — and the mirror audit passes nil, because in a bottle we only copy there is
+// — and the mirror audit passes nil, because in an artifact we only copy there is
 // no such decision to respect.
 //
 // It takes the REFERENCE, not the error text. Deciding on the message was the
@@ -255,7 +255,7 @@ func checkMachoMagic(exe string) error {
 
 // ErrDuplicateRpath means a Mach-O carries the same LC_RPATH twice. ld refuses
 // to link against such a library, so it breaks every dependent rather than the
-// bottle itself — which is why nothing noticed until a dependent's build failed:
+// artifact itself — which is why nothing noticed until a dependent's build failed:
 //
 //	ld: duplicate LC_RPATH '@loader_path/../../../..' in
 //	    .../facebook.com/folly/v2026.09.14.00/lib/libfolly.0.58.0-dev.dylib
@@ -264,7 +264,7 @@ func checkMachoMagic(exe string) error {
 // It was this factory that wrote the second one: relativising an absolute rpath
 // can produce a string bk had already linked in. That is fixed where it is
 // made, but a defect invisible to every check we had is exactly what a guard is
-// for — the bottle carrying it was built, signed, published and inspected
+// for — the artifact carrying it was built, signed, published and inspected
 // without complaint.
 var ErrDuplicateRpath = errors.New("fixup: duplicate LC_RPATH")
 

@@ -10,24 +10,24 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // Seams, the same shape `unlinked` has, so the command is driven without a
 // network.
 var (
-	providesInstall = bottle.CompleteClosureFor
+	providesInstall = artifact.CompleteClosureFor
 	providesTempDir = os.MkdirTemp
 )
 
-// runProvides implements `bk provides`: does a published bottle's bin/ say the
+// runProvides implements `bk provides`: does a published artifact's bin/ say the
 // same thing as the `provides` its catalogue entry states?
 //
 // ⛔ NOTHING COMPARED THEM, AND BOTH DIRECTIONS SHIPPED WRONG (go-zpkg/bk#376).
 // In the published wasip1/wasm catalogue of 2026-10-31:
 //
 //	zlib.net        ships bin/minigzip.wasm and lists NO command at all
-//	filippo.io/age  lists age-keygen; the bottle has no bin/age-keygen.wasm
+//	filippo.io/age  lists age-keygen; the artifact has no bin/age-keygen.wasm
 //
 // They are different failures and are reported apart, never as one "mismatch"
 // count, because they hurt different people:
@@ -39,21 +39,21 @@ var (
 //	                  well not exist for every reader we ship.
 //
 // WHY IN bk. The comparison needs the catalogue types, the platform-explicit
-// closure install (bottle.CompleteClosureFor, the one `unlinked` and
+// closure install (artifact.CompleteClosureFor, the one `unlinked` and
 // `unresolved` use to audit a platform other than the host's) and the same
 // `provides` reduction `bk catalog` applied, all of which live here. A workflow
 // then runs `bk provides --fail` beside `bk catalog`; it does not need to know
-// how a bottle is unpacked.
+// how an artifact is unpacked.
 //
 // WHAT COUNTS AS A COMMAND. A regular file or symlink directly in
 // <version>/bin, with the platform's executable suffix removed: `.wasm` on
-// wasip1 (provides says bin/minigzip, the bottle carries minigzip.wasm) and
+// wasip1 (provides says bin/minigzip, the artifact carries minigzip.wasm) and
 // `.exe` on windows. Dot-files are not commands. Only bin/ is compared,
 // because ProvidedCommands only ever reports bin/ entries.
 func runProvides(args []string, stdout, stderr io.Writer) int {
 	fset := flag.NewFlagSet("provides", flag.ContinueOnError)
 	fset.SetOutput(stderr)
-	catPath := fset.String("catalog", "", "the catalogue to check: catalog.json, or the catalogue bottle's .tar.gz (required)")
+	catPath := fset.String("catalog", "", "the catalogue to check: catalog.json, or the catalogue artifact's .tar.gz (required)")
 	store := fset.String("store", "", "install into this directory (default: a temporary one, removed after)")
 	platform := fset.String("platform", "", "check this os/arch instead of the host's")
 	failOn := fset.Bool("fail", false, "exit 1 if anything is found")
@@ -64,7 +64,7 @@ func runProvides(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "provides: --catalog is required")
 		return 2
 	}
-	osn, arch := bottle.HostSlug()
+	osn, arch := artifact.HostSlug()
 	if *platform != "" {
 		o, a, ok := strings.Cut(*platform, "/")
 		if !ok || o == "" || a == "" {
@@ -82,7 +82,7 @@ func runProvides(args []string, stdout, stderr io.Writer) int {
 	projects := fset.Args()
 	if len(projects) == 0 {
 		// Every project the catalogue says is installable HERE: a named
-		// project with no version has no bottle, so there is nothing to open.
+		// project with no version has no artifact, so there is nothing to open.
 		for _, e := range cat.Projects {
 			if len(e.Versions) > 0 {
 				projects = append(projects, e.Project)
@@ -138,11 +138,11 @@ func runProvides(args []string, stdout, stderr io.Writer) int {
 		}
 		for _, c := range listedOnly {
 			noFile++
-			fmt.Fprintf(stdout, "%-34s LISTED, NO FILE   provides %q but the bottle has no bin/%s\n", p, c, c+exeSuffix(osn))
+			fmt.Fprintf(stdout, "%-34s LISTED, NO FILE   provides %q but the artifact has no bin/%s\n", p, c, c+exeSuffix(osn))
 		}
 		for _, c := range shippedOnly {
 			notListed++
-			fmt.Fprintf(stdout, "%-34s FILE, NOT LISTED  bin/%s is in the bottle and `provides` omits %q\n", p, c+exeSuffix(osn), c)
+			fmt.Fprintf(stdout, "%-34s FILE, NOT LISTED  bin/%s is in the artifact and `provides` omits %q\n", p, c+exeSuffix(osn), c)
 		}
 	}
 	fmt.Fprintf(stdout, "\n%d listed with no file (an install that cannot supply the command)\n", noFile)
@@ -157,16 +157,16 @@ func runProvides(args []string, stdout, stderr io.Writer) int {
 }
 
 // readCatalogFile reads a catalogue from catalog.json or from the catalogue
-// bottle's tarball, told apart by name.
-func readCatalogFile(path string) (bottle.Catalog, error) {
+// artifact's tarball, told apart by name.
+func readCatalogFile(path string) (artifact.Catalog, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return bottle.Catalog{}, err
+		return artifact.Catalog{}, err
 	}
 	if strings.HasSuffix(path, ".tar.gz") || strings.HasSuffix(path, ".tgz") {
-		return bottle.CatalogFromTarball(b)
+		return artifact.CatalogFromTarball(b)
 	}
-	return bottle.UnmarshalCatalog(b)
+	return artifact.UnmarshalCatalog(b)
 }
 
 // exeSuffix is what a platform appends to a command's file name.
@@ -184,7 +184,7 @@ func exeSuffix(osn string) string {
 // in prefix/bin, and returns the two differences separately, sorted: commands
 // listed with no file behind them, and files with no entry listing them.
 //
-// A prefix with no bin/ directory is a bottle with no commands, which is a
+// A prefix with no bin/ directory is an artifact with no commands, which is a
 // legitimate library, not an error; any other read failure is an error,
 // because a bin/ that could not be read would otherwise report every listed
 // command as missing.

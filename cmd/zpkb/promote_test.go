@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // promoteFactory is a factory configured the way a promotion runs: copying
@@ -19,15 +19,15 @@ func promoteFactory() *factory {
 	}
 }
 
-// ⛔ TestPromotionRefusesABootstrapBottle is the rule the whole feature
+// ⛔ TestPromotionRefusesABootstrapArtifact is the rule the whole feature
 // exists for: generations 0 and 1 publish to a throwaway registry because
-// their bottles were driven by the host's compiler, and this is what stops
+// their artifacts were driven by the host's compiler, and this is what stops
 // one of them reaching production under our signature.
-func TestPromotionRefusesABootstrapBottle(t *testing.T) {
+func TestPromotionRefusesABootstrapArtifact(t *testing.T) {
 	stubAttestations(t, originRefs(t, provOrigin{Bootstrap: "1", Dist: "oci://127.0.0.1:5000/seed"}), nil)
 	_, err := promoteFactory().promotableOrigin("lz4.org", "1.10.0")
 	if err == nil {
-		t.Fatal("a --bootstrap bottle was accepted for promotion")
+		t.Fatal("a --bootstrap artifact was accepted for promotion")
 	}
 	for _, want := range []string{"not promotable", "--bootstrap", "host"} {
 		if !strings.Contains(err.Error(), want) {
@@ -36,20 +36,20 @@ func TestPromotionRefusesABootstrapBottle(t *testing.T) {
 	}
 }
 
-// ⛔ TestPromotionRefusesASilentProvenance. Every bottle published before bk
+// ⛔ TestPromotionRefusesASilentProvenance. Every artifact published before bk
 // recorded an origin is in this state, and so is every mirrored one. Silence
 // is the commonest answer, so it is the one most likely to be waved through.
 func TestPromotionRefusesASilentProvenance(t *testing.T) {
 	stubAttestations(t, originRefs(t, provOrigin{}), nil)
 	if _, err := promoteFactory().promotableOrigin("lz4.org", "1.10.0"); err == nil {
-		t.Fatal("a bottle whose provenance says nothing was accepted for promotion")
+		t.Fatal("an artifact whose provenance says nothing was accepted for promotion")
 	}
 }
 
 // ⛔ TestPromotionDistinguishesCannotAskFromNo. "I could not reach the
 // registry" and "the answer was no" must not land in the same branch: one is
 // a verdict, the other is an outage, and a gate that folds them together
-// turns every network blip into a permanent judgement about a bottle.
+// turns every network blip into a permanent judgement about an artifact.
 func TestPromotionDistinguishesCannotAskFromNo(t *testing.T) {
 	stubAttestations(t, nil, errors.New("dial tcp 127.0.0.1:5000: connection refused"))
 	_, err := promoteFactory().promotableOrigin("lz4.org", "1.10.0")
@@ -62,7 +62,7 @@ func TestPromotionDistinguishesCannotAskFromNo(t *testing.T) {
 	if !strings.Contains(err.Error(), "127.0.0.1:5000") {
 		t.Errorf("the error does not name the registry it failed to read: %v", err)
 	}
-	// And it must not read as a verdict about the bottle.
+	// And it must not read as a verdict about the artifact.
 	if strings.Contains(err.Error(), "not promotable") {
 		t.Errorf("an outage was reported as a judgement: %v", err)
 	}
@@ -72,14 +72,14 @@ func TestPromotionDistinguishesCannotAskFromNo(t *testing.T) {
 // the BUILD: copying an artefact between registries does not change what
 // built it. Re-stating them as ours would launder a verdict this run did not
 // make — and would also lose `inputs-from`, which is the only record that the
-// bottle was built against the seed and not against ghcr.
+// artifact was built against the seed and not against ghcr.
 func TestPromotionCarriesTheVerdictRatherThanRestatingIt(t *testing.T) {
 	src := provOrigin{Bootstrap: "0", Dist: "oci://127.0.0.1:5000/seed"}
 	stubAttestations(t, originRefs(t, src), nil)
 
 	got, err := promoteFactory().promotableOrigin("lz4.org", "1.10.0")
 	if err != nil {
-		t.Fatalf("a sovereign bottle was refused: %v", err)
+		t.Fatalf("a sovereign artifact was refused: %v", err)
 	}
 	if got != src {
 		t.Errorf("origin = %+v, want the source's %+v carried through", got, src)
@@ -110,11 +110,11 @@ func promoteRun(t *testing.T, origin provOrigin, srcErr error) (code int, h *fac
 	h = newFactoryHarness(t)
 	prevDown, prevVers := factoryDownload, factoryUpstreamVersions
 	t.Cleanup(func() { factoryDownload, factoryUpstreamVersions = prevDown, prevVers })
-	factoryUpstreamVersions = func(string, string, string) ([]bottle.Ver, error) {
-		return []bottle.Ver{bottle.ParseVer("1.0")}, nil
+	factoryUpstreamVersions = func(string, string, string) ([]artifact.Ver, error) {
+		return []artifact.Ver{artifact.ParseVer("1.0")}, nil
 	}
 	factoryDownload = func(string, string, string, string) ([]byte, string, error) {
-		return []byte("bottle"), bottle.ExtTarXz, nil
+		return []byte("artifact"), artifact.ExtTarXz, nil
 	}
 	stubAttestations(t, originRefs(t, origin), srcErr)
 
@@ -141,7 +141,7 @@ func TestAPromotionRunPublishesNothingItCannotVouchFor(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			_, h := promoteRun(t, c.origin, c.srcErr)
 			if len(h.published) != 0 {
-				t.Errorf("%d bottle(s) were published despite %s", len(h.published), c.name)
+				t.Errorf("%d artifact(s) were published despite %s", len(h.published), c.name)
 			}
 			// ⛔ The REASON, from the run's own failure record, not from
 			// stderr. Nothing published is the right outcome for a dozen
@@ -160,14 +160,14 @@ func TestAPromotionRunPublishesNothingItCannotVouchFor(t *testing.T) {
 	}
 }
 
-// TestAPromotionRunPublishesASovereignBottle: the positive control. Without
+// TestAPromotionRunPublishesASovereignArtifact: the positive control. Without
 // it, every test above would pass on a gate that refuses everything.
-func TestAPromotionRunPublishesASovereignBottle(t *testing.T) {
+func TestAPromotionRunPublishesASovereignArtifact(t *testing.T) {
 	code, h := promoteRun(t, provOrigin{Bootstrap: "0", Dist: "oci://127.0.0.1:5000/seed"}, nil)
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	if len(h.published) == 0 {
-		t.Fatal("a sovereign bottle was not promoted, so the gate refuses everything")
+		t.Fatal("a sovereign artifact was not promoted, so the gate refuses everything")
 	}
 }

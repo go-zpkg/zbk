@@ -474,12 +474,12 @@ func TestSanitizedEnvPassesCacheAndQemu(t *testing.T) {
 	}
 }
 
-// A package's own published bottle must not join the toolchain of its own
+// A package's own published artifact must not join the toolchain of its own
 // build. It would shadow the thing being built with an older copy — and when
 // that copy cannot start, the package can no longer be repaired at all:
 // gnu.org/grep's own configure refuses with "no working 'grep' found", so the
-// broken bottle blocked the build that would have replaced it.
-func TestOwnBottleIsNotInItsOwnToolchain(t *testing.T) {
+// broken artifact blocked the build that would have replaced it.
+func TestOwnArtifactIsNotInItsOwnToolchain(t *testing.T) {
 	got := EvalDeps("gnu.org/grep", nil, nil, lin())
 	for _, s := range got {
 		if SpecProject(s) == "gnu.org/grep" {
@@ -725,7 +725,7 @@ func TestTouchAutotoolsOnGlibcsPreconfigure(t *testing.T) {
 // ⛔⛔ THE RESOLVED LIST MUST REACH THE CALLER, not just the tokens.
 //
 // DepTokens computed project+version+prefix for the whole build and runtime
-// closure on every build and discarded it, which is why a published bottle
+// closure on every build and discarded it, which is why a published artifact
 // could not say what compiled it. A test of the ATTESTATION alone stays green
 // when this plumbing is severed — proved by a mutation that returned nil here
 // and was caught by nothing until this test existed.

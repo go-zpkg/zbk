@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // unresolvedPrefixRE matches a store-relative VERSION directory — the prefix a
@@ -26,7 +26,7 @@ var unresolvedOwnerRE = regexp.MustCompile(`^(.+?)/v[0-9][^/]*/`)
 
 // Seams: the two things here that need a network.
 var (
-	unresolvedInstall           = bottle.CompleteClosureFor
+	unresolvedInstall           = artifact.CompleteClosureFor
 	unresolvedTempDir           = os.MkdirTemp
 	unresolvedStdin   io.Reader = os.Stdin
 )
@@ -36,7 +36,7 @@ var (
 //
 // It is the SYMPTOM whose cause `bk undeclared` reports, and the two answer
 // different questions. A missing declaration is a packaging defect; an
-// unresolvable reference is what the loader will actually refuse, and a bottle
+// unresolvable reference is what the loader will actually refuse, and an artifact
 // can have one without the other — a reference to a version directory that
 // moved on is declared perfectly and still resolves nowhere.
 //
@@ -55,10 +55,10 @@ func runUnresolved(args []string, stdout, stderr io.Writer) int {
 	fset.SetOutput(stderr)
 	store := fset.String("store", "", "install into this directory (default: a temporary one, removed after)")
 	quiet := fset.Bool("quiet", false, "print only the projects that have unresolvable references")
-	// ⛔ ONE MACHINE, EVERY PLATFORM. Until bottle v0.55.0 this installed for
+	// ⛔ ONE MACHINE, EVERY PLATFORM. Until artifact v0.55.0 this installed for
 	// the HOST, so the sweep that uses it (go-zpkg/packages sonames.yml)
 	// could only ask about linux/x86-64 — where it found 967 unresolvable
-	// references over 259 of 1407 bottled projects. The other five were not
+	// references over 259 of 1407 packaged projects. The other five were not
 	// clean; they were unasked, which is the shape a CVE lane here spent two
 	// months in.
 	//
@@ -69,12 +69,12 @@ func runUnresolved(args []string, stdout, stderr io.Writer) int {
 	if err := fset.Parse(args); err != nil {
 		return 2
 	}
-	osn, arch := bottle.HostSlug()
+	osn, arch := artifact.HostSlug()
 	if *platform != "" {
 		o, a, ok := strings.Cut(*platform, "/")
 		if !ok || o == "" || a == "" {
 			// A half-parsed platform would resolve against an empty arch and
-			// report every bottle as absent — a clean-looking catastrophe.
+			// report every artifact as absent — a clean-looking catastrophe.
 			fmt.Fprintf(stderr, "unresolved: %q is not an os/arch\n", *platform)
 			return 2
 		}
@@ -176,7 +176,7 @@ func unresolvedByOwner(dir string) map[string][]string {
 			return nil
 		}
 		owner := m[1]
-		if refs, rerr := bottle.MachoNeeded(p); rerr == nil {
+		if refs, rerr := artifact.MachoNeeded(p); rerr == nil {
 			if _, ok := out[owner]; !ok {
 				out[owner] = nil // examined, even if clean
 			}
@@ -199,7 +199,7 @@ func unresolvedByOwner(dir string) map[string][]string {
 			}
 			return nil
 		}
-		if sonames, eerr := bottle.ELFNeeded(p); eerr == nil {
+		if sonames, eerr := artifact.ELFNeeded(p); eerr == nil {
 			if _, ok := out[owner]; !ok {
 				out[owner] = nil
 			}
@@ -211,9 +211,9 @@ func unresolvedByOwner(dir string) map[string][]string {
 	})
 
 	if len(elfWants) > 0 {
-		have := bottle.SonamesUnder(prefixes)
+		have := artifact.SonamesUnder(prefixes)
 		for _, w := range elfWants {
-			if have[w.soname] || bottle.SonameComesFromOutside(w.soname) {
+			if have[w.soname] || artifact.SonameComesFromOutside(w.soname) {
 				continue
 			}
 			key := w.owner + "\x00" + w.soname

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // writeStoreFile stages an ordinary file: data, a header, something that is
@@ -58,7 +58,7 @@ func TestUnlinkedFindsADeclaredDependencyNothingLinks(t *testing.T) {
 	// …and the dependent ships one that references only itself.
 	writeLib(t, filepath.Join(dir, "gnu.org/libiconv/v1.19/lib/libiconv.2.dylib"))
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"gnu.org/libiconv": {{On: "gnu.org/gettext"}},
 	}}
 	got := unlinkedOf("gnu.org/libiconv", dir, g)
@@ -82,7 +82,7 @@ func TestUnlinkedIsQuietAboutADependencyWithNoLibraries(t *testing.T) {
 	writeStoreFile(t, filepath.Join(dir, "curl.se/ca-certs/v2026.10.20/ssl/cert.pem"), []byte("x"))
 	writeLib(t, filepath.Join(dir, "acme.org/tool/v1.0.0/lib/libtool.dylib"))
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"acme.org/tool": {{On: "curl.se/ca-certs"}},
 	}}
 	if got := unlinkedOf("acme.org/tool", dir, g); len(got) != 0 {
@@ -100,7 +100,7 @@ func TestUnlinkedDoesNotReportATransitiveDependency(t *testing.T) {
 	writeLib(t, filepath.Join(dir, "curl.se/v8.17.0/lib/libcurl.dylib"))
 	writeStoreFile(t, filepath.Join(dir, "acme.org/app/v1.0.0/bin/app"), []byte("x"))
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"acme.org/app": {{On: "curl.se"}},
 		"curl.se":      {{On: "openssl.org"}},
 	}}
@@ -114,11 +114,11 @@ func TestUnlinkedDoesNotReportATransitiveDependency(t *testing.T) {
 
 // withUnlinkedSeams replaces the two seams that need a network, so the whole
 // command is drivable without one.
-func withUnlinkedSeams(t *testing.T, g *bottle.Graph, gerr error, ierr error, stage func(dir string)) {
+func withUnlinkedSeams(t *testing.T, g *artifact.Graph, gerr error, ierr error, stage func(dir string)) {
 	t.Helper()
 	pg, pi, pt := unlinkedGraph, unlinkedInstall, unlinkedTempDir
-	unlinkedGraph = func(map[string]string, string, string) (*bottle.Graph, error) { return g, gerr }
-	unlinkedInstall = func(_ map[string]string, dir, _, _ string) ([]bottle.Resolved, error) {
+	unlinkedGraph = func(map[string]string, string, string) (*artifact.Graph, error) { return g, gerr }
+	unlinkedInstall = func(_ map[string]string, dir, _, _ string) ([]artifact.Resolved, error) {
 		if ierr != nil {
 			return nil, ierr
 		}
@@ -132,7 +132,7 @@ func withUnlinkedSeams(t *testing.T, g *bottle.Graph, gerr error, ierr error, st
 
 // The whole command on the shape it was written for.
 func TestUnlinkedRunReportsAVendoredDependency(t *testing.T) {
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"rpm.org/rpm-sequoia": {{On: "openssl.org"}},
 	}}
 	withUnlinkedSeams(t, g, nil, nil, func(dir string) {
@@ -157,7 +157,7 @@ func TestUnlinkedRunReportsAVendoredDependency(t *testing.T) {
 
 // Nothing found is green even with --fail, or a gate could never pass.
 func TestUnlinkedRunIsGreenWhenThereIsNothing(t *testing.T) {
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{}}
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{}}
 	withUnlinkedSeams(t, g, nil, nil, nil)
 	if code, out, _ := run2(t, "unlinked", "--store", t.TempDir(), "--fail", "acme.org"); code != 0 {
 		t.Fatalf("want 0, got %d: %s", code, out)
@@ -165,7 +165,7 @@ func TestUnlinkedRunIsGreenWhenThereIsNothing(t *testing.T) {
 }
 
 func TestUnlinkedRunRejectsBadInput(t *testing.T) {
-	withUnlinkedSeams(t, &bottle.Graph{}, nil, nil, nil)
+	withUnlinkedSeams(t, &artifact.Graph{}, nil, nil, nil)
 	for _, c := range []struct {
 		what string
 		args []string
@@ -206,7 +206,7 @@ func TestUnlinkedRunCarriesOnPastAProjectItCannotRead(t *testing.T) {
 }
 
 func TestUnlinkedRunReportsAnInstallThatFailed(t *testing.T) {
-	withUnlinkedSeams(t, &bottle.Graph{}, nil, errors.New("disk full"), nil)
+	withUnlinkedSeams(t, &artifact.Graph{}, nil, errors.New("disk full"), nil)
 	code, _, errb := run2(t, "unlinked", "--store", t.TempDir(), "a.org")
 	if code != 0 {
 		t.Fatalf("want 0, got %d", code)
@@ -217,7 +217,7 @@ func TestUnlinkedRunReportsAnInstallThatFailed(t *testing.T) {
 }
 
 func TestUnlinkedRunReportsATempDirItCannotMake(t *testing.T) {
-	withUnlinkedSeams(t, &bottle.Graph{}, nil, nil, nil)
+	withUnlinkedSeams(t, &artifact.Graph{}, nil, nil, nil)
 	prev := unlinkedTempDir
 	unlinkedTempDir = func(string, string) (string, error) { return "", errors.New("nowhere to write") }
 	defer func() { unlinkedTempDir = prev }()
@@ -232,7 +232,7 @@ func TestUnlinkedRunReportsATempDirItCannotMake(t *testing.T) {
 
 // referencedProjects has to read BOTH spellings: Mach-O carries the project
 // inside the reference, ELF carries only a soname and the project has to be
-// recovered from which bottle ships that file.
+// recovered from which artifact ships that file.
 func TestReferencedProjectsHandlesAStoreWithNoReadableBinaries(t *testing.T) {
 	dir := t.TempDir()
 	writeStoreFile(t, filepath.Join(dir, "a.org/v1.0.0/share/readme.txt"), []byte("not a binary"))
@@ -253,13 +253,13 @@ func TestSonameOwnersAttributesALibraryToItsProject(t *testing.T) {
 		t.Errorf("a header is not a shared library")
 	}
 	// ⛔ AND A LIBRARY NOBODY OWNS IS DROPPED, not attributed to "". A store
-	// holds more than bottles — a staging directory, a stray file — and a
+	// holds more than artifacts — a staging directory, a stray file — and a
 	// path with no `v<version>` segment names no project. Recording it under
 	// the empty project would make the empty project "referenced", which
 	// satisfies nothing and silently suppresses real findings.
 	writeLib(t, filepath.Join(dir, "loose/libstray.so.1"))
 	if owners := sonameOwners(dir)["libstray.so.1"]; len(owners) != 0 {
-		t.Errorf("a library outside any bottle was attributed to %v", owners)
+		t.Errorf("a library outside any artifact was attributed to %v", owners)
 	}
 }
 
@@ -302,7 +302,7 @@ func TestACollidingSonameDoesNotFabricateAFinding(t *testing.T) {
 	writeELFNeeded(t, filepath.Join(dir, "facebook.com/folly/v2026.8.24.0/lib/libfolly.so"),
 		"libstdc++.so.6", "libc.so.6")
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"facebook.com/folly": {{On: "gnu.org/gcc/libstdcxx"}},
 	}}
 	if got := unlinkedOf("facebook.com/folly", dir, g); len(got) != 0 {
@@ -324,7 +324,7 @@ func TestReferencedProjectsReadsRealMachOLoadCommands(t *testing.T) {
 		"@rpath/gnu.org/libiconv/v1.19/lib/libiconv.2.dylib",
 		"/usr/lib/libSystem.B.dylib",
 	}
-	// And v1.19.0, the bottle I actually looked at: no gettext.
+	// And v1.19.0, the artifact I actually looked at: no gettext.
 	noGettext := links[1:]
 
 	for _, c := range []struct {
@@ -352,7 +352,7 @@ func TestReferencedProjectsReadsRealMachOLoadCommands(t *testing.T) {
 		// ⛔ AND THE WHOLE ANSWER, not just the map: with the reference
 		// present, a declared gettext is satisfied and SILENCE is correct —
 		// that silence is the finding I should have trusted the first time.
-		g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+		g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 			"gnu.org/libiconv": {{On: "gnu.org/gettext"}},
 		}}
 		findings := unlinkedOf("gnu.org/libiconv", dir, g)
@@ -383,9 +383,9 @@ func TestReferencedProjectsReadsTheProjectInsideAnRpathWithNothingStaged(t *test
 }
 
 // ⛔ A MACH-O REFERENCE THAT IS NOT @rpath STILL NAMES A PROJECT. An absolute
-// install name (`/opt/.../libfoo.dylib`, or a bottle built before the fix-ups
+// install name (`/opt/.../libfoo.dylib`, or an artifact built before the fix-ups
 // rewrote it) carries no project, so the owner has to come from the FILE NAME
-// the way the ELF half does. Without this, such a bottle looks like it links
+// the way the ELF half does. Without this, such an artifact looks like it links
 // nothing and every one of its declarations reads as a finding.
 func TestReferencedProjectsAttributesANonRpathDylibByName(t *testing.T) {
 	dir := t.TempDir()
@@ -401,7 +401,7 @@ func TestReferencedProjectsAttributesANonRpathDylibByName(t *testing.T) {
 // ⛔ THE ELF HALF, which is the half that matters: rpm.org/rpm-sequoia — the
 // one confirmed vendoring case — is published for linux and not for darwin,
 // so on this machine the Mach-O branch can never reach it. ELF carries only
-// a soname, so the project comes from whichever bottle ships that file.
+// a soname, so the project comes from whichever artifact ships that file.
 func TestReferencedProjectsRecoversAProjectFromAnELFSoname(t *testing.T) {
 	dir := t.TempDir()
 	writeELFNeeded(t, filepath.Join(dir, "openssl.org/v3.6.4/lib/libssl.so.3"))
@@ -429,7 +429,7 @@ func TestUnlinkedSortsItsFindingsByDependency(t *testing.T) {
 	writeLib(t, filepath.Join(dir, "openssl.org/v3.6.4/lib/libssl.3.dylib"))
 	writeMachOAt(t, filepath.Join(dir, "acme.org/app/v1.0.0/bin/app"), "/usr/lib/libSystem.B.dylib")
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"acme.org/app": {{On: "zlib.net"}, {On: "openssl.org"}},
 	}}
 	got := unlinkedOf("acme.org/app", dir, g)
@@ -448,10 +448,10 @@ func TestUnlinkedRunHonoursAValidPlatform(t *testing.T) {
 	var sawOS, sawArch string
 	// withUnlinkedSeams first, so its Cleanup captures the REAL seams and the
 	// probe below is what gets restored over, not under.
-	withUnlinkedSeams(t, &bottle.Graph{}, nil, nil, nil)
-	unlinkedGraph = func(_ map[string]string, osn, arch string) (*bottle.Graph, error) {
+	withUnlinkedSeams(t, &artifact.Graph{}, nil, nil, nil)
+	unlinkedGraph = func(_ map[string]string, osn, arch string) (*artifact.Graph, error) {
 		sawOS, sawArch = osn, arch
-		return &bottle.Graph{}, nil
+		return &artifact.Graph{}, nil
 	}
 
 	if code, _, errb := run2(t, "unlinked", "--store", t.TempDir(), "--platform", "linux/x86-64", "a.org"); code != 0 {
@@ -489,7 +489,7 @@ func TestASonameWithANonNumericVersionIsStillAttributed(t *testing.T) {
 	writeELFNeeded(t, filepath.Join(dir, "facebook.com/fbthrift/v2026.8.24.0/lib/libthriftcpp2.so"),
 		"libfolly.so.0.58.0-dev", "libc.so.6")
 
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"facebook.com/fbthrift": {{On: "facebook.com/folly"}},
 	}}
 	if got := unlinkedOf("facebook.com/fbthrift", dir, g); len(got) != 0 {

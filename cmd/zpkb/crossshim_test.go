@@ -33,7 +33,7 @@ func shimDir(t *testing.T, shim string, onPath ...string) (self string) {
 // recipe's llvm-mingw dep — and compilerShimsFor shims the triple-prefixed
 // spellings, which go FIRST on PATH. shimBase reduced
 // `x86_64-w64-mingw32-gcc` to `gcc`, so the shim shadowed llvm-mingw's real
-// compiler and then delegated to a name that bottle does not ship:
+// compiler and then delegated to a name that artifact does not ship:
 //
 //	bk gcc: gcc is not on PATH outside …/build.libexec
 //

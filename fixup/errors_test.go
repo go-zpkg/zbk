@@ -143,7 +143,7 @@ func TestSetRunpathOnAReadOnlyFile(t *testing.T) {
 	if got != "$ORIGIN/x" {
 		t.Errorf("RUNPATH = %q, want it rewritten", got)
 	}
-	// The bottle must ship the permissions the package chose, not the ones we
+	// The artifact must ship the permissions the package chose, not the ones we
 	// needed for a moment.
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -208,7 +208,7 @@ func TestWalkExesReadError(t *testing.T) {
 
 // The same chmod failure at the other two in-place writers: the Mach-O rewrite
 // and the .pc/.cmake rewrite. A file we cannot make writable must stop the
-// relocation, not be skipped silently — a half-relocated bottle is the one
+// relocation, not be skipped silently — a half-relocated artifact is the one
 // outcome nobody can check.
 func TestEnsureWritableChmodErrorAtEveryWriter(t *testing.T) {
 	t.Run("mach-o", func(t *testing.T) {
@@ -304,7 +304,7 @@ func TestRewriteMachoDeadRpathAfterRewrite(t *testing.T) {
 }
 
 // A write failure during the Mach-O rewrite must reach the caller — it is the
-// difference between a bottle that was relocated and one that was not.
+// difference between an artifact that was relocated and one that was not.
 func TestRewriteMachoWriteErrorSurfaces(t *testing.T) {
 	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(zpkgx, "acme.org", "thing", "v1.0.0")

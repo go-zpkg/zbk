@@ -41,7 +41,7 @@ type WrapOptions struct {
 	BashPath    string        // shebang interpreter (default /bin/bash)
 	HasCompiler bool          // a compiler (llvm.org / gnu.org/gcc) is already a dep
 	// Bootstrap takes the compiler from the HOST instead of adding the llvm.org
-	// bottle, for the first generation on an architecture no registry has. It
+	// artifact, for the first generation on an architecture no registry has. It
 	// travels with build.Runner.Bootstrap, which drops the base toolchain for
 	// the same reason: a compiler is a tool that RUNS the build, not something
 	// the artefact carries.
@@ -52,18 +52,18 @@ type WrapOptions struct {
 	//	zpkgx: GET https://dist.pkgx.dev/llvm.org/linux/s390x/versions.txt: Not Found
 	//	zpkb: the dependency environment failed: zpkgx +llvm.org
 	//
-	// which reads as a network fault and is not one. bottle falls back to the
+	// which reads as a network fault and is not one. artifact falls back to the
 	// upstream dist for a project our registry does not carry -- right for
 	// llvm.org on x86-64, where upstream HAS it -- and upstream carries no
 	// s390x at all.
 	Bootstrap   bool
 	HasBinutils bool // gnu.org/binutils is a dep (darwin AR/RANLIB workaround)
-	// LibcZpkgx targets the pkgx gnu.org/glibc bottle instead of the build
+	// LibcZpkgx targets the pkgx gnu.org/glibc artifact instead of the build
 	// container's system glibc (linux only): the output links its crt objects,
-	// libc and dynamic linker from the bottle, so the bottle owes nothing to the
+	// libc and dynamic linker from the artifact, so the artifact owes nothing to the
 	// debian build container — the sovereign FROM-scratch end state. Opt-in
-	// (default off); the caller also adds gnu.org/glibc to Deps so the bottle is
-	// present in the eval. C-only for now: the pkgx llvm.org bottle ships no
+	// (default off); the caller also adds gnu.org/glibc to Deps so the artifact is
+	// present in the eval. C-only for now: the pkgx llvm.org artifact ships no
 	// libc++/libunwind, so C++ recipes still need the system libstdc++.
 	LibcZpkgx bool
 	// Glibc, when set (with LibcZpkgx), pins the exact pkgx gnu.org/glibc version
@@ -77,8 +77,8 @@ type WrapOptions struct {
 	PrefixMap string
 }
 
-// BottleBuildDir is what the cache root is rewritten to in compiled output.
-const BottleBuildDir = "/build"
+// ArtifactBuildDir is what the cache root is rewritten to in compiled output.
+const ArtifactBuildDir = "/build"
 
 // PrefixMapFor derives the -ffile-prefix-map value from the cache root the
 // build ACTUALLY uses, and refuses to produce one that could not match: a map
@@ -96,7 +96,7 @@ func PrefixMapFor(root string, dirs ...string) (string, error) {
 			return "", fmt.Errorf("prefix map: build directory %q is outside the cache root %q, so the map would not cover it", d, root)
 		}
 	}
-	return root + "=" + BottleBuildDir, nil
+	return root + "=" + ArtifactBuildDir, nil
 }
 
 // Wrap assembles the complete, runnable build script: a sanitized env, the
@@ -112,9 +112,9 @@ func Wrap(o WrapOptions) string {
 	b.WriteString("export ZPKG_HOME=\"$HOME\"\n")
 	if o.Bootstrap {
 		// The last of the implicit injections a first fill runs into, and the
-		// one that stops everything rather than one thing: bottle adds
+		// one that stops everything rather than one thing: artifact adds
 		// gnu.org/glibc to EVERY linux closure, so on an architecture with no
-		// glibc bottle, `pkgx +anything` fails -- including a bottle this
+		// glibc artifact, `pkgx +anything` fails -- including an artifact this
 		// factory has just built and published.
 		//
 		// Written into the SCRIPT rather than passed in the process
@@ -232,7 +232,7 @@ func (o WrapOptions) depPlus() string {
 		parts = append(parts, `"+`+d+`"`)
 	}
 	wasi := o.Target.Platform == "wasip1"
-	// A wasip1 target ALWAYS wants the llvm.org bottle, whatever the host: the
+	// A wasip1 target ALWAYS wants the llvm.org artifact, whatever the host: the
 	// system toolchain of a darwin host has no wasm backend, and a recipe's
 	// own compiler dependency is not one that can target wasm32-wasip1.
 	if wasi || (!o.HasCompiler && !o.Bootstrap && o.Target.Platform != "windows" && o.Host.Platform != "darwin") {
@@ -241,17 +241,17 @@ func (o WrapOptions) depPlus() string {
 	if wasi {
 		parts = append(parts, `"+github.com/WebAssembly/wasi-libc"`, `"+compiler-rt.llvm.org/wasi"`)
 	}
-	// pkgx-libc mode needs the gnu.org/glibc bottle present in the eval so its
+	// pkgx-libc mode needs the gnu.org/glibc artifact present in the eval so its
 	// headers/crt/libc/loader are on disk under $ZPKG_DIR for wrapFlags to point
 	// the compiler at (linux only). kernel.org/linux-headers supplies the Linux
 	// kernel headers (linux/*.h, asm/*.h) glibc's own headers include — glibc's
-	// recipe depends on it for exactly this reason; the bottle doesn't bundle
+	// recipe depends on it for exactly this reason; the artifact doesn't bundle
 	// them and --sysroot cuts off the container's copy.
 	if o.LibcZpkgx && o.Target.Platform == "linux" {
-		// gnu.org/binutils supplies ar/ranlib (the pkgx llvm.org bottle ships
+		// gnu.org/binutils supplies ar/ranlib (the pkgx llvm.org artifact ships
 		// llvm-ar, not a plain `ar`, and the sovereign mode must not fall back to
 		// the container's binutils). Linking still uses lld via -fuse-ld=lld.
-		// libcxx.llvm.org supplies the C++ runtime the bare llvm.org bottle omits:
+		// libcxx.llvm.org supplies the C++ runtime the bare llvm.org artifact omits:
 		// its recipe builds libc++ + libc++abi + libunwind, so C++ recipes link
 		// -stdlib=libc++ instead of the container's GNU libstdc++.
 		glibcSpec := `"+gnu.org/glibc"`
@@ -275,7 +275,7 @@ func (o WrapOptions) depPlus() string {
 // scripts it ships.
 //
 // `libtoolize` opens with `: ${SED="<path>"}` — the path of the sed on the
-// machine that BUILT libtool. In the pkgx bottle that is
+// machine that BUILT libtool. In the pkgx artifact that is
 // /__w/_actions/pkgxdev/brewkit/v1/libexec/sed, which exists nowhere else, so
 // libtoolize's every sed call fails. It still exits 0, and prints its version
 // with the program name stripped off (the name comes through that sed), so
@@ -283,7 +283,7 @@ func (o WrapOptions) depPlus() string {
 //
 //	You must have libtoolize version >= 2.x.x, but you have none.
 //
-// which names neither libtool nor a path. Measured on the shipped bottle:
+// which names neither libtool nor a path. Measured on the shipped artifact:
 // bare `libtoolize --version` prints " (GNU libtool) 2.6.2" with two
 // no-such-file errors; SED=sed prints "libtoolize (GNU libtool) 2.6.2" clean.
 //
@@ -293,13 +293,13 @@ func (o WrapOptions) depPlus() string {
 //
 // `: ${VAR=...}` only assigns when unset, so exporting these wins, and := keeps
 // a value a recipe set deliberately. Every one of them is on PATH from the
-// gnu.org/sed and gnu.org/grep bottles the build env already carries.
+// gnu.org/sed and gnu.org/grep artifacts the build env already carries.
 const libtoolToolVars = `export SED="${SED:-sed}" GREP="${GREP:-grep}" EGREP="${EGREP:-grep -E}" FGREP="${FGREP:-grep -F}"
 `
 
 // toolVarProvider names the package each variable stands for. Presetting a
 // variable for the package that PROVIDES it is the same mistake as putting a
-// package's own bottle on the PATH of its own build: the factory hands the
+// package's own artifact on the PATH of its own build: the factory hands the
 // build an answer about the very thing being built.
 var toolVarProvider = map[string]string{
 	"SED":   "gnu.org/sed",
@@ -354,7 +354,7 @@ func tmpdirLine(host target.Target) string {
 }
 
 // glibcLoader is the arch-specific ELF interpreter (PT_INTERP) filename glibc
-// ships. It lives in the bottle's lib/glibc-<ver>/ dir.
+// ships. It lives in the artifact's lib/glibc-<ver>/ dir.
 //
 // It reports ok=false for an arch it has not been told about, where it used to
 // fall through to the x86-64 name. That default was the dangerous kind: nothing
@@ -380,7 +380,7 @@ func glibcLoader(arch string) (string, bool) {
 }
 
 // darwinRpaths returns the -rpath flags a darwin link needs: the relative ones
-// that make the bottle relocatable, then the absolute $ZPKG_DIR.
+// that make the artifact relocatable, then the absolute $ZPKG_DIR.
 //
 // The depth comes from where the package installs — $ZPKG_DIR/<project>/vX.Y.Z
 // is three levels for a two-segment project and two for a one-segment one, and
@@ -404,7 +404,7 @@ func darwinRpaths(zpkgDir, install string) []string {
 // relative rpath that reaches $ZPKG_DIR.
 //
 // 1 and 2 cover bin/ and lib/ — where almost everything lives — and they were
-// enough until a guard started refusing bottles that could only run on the
+// enough until a guard started refusing artifacts that could only run on the
 // machine that built them. libX11 then failed on
 //
 //	lib/X11/locale/common/ximcp.2
@@ -427,7 +427,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 	switch tgt.Platform {
 	case "darwin":
 		// A darwin binary records its dependencies by ABSOLUTE install name, and
-		// fixup rewrites those into @rpath/… so the bottle resolves wherever
+		// fixup rewrites those into @rpath/… so the artifact resolves wherever
 		// $ZPKG_DIR happens to be. That only works if the binary carries an
 		// LC_RPATH that reaches $ZPKG_DIR from where it is installed — and unlike
 		// ELF's RUNPATH, an LC_RPATH cannot be lengthened after the fact: the
@@ -469,9 +469,9 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// that are ENABLED and -Wno- disables this one outright.
 		ld = append(ld, "-Wl,-headerpad_max_install_names", "-Wno-unused-command-line-argument")
 	case "wasip1":
-		// C/C++ for wasm32-wasip1, with OUR toolchain: the llvm.org bottle's clang
+		// C/C++ for wasm32-wasip1, with OUR toolchain: the llvm.org artifact's clang
 		// and wasm-ld, the wasi-libc sysroot and the compiler-rt builtins, each a
-		// bottle built from source (wasi-sdk's recipe, taken apart; see
+		// artifact built from source (wasi-sdk's recipe, taken apart; see
 		// compiler-rt.llvm.org/wasi and github.com/WebAssembly/wasi-libc in the
 		// pantry overlay). Nothing comes from the host distribution.
 		//
@@ -480,7 +480,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// CFLAGS/LDFLAGS, which a recipe's env replaces whole. $CC/$CXX default to
 		// it for the recipes that do read them, as the sovereign linux mode does.
 		//
-		// -resource-dir points at the compiler-rt bottle, which carries clang's own
+		// -resource-dir points at the compiler-rt artifact, which carries clang's own
 		// headers next to libclang_rt.builtins.a (wasi-sdk's wasi-resource-dir);
 		// -mcpu=lime1 is wasi-sdk's WASI_SDK_CPU_CFLAGS default.
 		//
@@ -499,23 +499,23 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// library links, where it conflicts with -shared and makes ld try to build
 		// an executable → "undefined reference to `main`" (this broke every
 		// shared-lib recipe on x86-64, e.g. openssl's libcrypto.so.4, so those
-		// bottles never published for linux/x86-64). -fPIC in CFLAGS still gives
+		// artifacts never published for linux/x86-64). -fPIC in CFLAGS still gives
 		// the position-independent objects both PIE executables and shared libs
 		// need; PIE-ness of the final executable is the toolchain default.
 		ld = append(ld, "-Wl,-rpath,"+zpkgDir)
 	}
 
-	// pkgx-libc mode (linux): resolve the gnu.org/glibc bottle in the eval'd
+	// pkgx-libc mode (linux): resolve the gnu.org/glibc artifact in the eval'd
 	// $ZPKG_DIR at build time (its version isn't known here, so glob + version-
 	// sort in the shell), then point the compiler driver at its headers, crt
 	// objects, libc and dynamic linker. --rtlib=compiler-rt keeps the runtime on
-	// llvm's builtins (the pkgx llvm.org bottle ships compiler-rt but no libgcc);
+	// llvm's builtins (the pkgx llvm.org artifact ships compiler-rt but no libgcc);
 	// --unwindlib=none avoids the libgcc_s unwinder the C toolchain would
 	// otherwise pull (fine for exception-free C — the mode's scope). The result
-	// links its interpreter + libc from the bottle, not the debian container.
+	// links its interpreter + libc from the artifact, not the debian container.
 	var glibcCC, glibcCXX, glibcLD string
 	if libcZpkgx && tgt.Platform == "linux" {
-		// Resolve the newest installed version dir of each bottle. Two hazards:
+		// Resolve the newest installed version dir of each artifact. Two hazards:
 		// pkgx creates a symlink literally NAMED "v*" (alongside v2, v2.44,
 		// v2.44.0) which a "v*/" glob would match and — worse — sort -V ranks
 		// LAST, so the chosen value would still contain a wildcard that re-globs
@@ -531,10 +531,10 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// points at later, which defeats the whole point of pinning a floor.
 		// Globbing without the slash sorts v2 < v2.27 < v2.27.0, so the concrete
 		// version dir wins; the slash is appended afterwards.
-		// bkresolve prints the newest concrete version dir of a bottle, or NOTHING
-		// when that bottle is not installed. A shell leaves an unmatched pattern
+		// bkresolve prints the newest concrete version dir of an artifact, or NOTHING
+		// when that artifact is not installed. A shell leaves an unmatched pattern
 		// LITERAL, and a literal `v[0-9]*` in the flags poisons the link — that is
-		// how a build with no libcxx bottle ended up passing
+		// how a build with no libcxx artifact ended up passing
 		// `-L/pkgx/libcxx.llvm.org/v[0-9]*/lib` to the linker and failing
 		// configure's very first "can the compiler create executables" probe.
 		out = append(out, sysrootResolve...)
@@ -555,18 +555,18 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// RUSTFLAGS: see the note where RUSTFLAGS used to be set.
 		base := baseSysrootFlags
 		// C: no unwinder (exception-free C). C++: libc++ headers + its libunwind,
-		// from the libcxx.llvm.org bottle (-stdlib=libc++ makes the driver link
+		// from the libcxx.llvm.org artifact (-stdlib=libc++ makes the driver link
 		// -lc++ itself when it links a C++ target).
 		glibcCC = base + ` --unwindlib=none`
 		// libc++'s headers MUST precede glibc's on the search path — its <cstdio>
 		// pulls libc++'s own <stdio.h> wrapper and #errors if a C <stdio.h> is
 		// found first — so the libc++ -isystem goes BEFORE base's glibc/kernel ones.
-		// ${VAR:+…} so an ABSENT libcxx bottle contributes nothing at all rather
+		// ${VAR:+…} so an ABSENT libcxx artifact contributes nothing at all rather
 		// than an unmatched pattern.
 		glibcCXX = `${ZPKB_LIBCXX_PREFIX:+-stdlib=libc++ -isystem "${ZPKB_LIBCXX_PREFIX}include/c++/v1"} ` + base + ` ${ZPKB_LIBCXX_PREFIX:+--unwindlib=libunwind}`
-		// PT_INTERP = the bottle's loader; search paths for glibc + libc++/libunwind
+		// PT_INTERP = the artifact's loader; search paths for glibc + libc++/libunwind
 		// libs (the $ORIGIN rewrite by fixup drops these, so at deploy libc.so.6 /
-		// libc++.so.1 come from their bottles via LD_LIBRARY_PATH — the mkscratch
+		// libc++.so.1 come from their artifacts via LD_LIBRARY_PATH — the mkscratch
 		// closure model). --disable-new-dtags emits DT_RPATH (searched for the
 		// loader's own NEEDED libs).
 		// --undefined-version: lld 17 flipped its default to --no-undefined-version,
@@ -584,7 +584,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// No --dynamic-linker for an arch glibcLoader does not know: the link
 		// then keeps lld's own default, which for the native build this always
 		// is names the HOST's loader. That is the host's glibc rather than the
-		// bottle's -- a weaker guarantee, and visible in the resulting binary --
+		// artifact's -- a weaker guarantee, and visible in the resulting binary --
 		// where naming another machine's loader produces one that cannot start
 		// at all. A new arch belongs in glibcLoader; this is what happens until
 		// someone puts it there.
@@ -593,7 +593,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 		// configuration inside it.
 		//
 		// Two reasons, both measured. (a) The flag set is clang's
-		// (--rtlib/--unwindlib/-fuse-ld=lld) while the bottle provides `cc` and
+		// (--rtlib/--unwindlib/-fuse-ld=lld) while the artifact provides `cc` and
 		// `clang` but NOT `gcc`, and autoconf probes `gcc` FIRST — so a
 		// ./configure recipe silently picked the container's gcc and died with
 		// `cc: error: unrecognized command-line option '--unwindlib=none'`.
@@ -687,7 +687,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 			// --rtlib=compiler-rt moves the BUILTINS; the unwinder is separate,
 			// and on linux-gnu rustc's unwind crate links `gcc_s` by name
 			// (library/unwind/src/lib.rs), an ordinary lib/ entry of the
-			// gnu.org/gcc bottle that resolves when that bottle is in the
+			// gnu.org/gcc artifact that resolves when that artifact is in the
 			// closure. What was missing was only libgcc.a's DIRECTORY.
 		)
 	}
@@ -709,7 +709,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 	//     Referenced from: …/.pkgx/rust-lang.org/cargo/v0.99.0/bin/cargo
 	//     Reason: no LC_RPATH's found
 	//
-	// It went unnoticed because cargo's darwin bottle had always been MIRRORED
+	// It went unnoticed because cargo's darwin artifact had always been MIRRORED
 	// from upstream, which links its own rpath. The first time we built it
 	// ourselves, it came out unable to start — published, signed and attested.
 	//
@@ -721,9 +721,9 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 	// rustc only the absolute one would leave every Rust package with no rpath
 	// reaching $ZPKG_DIR from where it installs — and fixup, which checks that
 	// before rewriting an install name into @rpath/…, would then correctly
-	// refuse to touch it. The bottle would build, publish and run on the
+	// refuse to touch it. The artifact would build, publish and run on the
 	// runner, and be exactly as unrelocatable as before. Measured on the
-	// republished pqrs and getzola bottles, which carried `/Users/runner/.pkgx`
+	// republished pqrs and getzola artifacts, which carried `/Users/runner/.pkgx`
 	// and nothing else after LDFLAGS alone had been fixed.
 	if tgt.Platform == "darwin" {
 		var rf []string
@@ -790,14 +790,14 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkg
 // resource dir (compiler-rt builtins + clang headers) and the wasm CPU
 // baseline. Quoted paths: a $ZPKG_DIR with a space must not split them.
 //
-// --rtlib=compiler-rt: the llvm.org bottle's clang defaults to libgcc, so a wasm
+// --rtlib=compiler-rt: the llvm.org artifact's clang defaults to libgcc, so a wasm
 // LINK asked wasm-ld for -lgcc ("wasm-ld: error: unable to find library -lgcc",
 // sqlite3, wasip1-c run 40369903497). wasi-sdk builds its clang with
 // CLANG_DEFAULT_RTLIB=compiler-rt; we state it in the stencil instead, as the
 // linux sovereign mode does.
 const wasiFlags = `--target=wasm32-wasip1 --sysroot="$ZPKB_WASI_SYSROOT" -resource-dir="$ZPKB_WASI_RT" -mcpu=lime1 --rtlib=compiler-rt -Wno-unused-command-line-argument`
 
-// wasiResolve locates the two wasip1 toolchain bottles and exports the stencil.
+// wasiResolve locates the two wasip1 toolchain artifacts and exports the stencil.
 // It fails the build when either is absent: a missing sysroot would not stop
 // clang, which would fall back to compiling for wasm32 with NO libc, and the
 // failure would surface as an undeclared stdio.h a thousand lines later.
@@ -807,7 +807,7 @@ var wasiResolve = []string{
 	`export ZPKB_WASI_RT="$(bkresolve "$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*")"`,
 	`[ -n "$ZPKB_WASI_SYSROOT" ] && [ -n "$ZPKB_WASI_RT" ] || { echo "zpkb: the wasip1 toolchain is not installed (github.com/WebAssembly/wasi-libc, compiler-rt.llvm.org/wasi)" >&2; exit 1; }`,
 	`export ZPKB_CC="clang ` + wasiFlags + `"`,
-	// libc++/libc++abi are a separate bottle (libcxx.llvm.org/wasi), present only
+	// libc++/libc++abi are a separate artifact (libcxx.llvm.org/wasi), present only
 	// when the recipe asked for it. A sysroot cannot carry it — it is wasi-libc's —
 	// so the C++ stencil names its headers and its libraries itself. -nostdinc++
 	// keeps the driver from also looking for c++/v1 under the wasi-libc sysroot;
@@ -848,7 +848,7 @@ const baseSysrootFlags = `--sysroot="$ZPKB_GLIBC_PREFIX" -isystem "${ZPKB_GLIBC_
 // is noise at best.
 const bindgenSysrootFlags = `--sysroot="$ZPKB_GLIBC_PREFIX" -isystem "${ZPKB_GLIBC_PREFIX}include" -isystem "${ZPKB_KHDR_PREFIX}include"`
 
-// sysrootResolve locates the bottles a pkgx-supplied libc toolchain needs and
+// sysrootResolve locates the artifacts a pkgx-supplied libc toolchain needs and
 // exports their prefixes. Shared with the TEST wrapper, which needs the same
 // sysroot for the same reason and must not grow a second copy that drifts.
 var sysrootResolve = []string{
@@ -868,7 +868,7 @@ var sysrootResolve = []string{
 // glibc. It is the sysroot and nothing else: no recipe CFLAGS, no rpath, no
 // CMAKE_PREFIX_PATH. A test that compiles must be able to produce a binary at
 // all; it must NOT be handed the flags that made the artefact link, or a
-// bottle whose own headers are wrong would still pass.
+// artifact whose own headers are wrong would still pass.
 const SysrootCC = baseSysrootFlags + ` --unwindlib=none`
 
 // SysrootCXX is SysrootCC plus libc++.

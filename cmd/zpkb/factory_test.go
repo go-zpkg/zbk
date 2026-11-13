@@ -17,7 +17,7 @@ import (
 
 	"fmt"
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/config"
 	"github.com/go-zpkg/zpkb/logical"
@@ -28,13 +28,13 @@ import (
 )
 
 // published records what the stubbed publish seam was asked to push.
-type publishedBottle struct {
+type publishedArtifact struct {
 	project, version, tag, osn, arch, dist, path, glibc string
 	signed                                              bool
 	when                                                time.Time
 	// advisories is the tree the publish was told to build its OpenVEX
 	// document from. Recorded because a mutation that dropped it on the way to
-	// publishBottle — the whole feature — survived the suite without it.
+	// publishArtifact — the whole feature — survived the suite without it.
 	advisories string
 }
 
@@ -48,14 +48,14 @@ type factoryHarness struct {
 	// other two, because the flag's default writes into the CURRENT
 	// directory and the suite was leaving a cmd/bk/tests.txt behind.
 	tests string
-	// bottles is where built and mirrored bottles are staged, for the SAME
+	// artifacts is where built and mirrored artifacts are staged, for the SAME
 	// reason tests, failures and detail are given paths — and it was the one
 	// of the four that was missed. The fix had been applied three times and
-	// `--bottles` still defaulted to the relative "dist", so a mirror test
+	// `--artifacts` still defaulted to the relative "dist", so a mirror test
 	// wrote `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` into the
 	// repository and `git add -A` staged it.
-	bottles   string
-	published []publishedBottle
+	artifacts string
+	published []publishedArtifact
 	checked   []string // "project@tag" the publish-check was asked about
 	built     []string // "project@constraint"
 	out, errb bytes.Buffer
@@ -67,11 +67,11 @@ type factoryHarness struct {
 func newFactoryHarness(t *testing.T) *factoryHarness {
 	t.Helper()
 	h := &factoryHarness{
-		pantry:   t.TempDir(),
-		failures: filepath.Join(t.TempDir(), "failures.txt"),
-		detail:   filepath.Join(t.TempDir(), "failures-detail.txt"),
-		tests:    filepath.Join(t.TempDir(), "tests.txt"),
-		bottles:  filepath.Join(t.TempDir(), "dist"),
+		pantry:    t.TempDir(),
+		failures:  filepath.Join(t.TempDir(), "failures.txt"),
+		detail:    filepath.Join(t.TempDir(), "failures-detail.txt"),
+		tests:     filepath.Join(t.TempDir(), "tests.txt"),
+		artifacts: filepath.Join(t.TempDir(), "dist"),
 	}
 	ov, li, re, pu, bu, hp, bf, lp := factoryOverrides, factoryList, factoryResolve, factoryPublish, factoryBuild, factoryHasPlatform, buildFactory, lookPath
 	pl := factoryPlan
@@ -109,17 +109,17 @@ func newFactoryHarness(t *testing.T) *factoryHarness {
 		h.built = append(h.built, project+"@="+p.Version)
 		return build.Result{
 			Version: p.Version, Concrete: p.Concrete, SpecHash: p.SpecHash,
-			BottlePath: filepath.Join(out, project, "v"+p.Version+".tar.gz"),
+			ArtifactPath: filepath.Join(out, project, "v"+p.Version+".tar.gz"),
 		}, nil
 	}
 	factoryPublish = func(o publishOptions) (string, ocispec.Descriptor, error) {
 		tag := buildTag(o.Project, o.Version, o.Glibc, o.Concrete)
-		h.published = append(h.published, publishedBottle{
+		h.published = append(h.published, publishedArtifact{
 			project: o.Project, version: o.Version, tag: tag, osn: o.OS, arch: o.Arch,
 			dist: o.Dist, path: o.Path, glibc: o.Glibc, signed: o.Key != nil, when: o.Time,
 			advisories: o.Advisories,
 		})
-		// A distinct digest per bottle, so a test can tell one published
+		// A distinct digest per artifact, so a test can tell one published
 		// manifest from another the way the index check does.
 		return tag, ocispec.Descriptor{Digest: digest.FromString(o.Project + tag + o.Arch)}, nil
 	}
@@ -131,12 +131,12 @@ func newFactoryHarness(t *testing.T) *factoryHarness {
 // testSpec is a stand-in for what a build IS, made distinct per project,
 // version and platform so two stubbed builds do not share one address.
 //
-// ⛔ IT IS NOT A HASH THE TEST CHOSE. The hash is asked of bottle.Concrete,
+// ⛔ IT IS NOT A HASH THE TEST CHOSE. The hash is asked of artifact.Concrete,
 // the way the real plan asks for it, so an assertion about a tag is an
 // assertion about the value the publish path will actually produce — not
 // about a constant written twice.
-func testSpec(project, version string, tgt target.Target) bottle.Concrete {
-	return bottle.Concrete{
+func testSpec(project, version string, tgt target.Target) artifact.Concrete {
+	return artifact.Concrete{
 		Platform: tgt.Platform + "/" + tgt.Arch,
 		Recipe:   "sha256:" + project + "@" + version,
 	}
@@ -155,9 +155,9 @@ func specTag(project, version string) string {
 // args builds a command line with the harness's paths plus extras.
 // args are the flags every harness run passes.
 //
-// ⛔ --bottles IS NOT OPTIONAL HERE. It defaults to the RELATIVE path "dist",
+// ⛔ --artifacts IS NOT OPTIONAL HERE. It defaults to the RELATIVE path "dist",
 // and `go test` runs with the package directory as its working directory — so
-// a run that stages a bottle writes into cmd/bk/dist, inside the repository,
+// a run that stages an artifact writes into cmd/bk/dist, inside the repository,
 // one `git add -A` from being committed. Measured: a mirror test staged
 // `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` and it got staged.
 //
@@ -170,7 +170,7 @@ func (h *factoryHarness) args(extra ...string) []string {
 		"--platform", "linux/x86-64",
 		"--pantry", h.pantry,
 		"--overrides", "",
-		"--bottles", h.bottles,
+		"--artifacts", h.artifacts,
 		"--failures", h.failures,
 		"--failures-detail", h.detail,
 		"--tests", h.tests,
@@ -204,7 +204,7 @@ func (h *factoryHarness) detailFile(t *testing.T) string {
 
 // TestRunFactoryBuildsClosureDepsFirst is the headline behaviour: the requested
 // project is expanded to its closure, dependencies build FIRST and at a single
-// resolved version, the requested project builds every version, and each bottle
+// resolved version, the requested project builds every version, and each artifact
 // is published under the registry the run was pointed at.
 func TestRunFactoryBuildsClosureDepsFirst(t *testing.T) {
 	h := newFactoryHarness(t)
@@ -227,18 +227,18 @@ func TestRunFactoryBuildsClosureDepsFirst(t *testing.T) {
 			t.Fatalf("published to the wrong place: %+v", p)
 		}
 		if p.signed {
-			t.Fatalf("unsigned run produced a signed bottle: %+v", p)
+			t.Fatalf("unsigned run produced a signed artifact: %+v", p)
 		}
 		if p.when != time.Unix(defaultEpoch, 0).UTC() {
 			t.Fatalf("attestation time = %v, want the pinned epoch", p.when)
 		}
 	}
-	// Staged under the --bottles directory, named by project and version. The
+	// Staged under the --artifacts directory, named by project and version. The
 	// literal "dist" used to be asserted here, which was asserting the FLAG's
 	// relative default — the very thing that let a mirror test write into the
 	// repository.
-	if h.published[0].path != filepath.Join(h.bottles, "lib.org", "v9.9.tar.gz") {
-		t.Fatalf("bottle path = %q, want it under %q", h.published[0].path, h.bottles)
+	if h.published[0].path != filepath.Join(h.artifacts, "lib.org", "v9.9.tar.gz") {
+		t.Fatalf("artifact path = %q, want it under %q", h.published[0].path, h.artifacts)
 	}
 	out := h.out.String()
 	for _, want := range []string{
@@ -471,7 +471,7 @@ func TestRunFactoryFailureStages(t *testing.T) {
 		}},
 		{"package", "lib.org 2.0 package\n", func(t *testing.T, h *factoryHarness) {
 			factoryBuild = func(_ *build.Runner, _ build.Plan, _ *pantry.Recipe, _ string, _, _ target.Target, _ string) (build.Result, error) {
-				return build.Result{Version: "2.0"}, nil // built, but nothing bottled
+				return build.Result{Version: "2.0"}, nil // built, but nothing packaged
 			}
 		}},
 		{"publish", "lib.org 2.0 publish\n", func(t *testing.T, h *factoryHarness) {
@@ -613,7 +613,7 @@ func TestRunFactorySigning(t *testing.T) {
 			t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 		}
 		if !h.published[0].signed || !strings.Contains(h.out.String(), "signing: enabled") {
-			t.Fatalf("bottle not signed: %+v / %s", h.published, h.out.String())
+			t.Fatalf("artifact not signed: %+v / %s", h.published, h.out.String())
 		}
 	})
 
@@ -625,7 +625,7 @@ func TestRunFactorySigning(t *testing.T) {
 			t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 		}
 		if !h.published[0].signed {
-			t.Fatalf("bottle not signed: %+v", h.published)
+			t.Fatalf("artifact not signed: %+v", h.published)
 		}
 	})
 
@@ -711,7 +711,7 @@ func TestRunFactoryZpkgxLookupFallback(t *testing.T) {
 }
 
 // TestRunFactoryFailureFileWriteErrors: an unwritable report path is reported,
-// not fatal — the bottles are already published. All three reports, because
+// not fatal — the artifacts are already published. All three reports, because
 // a chunk whose tests.txt could not be written must say so rather than leave
 // a reader thinking no test ran.
 func TestRunFactoryFailureFileWriteErrors(t *testing.T) {
@@ -732,42 +732,42 @@ func TestRunFactoryFailureFileWriteErrors(t *testing.T) {
 }
 
 // withMirrorSeams stubs the upstream listing + download and restores the
-// bottle package's dist pointer.
+// artifact package's dist pointer.
 func withMirrorSeams(t *testing.T, versions map[string][]string, download func(project, ver, osn, arch string) ([]byte, string, error)) {
 	t.Helper()
-	uv, dl, dist := factoryUpstreamVersions, factoryDownload, bottle.DistBase
-	t.Cleanup(func() { factoryUpstreamVersions, factoryDownload, bottle.DistBase = uv, dl, dist })
-	factoryUpstreamVersions = func(project, _, _ string) ([]bottle.Ver, error) {
+	uv, dl, dist := factoryUpstreamVersions, factoryDownload, artifact.DistBase
+	t.Cleanup(func() { factoryUpstreamVersions, factoryDownload, artifact.DistBase = uv, dl, dist })
+	factoryUpstreamVersions = func(project, _, _ string) ([]artifact.Ver, error) {
 		vs, ok := versions[project]
 		if !ok {
 			return nil, errors.New("404 not found")
 		}
-		var out []bottle.Ver // upstream lists ascending
+		var out []artifact.Ver // upstream lists ascending
 		for _, v := range vs {
-			out = append(out, bottle.ParseVer(v))
+			out = append(out, artifact.ParseVer(v))
 		}
 		return out, nil
 	}
 	factoryDownload = download
 }
 
-// TestRunFactoryMirrors is the sweep path: copy upstream bottles into our
+// TestRunFactoryMirrors is the sweep path: copy upstream artifacts into our
 // registry, re-signed and attested, without building anything.
 func TestRunFactoryMirrors(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "gnu.org/glibc", "versions:\n  github: a/glibc/tags\nbuild: make\n")
 	withMirrorSeams(t, map[string][]string{"gnu.org/glibc": {"2.27.0", "2.38.0", "2.44.0"}},
-		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("bottle-" + ver), ".tar.xz", nil })
+		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("artifact-" + ver), ".tar.xz", nil })
 
 	if code := h.run(t, "--recipes", "gnu.org/glibc", "--mirror-from", "https://dist.pkgx.dev/",
-		"--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	if len(h.built) != 0 {
 		t.Fatalf("mirror mode must not build: %v", h.built)
 	}
-	if bottle.DistBase != "https://dist.pkgx.dev" {
-		t.Fatalf("upstream dist = %q (trailing slash must be trimmed)", bottle.DistBase)
+	if artifact.DistBase != "https://dist.pkgx.dev" {
+		t.Fatalf("upstream dist = %q (trailing slash must be trimmed)", artifact.DistBase)
 	}
 	if os.Getenv("ZPKG_VERIFY") != "0" {
 		t.Fatalf("ZPKG_VERIFY = %q; an unsigned upstream cannot be copied fail-closed", os.Getenv("ZPKG_VERIFY"))
@@ -780,7 +780,7 @@ func TestRunFactoryMirrors(t *testing.T) {
 			t.Fatalf("staged path = %q", p.path)
 		}
 		b, err := os.ReadFile(p.path)
-		if err != nil || string(b) != "bottle-"+p.version {
+		if err != nil || string(b) != "artifact-"+p.version {
 			t.Fatalf("staged bytes = %q, err = %v", b, err)
 		}
 	}
@@ -794,7 +794,7 @@ func TestRunFactoryMirrors(t *testing.T) {
 	withMirrorSeams(t, map[string][]string{"gnu.org/glibc": {"2.27.0", "2.38.0", "2.44.0"}},
 		func(_, ver, _, _ string) ([]byte, string, error) { return []byte(ver), ".tar.gz", nil })
 	if code := h2.run(t, "--recipes", "gnu.org/glibc", "--mirror-from", "https://d",
-		"--max-versions", "2", "--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--max-versions", "2", "--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
 	if len(h2.published) != 2 || h2.published[0].version != "2.44.0" || h2.published[1].version != "2.38.0" {
@@ -802,7 +802,7 @@ func TestRunFactoryMirrors(t *testing.T) {
 	}
 	out := h.out.String()
 	for _, want := range []string{
-		"mirror: copying bottles from https://dist.pkgx.dev (no build)",
+		"mirror: copying artifacts from https://dist.pkgx.dev (no build)",
 		"versions gnu.org/glibc: 3 to consider (linux/x86-64, upstream)",
 		"✅ MIRRORED gnu.org/glibc 2.44.0 linux/x86-64",
 		"=== summary (linux/x86-64): 3 built, 0 skipped, 0 failed ===",
@@ -827,7 +827,7 @@ func TestRunFactoryMirrorNeedsNoRecipe(t *testing.T) {
 	}, func(_, ver, _, _ string) ([]byte, string, error) { return []byte(ver), ".tar.gz", nil })
 
 	if code := h.run(t, "--recipes", "app.org norecipe.org", "--mirror-from", "https://dist.example",
-		"--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	var got []string
@@ -845,16 +845,16 @@ func TestRunFactoryMirrorNeedsNoRecipe(t *testing.T) {
 func TestRunFactoryMirrorFailures(t *testing.T) {
 	stage := func(t *testing.T) string { return filepath.Join(t.TempDir(), "dist") }
 
-	t.Run("no upstream bottle", func(t *testing.T) {
+	t.Run("no upstream artifact", func(t *testing.T) {
 		h := newFactoryHarness(t)
 		withMirrorSeams(t, map[string][]string{"lib.org": nil}, nil)
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", stage(t)); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", stage(t)); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org latest versions\n" {
 			t.Fatalf("failures = %q", got)
 		}
-		if !strings.Contains(h.detailFile(t), "no upstream bottle for linux/x86-64") {
+		if !strings.Contains(h.detailFile(t), "no upstream artifact for linux/x86-64") {
 			t.Fatalf("detail = %q", h.detailFile(t))
 		}
 	})
@@ -862,7 +862,7 @@ func TestRunFactoryMirrorFailures(t *testing.T) {
 	t.Run("upstream listing fails", func(t *testing.T) {
 		h := newFactoryHarness(t)
 		withMirrorSeams(t, nil, nil)
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", stage(t)); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", stage(t)); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org latest versions\n" {
@@ -876,7 +876,7 @@ func TestRunFactoryMirrorFailures(t *testing.T) {
 			func(string, string, string, string) ([]byte, string, error) {
 				return nil, "", errors.New("502 bad gateway")
 			})
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", stage(t)); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", stage(t)); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org 1.0.0 fetch\n" {
@@ -892,7 +892,7 @@ func TestRunFactoryMirrorFailures(t *testing.T) {
 		if err := os.WriteFile(blocked, nil, 0o644); err != nil { // a FILE where the tree must go
 			t.Fatal(err)
 		}
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", blocked); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", blocked); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org 1.0.0 fetch\n" {
@@ -905,11 +905,11 @@ func TestRunFactoryMirrorFailures(t *testing.T) {
 		withMirrorSeams(t, map[string][]string{"lib.org": {"1.0.0"}},
 			func(string, string, string, string) ([]byte, string, error) { return []byte("x"), ".tar.gz", nil })
 		// a leftover DIRECTORY where the tarball must be written
-		bottles := stage(t)
-		if err := os.MkdirAll(filepath.Join(bottles, "lib.org", "linux", "x86-64", "v1.0.0.tar.gz"), 0o755); err != nil {
+		artifacts := stage(t)
+		if err := os.MkdirAll(filepath.Join(artifacts, "lib.org", "linux", "x86-64", "v1.0.0.tar.gz"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", bottles); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", artifacts); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org 1.0.0 fetch\n" {
@@ -924,7 +924,7 @@ func TestRunFactoryMirrorFailures(t *testing.T) {
 		factoryPublish = func(publishOptions) (string, ocispec.Descriptor, error) {
 			return "", ocispec.Descriptor{}, errors.New("403 denied")
 		}
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", stage(t)); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", stage(t)); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if got := h.failuresFile(t); got != "lib.org 1.0.0 publish\n" {
@@ -945,7 +945,7 @@ func TestRunFactoryMirrorSkipAndForce(t *testing.T) {
 	t.Run("skip", func(t *testing.T) {
 		h := newHarness(t)
 		factoryHasPlatform = func(string, string, string, string, string) (bool, error) { return true, nil }
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", filepath.Join(t.TempDir(), "d")); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", filepath.Join(t.TempDir(), "d")); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if len(h.published) != 0 || !strings.Contains(h.out.String(), "0 built, 1 skipped, 0 failed") {
@@ -955,7 +955,7 @@ func TestRunFactoryMirrorSkipAndForce(t *testing.T) {
 	t.Run("force", func(t *testing.T) {
 		h := newHarness(t)
 		factoryHasPlatform = func(string, string, string, string, string) (bool, error) { return true, nil }
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--force", "--bottles", filepath.Join(t.TempDir(), "d")); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--force", "--artifacts", filepath.Join(t.TempDir(), "d")); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if len(h.published) != 1 {
@@ -967,7 +967,7 @@ func TestRunFactoryMirrorSkipAndForce(t *testing.T) {
 		factoryHasPlatform = func(string, string, string, string, string) (bool, error) {
 			return false, errors.New("dial tcp: refused")
 		}
-		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--bottles", filepath.Join(t.TempDir(), "d")); code != 0 {
+		if code := h.run(t, "--recipes", "lib.org", "--mirror-from", "https://d", "--artifacts", filepath.Join(t.TempDir(), "d")); code != 0 {
 			t.Fatalf("code = %d", code)
 		}
 		if len(h.published) != 1 || !strings.Contains(h.errb.String(), "publish-check lib.org 1.0.0") {
@@ -979,8 +979,8 @@ func TestRunFactoryMirrorSkipAndForce(t *testing.T) {
 // TestSetUpstreamDistKeepsAnExplicitVerify: an operator who demanded
 // verification keeps it (the copy then fails closed, as asked).
 func TestSetUpstreamDistKeepsAnExplicitVerify(t *testing.T) {
-	old := bottle.DistBase
-	t.Cleanup(func() { bottle.DistBase = old })
+	old := artifact.DistBase
+	t.Cleanup(func() { artifact.DistBase = old })
 	t.Setenv("ZPKG_VERIFY", "1")
 	setUpstreamDist("https://dist.example")
 	if os.Getenv("ZPKG_VERIFY") != "1" {
@@ -991,10 +991,10 @@ func TestSetUpstreamDistKeepsAnExplicitVerify(t *testing.T) {
 // TestFactoryUpstreamSeamsAreReal exercises the production wiring of the
 // mirror seams (they are stubbed everywhere else).
 func TestFactoryUpstreamSeamsAreReal(t *testing.T) {
-	old := bottle.DistBase
-	t.Cleanup(func() { bottle.DistBase = old })
+	old := artifact.DistBase
+	t.Cleanup(func() { artifact.DistBase = old })
 	t.Setenv("ZPKG_VERIFY", "0")
-	bottle.DistBase = "https://127.0.0.1:1/dist" // nothing listening
+	artifact.DistBase = "https://127.0.0.1:1/dist" // nothing listening
 	if _, err := factoryUpstreamVersions("lib.org", "linux", "x86-64"); err == nil {
 		t.Fatal("want a listing error")
 	}
@@ -1117,15 +1117,15 @@ func TestRunFactoryVersionConstraintMatchesNothing(t *testing.T) {
 }
 
 // The same handle applies to mirror mode, which is where it is actually needed:
-// upstream publishes cmake 3.x bottles our registry lacks.
+// upstream publishes cmake 3.x artifacts our registry lacks.
 func TestRunFactoryMirrorVersionConstraint(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "cmake.org", "versions:\n  github: a/cmake/tags\nbuild: make\n")
 	withMirrorSeams(t, map[string][]string{"cmake.org": {"3.31.12", "4.4.1", "4.4.2"}},
-		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("bottle-" + ver), ".tar.xz", nil })
+		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("artifact-" + ver), ".tar.xz", nil })
 
 	if code := h.run(t, "--recipes", "cmake.org", "--mirror-from", "https://dist.pkgx.dev",
-		"--versions", "^3", "--bottles", filepath.Join(t.TempDir(), "dist")); code != 0 {
+		"--versions", "^3", "--artifacts", filepath.Join(t.TempDir(), "dist")); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
 	var tags []string
@@ -1143,10 +1143,10 @@ func TestRunFactoryMirrorVersionConstraintMatchesNothing(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "cmake.org", "versions:\n  github: a/cmake/tags\nbuild: make\n")
 	withMirrorSeams(t, map[string][]string{"cmake.org": {"4.4.1", "4.4.2"}},
-		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("bottle-" + ver), ".tar.xz", nil })
+		func(_, ver, _, _ string) ([]byte, string, error) { return []byte("artifact-" + ver), ".tar.xz", nil })
 
 	h.run(t, "--recipes", "cmake.org", "--mirror-from", "https://dist.pkgx.dev",
-		"--versions", "^3", "--bottles", filepath.Join(t.TempDir(), "dist"))
+		"--versions", "^3", "--artifacts", filepath.Join(t.TempDir(), "dist"))
 	if len(h.published) != 0 {
 		t.Fatalf("nothing may be published: %v", h.published)
 	}
@@ -1155,7 +1155,7 @@ func TestRunFactoryMirrorVersionConstraintMatchesNothing(t *testing.T) {
 	}
 }
 
-// TestFactoryRepairsIndexesAtTheEnd: every bottle a run publishes is re-checked
+// TestFactoryRepairsIndexesAtTheEnd: every artifact a run publishes is re-checked
 // once the batch is over, when the other publishers have finished and a repair
 // sticks. Doing it per-push cannot work — the racer that dropped python.org's
 // arm64 landed AFTER that push had already verified itself.
@@ -1173,7 +1173,7 @@ func TestFactoryRepairsIndexesAtTheEnd(t *testing.T) {
 		t.Fatal("nothing was re-checked, so a dropped platform would go unnoticed")
 	}
 	if len(e.calls) != len(h.published) {
-		t.Errorf("checked %d of %d published bottles: %v", len(e.calls), len(h.published), e.calls)
+		t.Errorf("checked %d of %d published artifacts: %v", len(e.calls), len(h.published), e.calls)
 	}
 	// Nothing was broken, so nothing is announced.
 	if strings.Contains(h.out.String(), "REPAIRED") {
@@ -1274,7 +1274,7 @@ func TestIsBareVersion(t *testing.T) {
 func TestMirrorCapUsesAUnionOfArches(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		// Ascending, as upstream lists are. x86-64 has one version aarch64 lacks.
 		switch arch {
 		case "x86-64":
@@ -1314,7 +1314,7 @@ func TestMirrorCapUsesAUnionOfArches(t *testing.T) {
 func TestMirrorSkipsAVersionThisArchDoesNotHaveAtAll(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		if arch == "x86-64" {
 			return vers("1.0", "9.0"), nil
 		}
@@ -1323,7 +1323,7 @@ func TestMirrorSkipsAVersionThisArchDoesNotHaveAtAll(t *testing.T) {
 	var out, errb strings.Builder
 	f := &factory{osn: "linux", arch: "aarch64", platform: "linux/aarch64", stdout: &out, stderr: &errb}
 	if _, err := f.mirrorVersionsFor("x.org", true, 1); err == nil ||
-		!strings.Contains(err.Error(), "no upstream bottle") {
+		!strings.Contains(err.Error(), "no upstream artifact") {
 		t.Fatalf("got %v, want a clear \"nothing to mirror here\"", err)
 	}
 }
@@ -1334,7 +1334,7 @@ func TestMirrorWithoutACapIsUnchanged(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
 	calls := 0
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		calls++
 		return vers("1.0", "2.0"), nil
 	}
@@ -1359,7 +1359,7 @@ func TestMirrorWithoutACapIsUnchanged(t *testing.T) {
 func TestMirrorCapSurvivesAnUnreachableSibling(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		if arch == "x86-64" {
 			return nil, errors.New("dns")
 		}
@@ -1381,10 +1381,10 @@ func TestMirrorCapSurvivesAnUnreachableSibling(t *testing.T) {
 }
 
 // vers builds an ascending upstream version list.
-func vers(raw ...string) []bottle.Ver {
-	out := make([]bottle.Ver, 0, len(raw))
+func vers(raw ...string) []artifact.Ver {
+	out := make([]artifact.Ver, 0, len(raw))
 	for _, r := range raw {
-		out = append(out, bottle.ParseVer(r))
+		out = append(out, artifact.ParseVer(r))
 	}
 	return out
 }
@@ -1395,7 +1395,7 @@ func vers(raw ...string) []bottle.Ver {
 func TestMirrorRequestedLeavesNothingPresent(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		if arch == "x86-64" {
 			return vers("1.0", "3.0"), nil
 		}
@@ -1405,7 +1405,7 @@ func TestMirrorRequestedLeavesNothingPresent(t *testing.T) {
 	f := &factory{osn: "linux", arch: "aarch64", platform: "linux/aarch64",
 		want: "^3", stdout: &out, stderr: &errb}
 	_, err := f.mirrorVersionsFor("x.org", true, 5)
-	if err == nil || !strings.Contains(err.Error(), "no upstream bottle") {
+	if err == nil || !strings.Contains(err.Error(), "no upstream artifact") {
 		t.Fatalf("got %v, want a clear \"nothing here to mirror\"", err)
 	}
 }
@@ -1416,7 +1416,7 @@ func TestMirrorRequestedLeavesNothingPresent(t *testing.T) {
 func TestMirrorClosureDepAbsentOnThisArch(t *testing.T) {
 	old := factoryUpstreamVersions
 	defer func() { factoryUpstreamVersions = old }()
-	factoryUpstreamVersions = func(proj, osn, arch string) ([]bottle.Ver, error) {
+	factoryUpstreamVersions = func(proj, osn, arch string) ([]artifact.Ver, error) {
 		if arch == "x86-64" {
 			return vers("1.0", "7.0"), nil
 		}
@@ -1425,7 +1425,7 @@ func TestMirrorClosureDepAbsentOnThisArch(t *testing.T) {
 	var out, errb strings.Builder
 	f := &factory{osn: "linux", arch: "aarch64", platform: "linux/aarch64", stdout: &out, stderr: &errb}
 	if _, err := f.mirrorVersionsFor("x.org", false, 1); err == nil ||
-		!strings.Contains(err.Error(), "no upstream bottle") {
+		!strings.Contains(err.Error(), "no upstream artifact") {
 		t.Fatalf("got %v, want a clear \"nothing here to mirror\"", err)
 	}
 }
@@ -1557,7 +1557,7 @@ func TestTailErrorsAreBoundedAndFirst(t *testing.T) {
 // attempted. `platforms:` was parsed and consulted by nobody, so a darwin run
 // walked into every linux-only recipe and collected the failure. Of the 81
 // pantry recipes whose platforms: excludes darwin, the seven that do have a
-// darwin bottle are all MIRRORS — this factory has never built one, so nothing
+// darwin artifact are all MIRRORS — this factory has never built one, so nothing
 // that could succeed is being dropped.
 func TestRunFactorySkipsARecipeThatDoesNotTargetThePlatform(t *testing.T) {
 	h := newFactoryHarness(t)
@@ -1596,7 +1596,7 @@ func TestRunFactorySkipsARecipeThatDoesNotTargetThePlatform(t *testing.T) {
 //	panic: runtime error: slice bounds out of range [43:0]
 //
 // Measured on go-zpkg/packages run 35504607323 (darwin/x86-64), where grpc.io
-// had finished compiling and the panic discarded the run's two built bottles.
+// had finished compiling and the panic discarded the run's two built artifacts.
 func TestTailWriterIsWrittenFromSeveralGoroutines(t *testing.T) {
 	const writers, each = 8, 200
 	tw := &tailWriter{w: io.Discard, max: 50}
@@ -1666,7 +1666,7 @@ func TestRunFactoryReportsAToolchainPerlDrift(t *testing.T) {
 //
 // Two things, and the second matters as much as the first. The flag has to
 // reach the Runner, or it changes nothing. And it has to be in the RUN'S OWN
-// LOG, because a bottle built this way was driven by whatever tools the host
+// LOG, because an artifact built this way was driven by whatever tools the host
 // had, and six months later the log is the only place that fact still lives.
 func TestRunFactoryBootstrapReachesTheRunnerAndSaysSo(t *testing.T) {
 	h := newFactoryHarness(t)
@@ -1681,7 +1681,7 @@ func TestRunFactoryBootstrapReachesTheRunnerAndSaysSo(t *testing.T) {
 		t.Error("--bootstrap did not reach the Runner")
 	}
 	if !strings.Contains(h.out.String(), "BOOTSTRAP:") {
-		t.Errorf("a run that changes what a bottle IS must say so:\n%s", h.out.String())
+		t.Errorf("a run that changes what an artifact IS must say so:\n%s", h.out.String())
 	}
 }
 
@@ -1899,7 +1899,7 @@ func TestFactoryDropsAPublishedBuildTree(t *testing.T) {
 	if removed[0] != p.Build || removed[1] != p.BuildInstall {
 		t.Errorf("removed = %v, want [%s %s]", removed, p.Build, p.BuildInstall)
 	}
-	// The INSTALL prefix is not swept: that is the bottle's own content, and
+	// The INSTALL prefix is not swept: that is the artifact's own content, and
 	// the Runner already owns its lifetime.
 	for _, r := range removed {
 		if r == p.Install {

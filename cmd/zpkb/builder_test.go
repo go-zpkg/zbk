@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zpkb/bottlepkg"
+	"github.com/go-zpkg/artifact"
+	"github.com/go-zpkg/zpkb/artifactpkg"
 	"github.com/go-zpkg/zpkb/build"
 )
 
-// fakeStage replaces the four bottle seams with an in-memory registry that
+// fakeStage replaces the four artifact seams with an in-memory registry that
 // materialises a plausible glibc/bash/tool layout under zpkgDir.
 func fakeStage(t *testing.T) *stageCalls {
 	t.Helper()
@@ -26,16 +26,16 @@ func fakeStage(t *testing.T) *stageCalls {
 		resolveClosureFor, installFor, findLoaderFor, stubBinsStaged = oldR, oldI, oldL, oldS
 	})
 
-	closure := []bottle.Resolved{
-		{Project: bottle.GlibcProject, Version: bottle.ParseVer("2.44.0")},
-		{Project: "gnu.org/bash", Version: bottle.ParseVer("5.3")},
+	closure := []artifact.Resolved{
+		{Project: artifact.GlibcProject, Version: artifact.ParseVer("2.44.0")},
+		{Project: "gnu.org/bash", Version: artifact.ParseVer("5.3")},
 	}
-	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]bottle.Resolved, error) {
+	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]artifact.Resolved, error) {
 		calls.resolvedFor = osn + "/" + arch
 		calls.roots = roots
 		return closure, nil
 	}
-	installFor = func(r bottle.Resolved, zpkgDir, osn, arch string) (bool, error) {
+	installFor = func(r artifact.Resolved, zpkgDir, osn, arch string) (bool, error) {
 		calls.installed = append(calls.installed, r.Project)
 		calls.installedFor = osn + "/" + arch
 		// Lay the files down so the later steps have something real to find.
@@ -55,9 +55,9 @@ func fakeStage(t *testing.T) *stageCalls {
 	}
 	findLoaderFor = func(zpkgDir, arch string) string {
 		calls.loaderArch = arch
-		return filepath.Join(zpkgDir, bottle.GlibcProject, "v2.44.0", "lib", "glibc-2.44", bottle.LoaderNameFor(arch))
+		return filepath.Join(zpkgDir, artifact.GlibcProject, "v2.44.0", "lib", "glibc-2.44", artifact.LoaderNameFor(arch))
 	}
-	stubBinsStaged = func(clo []bottle.Resolved, s bottle.Stage) (int, error) {
+	stubBinsStaged = func(clo []artifact.Resolved, s artifact.Stage) (int, error) {
 		calls.stage = s
 		return len(clo), nil
 	}
@@ -70,7 +70,7 @@ type stageCalls struct {
 	loaderArch   string
 	roots        map[string]string
 	installed    []string
-	stage        bottle.Stage
+	stage        artifact.Stage
 }
 
 func stageOpts(root string) stageOptions {
@@ -213,7 +213,7 @@ func TestStageBuilderInstallsBinaries(t *testing.T) {
 func TestStageBuilderErrors(t *testing.T) {
 	t.Run("resolve", func(t *testing.T) {
 		fakeStage(t)
-		resolveClosureFor = func(map[string]string, string, string) ([]bottle.Resolved, error) {
+		resolveClosureFor = func(map[string]string, string, string) ([]artifact.Resolved, error) {
 			return nil, errors.New("boom")
 		}
 		if err := stageBuilder(stageOpts(t.TempDir())); err == nil || !strings.Contains(err.Error(), "resolve closure") {
@@ -222,7 +222,7 @@ func TestStageBuilderErrors(t *testing.T) {
 	})
 	t.Run("install", func(t *testing.T) {
 		fakeStage(t)
-		installFor = func(bottle.Resolved, string, string, string) (bool, error) {
+		installFor = func(artifact.Resolved, string, string, string) (bool, error) {
 			return false, errors.New("boom")
 		}
 		if err := stageBuilder(stageOpts(t.TempDir())); err == nil || !strings.Contains(err.Error(), "install ") {
@@ -243,7 +243,7 @@ func TestStageBuilderErrors(t *testing.T) {
 	})
 	t.Run("stubs", func(t *testing.T) {
 		fakeStage(t)
-		stubBinsStaged = func([]bottle.Resolved, bottle.Stage) (int, error) {
+		stubBinsStaged = func([]artifact.Resolved, artifact.Stage) (int, error) {
 			return 0, errors.New("boom")
 		}
 		if err := stageBuilder(stageOpts(t.TempDir())); err == nil || !strings.Contains(err.Error(), "stub binaries") {
@@ -427,7 +427,7 @@ func TestSplitToolchainSpec(t *testing.T) {
 // value, the constant can drift back with a green suite, and the whole reason
 // it moved is that upstream's name had been deciding it.
 //
-// Our prefix is zpkg: the user store is ~/.zpkg (bottle.Dir), the environment
+// Our prefix is zpkg: the user store is ~/.zpkg (artifact.Dir), the environment
 // variable is ZPKG_DIR, and the guest root inside the build container is the
 // last thing that said otherwise. It carries no x: this is the STORE, like
 // ZPKG_DIR, not the zpkgx runtime.
@@ -501,8 +501,8 @@ func TestRunBuilderStages(t *testing.T) {
 	if _, ok := calls.roots["gnu.org/glibc"]; !ok || len(calls.roots) != 1 {
 		t.Errorf("roots = %v, want only the file's entry", calls.roots)
 	}
-	if bottle.DistBase != "oci://example.invalid/pkgs" {
-		t.Errorf("--dist not applied: %q", bottle.DistBase)
+	if artifact.DistBase != "oci://example.invalid/pkgs" {
+		t.Errorf("--dist not applied: %q", artifact.DistBase)
 	}
 	if !strings.Contains(out.String(), "stubs in /usr/bin") {
 		t.Errorf("no progress reported: %q", out.String())
@@ -511,7 +511,7 @@ func TestRunBuilderStages(t *testing.T) {
 
 func TestRunBuilderReportsStagingFailure(t *testing.T) {
 	fakeStage(t)
-	resolveClosureFor = func(map[string]string, string, string) ([]bottle.Resolved, error) {
+	resolveClosureFor = func(map[string]string, string, string) ([]artifact.Resolved, error) {
 		return nil, errors.New("registry down")
 	}
 	var out, errb bytes.Buffer
@@ -672,7 +672,7 @@ func TestStageBuilderPoseFailure(t *testing.T) {
 func TestStageBuilderSkipsAlreadyInstalled(t *testing.T) {
 	fakeStage(t)
 	old := installFor
-	installFor = func(r bottle.Resolved, zpkgDir, osn, arch string) (bool, error) {
+	installFor = func(r artifact.Resolved, zpkgDir, osn, arch string) (bool, error) {
 		if _, err := old(r, zpkgDir, osn, arch); err != nil {
 			return false, err
 		}
@@ -708,20 +708,20 @@ func TestBuilderIsDispatched(t *testing.T) {
 }
 
 func TestSetCodec(t *testing.T) {
-	orig := bottlepkg.Codec
-	t.Cleanup(func() { bottlepkg.Codec = orig })
+	orig := artifactpkg.Codec
+	t.Cleanup(func() { artifactpkg.Codec = orig })
 
 	for _, tc := range []struct{ in, want string }{
-		{"gzip", bottle.ExtTarGz},
-		{"gz", bottle.ExtTarGz},
-		{"zstd", bottle.ExtTarZst},
-		{"zst", bottle.ExtTarZst},
+		{"gzip", artifact.ExtTarGz},
+		{"gz", artifact.ExtTarGz},
+		{"zstd", artifact.ExtTarZst},
+		{"zst", artifact.ExtTarZst},
 	} {
 		if err := setCodec(tc.in); err != nil {
 			t.Fatalf("%s: %v", tc.in, err)
 		}
-		if bottlepkg.Codec != tc.want {
-			t.Errorf("--compress %s → %q, want %q", tc.in, bottlepkg.Codec, tc.want)
+		if artifactpkg.Codec != tc.want {
+			t.Errorf("--compress %s → %q, want %q", tc.in, artifactpkg.Codec, tc.want)
 		}
 	}
 	if err := setCodec("brotli"); err == nil {
@@ -732,8 +732,8 @@ func TestSetCodec(t *testing.T) {
 // TestFactoryRejectsUnknownCompress: the flag is validated before anything is
 // built, so a typo costs a message rather than a run.
 func TestFactoryRejectsUnknownCompress(t *testing.T) {
-	orig := bottlepkg.Codec
-	t.Cleanup(func() { bottlepkg.Codec = orig })
+	orig := artifactpkg.Codec
+	t.Cleanup(func() { artifactpkg.Codec = orig })
 	var out, errb bytes.Buffer
 
 	if code := runFactory([]string{"--compress", "brotli", "--platform", "linux/aarch64", "--recipes", "lz4.org", "--pantry", t.TempDir()}, &out, &errb); code != 2 {
@@ -780,7 +780,7 @@ func TestToolchainPinsMeanWhatTheySay(t *testing.T) {
 		{"perl.org", "5.42.3", false, "an XS module refuses to load under another API version"},
 	} {
 		c := constraintFor(tc.project)
-		if got := bottle.ParseVer(tc.version).Satisfies(c); got != tc.want {
+		if got := artifact.ParseVer(tc.version).Satisfies(c); got != tc.want {
 			t.Errorf("%s %q satisfied by %s = %v, want %v (%s)",
 				tc.project, c, tc.version, got, tc.want, tc.why)
 		}
@@ -831,16 +831,16 @@ func TestBuilderDryRunNeedsNoOutputDirectory(t *testing.T) {
 func TestBuilderDryRunNamesEveryBlockedRoot(t *testing.T) {
 	old := resolveClosureFor
 	t.Cleanup(func() { resolveClosureFor = old })
-	// curl.se and gnu.org/tar have no bottle; everything else does. The joint
+	// curl.se and gnu.org/tar have no artifact; everything else does. The joint
 	// resolve reports whichever it meets first.
 	absent := map[string]bool{"curl.se": true, "gnu.org/tar": true}
-	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]bottle.Resolved, error) {
+	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]artifact.Resolved, error) {
 		for p := range roots {
 			if absent[p] {
 				return nil, fmt.Errorf("no version of %s is published for %s/%s", p, osn, arch)
 			}
 		}
-		return []bottle.Resolved{{Project: "gnu.org/bash", Version: bottle.ParseVer("5.3")}}, nil
+		return []artifact.Resolved{{Project: "gnu.org/bash", Version: artifact.ParseVer("5.3")}}, nil
 	}
 
 	dir := t.TempDir()
@@ -864,14 +864,14 @@ func TestBuilderDryRunNamesEveryBlockedRoot(t *testing.T) {
 
 // Every root resolving alone while the set does not is a CONFLICT, and saying
 // "0 roots cannot resolve" after refusing would read as a contradiction.
-func TestBuilderDryRunDistinguishesAConflictFromAMissingBottle(t *testing.T) {
+func TestBuilderDryRunDistinguishesAConflictFromAMissingArtifact(t *testing.T) {
 	old := resolveClosureFor
 	t.Cleanup(func() { resolveClosureFor = old })
-	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]bottle.Resolved, error) {
+	resolveClosureFor = func(roots map[string]string, osn, arch string) ([]artifact.Resolved, error) {
 		if len(roots) > 1 {
 			return nil, fmt.Errorf("demands do not intersect")
 		}
-		return []bottle.Resolved{{Project: "gnu.org/bash", Version: bottle.ParseVer("5.3")}}, nil
+		return []artifact.Resolved{{Project: "gnu.org/bash", Version: artifact.ParseVer("5.3")}}, nil
 	}
 	dir := t.TempDir()
 	tc := filepath.Join(dir, "toolchain.txt")
@@ -883,7 +883,7 @@ func TestBuilderDryRunDistinguishesAConflictFromAMissingBottle(t *testing.T) {
 		t.Fatalf("rc = %d, want 1", rc)
 	}
 	if !strings.Contains(out.String(), "CONFLICT between them") {
-		t.Errorf("a conflict was reported as a missing bottle:\n%s", out.String())
+		t.Errorf("a conflict was reported as a missing artifact:\n%s", out.String())
 	}
 }
 
@@ -900,8 +900,8 @@ func TestBuilderDistinguishesAnUnknownArchFromAMissingGlibc(t *testing.T) {
 		notWant    string
 	}{
 		{
-			// An architecture bottle has no loader name for. ppc64le is a real
-			// one: bk is tested on it and builds no bottle for it.
+			// An architecture artifact has no loader name for. ppc64le is a real
+			// one: bk is tested on it and builds no artifact for it.
 			name: "unknown arch", arch: "ppc64le",
 			want:    "no loader name is known for ppc64le",
 			notWant: "is gnu.org/glibc in the toolchain",
@@ -939,7 +939,7 @@ func TestBuilderDistinguishesAnUnknownArchFromAMissingGlibc(t *testing.T) {
 
 // "Not found" is a fact about the LOOKUP as much as about the tree, and the
 // two readings send a person to different places. The error now carries the
-// listing, so a bottle that puts its loader one directory over is told apart
+// listing, so an artifact that puts its loader one directory over is told apart
 // from one that has none — without a round trip to a runner.
 func TestBuilderLoaderErrorListsWhatIsThere(t *testing.T) {
 	fakeStage(t)
@@ -977,7 +977,7 @@ func TestGlibcLayoutWithNothingStaged(t *testing.T) {
 // listing is a diagnostic and must not invent a fact.
 func TestGlibcLayoutSkipsAnUnreadableDir(t *testing.T) {
 	dir := t.TempDir()
-	lib := filepath.Join(dir, bottle.GlibcProject, "v2.44.0", "lib")
+	lib := filepath.Join(dir, artifact.GlibcProject, "v2.44.0", "lib")
 	if err := os.MkdirAll(filepath.Join(lib, "glibc-2.44"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -989,7 +989,7 @@ func TestGlibcLayoutSkipsAnUnreadableDir(t *testing.T) {
 	// as root, ReadDir succeeds, and "0 entr(y/ies)" is then the TRUTH about
 	// that directory rather than an invented fact. Asserting otherwise there
 	// would be asserting that root cannot read, which it can.
-	// TestSetupScratchRootfsAtReadOnlyDir in go-zpkg/bottle skips for the
+	// TestSetupScratchRootfsAtReadOnlyDir in go-zpkg/artifact skips for the
 	// same reason, in the same words.
 	if _, err := os.ReadDir(filepath.Join(lib, "glibc-2.44")); err == nil {
 		t.Skip("this filesystem lets root read a mode-000 directory")
@@ -1006,7 +1006,7 @@ func TestGlibcLayoutSkipsAnUnreadableDir(t *testing.T) {
 // More entries than the cap: the listing is an error message, not a report.
 func TestGlibcLayoutCapsTheListing(t *testing.T) {
 	dir := t.TempDir()
-	lib := filepath.Join(dir, bottle.GlibcProject, "v2.44.0", "lib")
+	lib := filepath.Join(dir, artifact.GlibcProject, "v2.44.0", "lib")
 	if err := os.MkdirAll(lib, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1026,7 +1026,7 @@ func TestGlibcLayoutCapsTheListing(t *testing.T) {
 // files turns one round trip to a runner into a glance.
 func TestGlibcLayoutNamesTheLoaderFilesItFound(t *testing.T) {
 	dir := t.TempDir()
-	sub := filepath.Join(dir, bottle.GlibcProject, "v2.44.0", "lib", "glibc-2.44")
+	sub := filepath.Join(dir, artifact.GlibcProject, "v2.44.0", "lib", "glibc-2.44")
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1056,7 +1056,7 @@ func TestBuilderSaysWhenItReusesAStagedTree(t *testing.T) {
 	// Pose the closure's prefixes, as a half-finished run leaves them.
 	// fakeStage resolves glibc 2.44.0 and bash 5.3.
 	for _, p := range []string{
-		filepath.Join("pkgx", bottle.GlibcProject, "v2.44.0"),
+		filepath.Join("pkgx", artifact.GlibcProject, "v2.44.0"),
 		filepath.Join("pkgx", "gnu.org/bash", "v5.3"),
 	} {
 		if err := os.MkdirAll(filepath.Join(root, p), 0o755); err != nil {
@@ -1098,11 +1098,11 @@ func TestBuilderSaysNothingWhenTheTreeIsFresh(t *testing.T) {
 
 // The count alone was not enough, measured the hard way: the s390x tree
 // reported "2 entr(y/ies), ld*:" and a real glibc has two hundred. That says
-// the bottle is nearly empty and says nothing about WHICH two — the next
+// the artifact is nearly empty and says nothing about WHICH two — the next
 // question every time. The names are capped, and the cap is visible.
 func TestGlibcLayoutNamesSomeInnerEntriesAndSaysWhenItTruncated(t *testing.T) {
 	dir := t.TempDir()
-	sub := filepath.Join(dir, bottle.GlibcProject, "v2.44", "lib", "glibc-2.44")
+	sub := filepath.Join(dir, artifact.GlibcProject, "v2.44", "lib", "glibc-2.44")
 	if err := os.MkdirAll(filepath.Join(sub, "gconv"), 0o755); err != nil {
 		t.Fatal(err)
 	}

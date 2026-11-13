@@ -26,7 +26,7 @@ build:
 // bk reads the UPSTREAM pantry — a third-party checkout — takes these keys
 // out of it and concatenates them into a URL (OCIClient.repository) and a
 // filesystem path (InstallFor builds <dir>/<project>/v<version>, written to).
-// bottle validates at both of those; `git grep ValidateProjectName` in bk
+// artifact validates at both of those; `git grep ValidateProjectName` in bk
 // returns nothing, so until now nothing here constrained the shape at all.
 //
 // The constraint lives in the authoritative schema rather than in Go because

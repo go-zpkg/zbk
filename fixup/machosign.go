@@ -26,8 +26,8 @@ import (
 // The linker ad-hoc signs every arm64 binary it produces (flags 0x20002 =
 // adhoc|linker-signed), so this applies to essentially everything bk builds
 // for darwin/aarch64. Stripping +brewing from an install name is exactly such
-// an edit. Without what follows, a bottle whose paths we fixed would be a
-// bottle nobody can run, and the failure would look like nothing at all.
+// an edit. Without what follows, an artifact whose paths we fixed would be a
+// artifact nobody can run, and the failure would look like nothing at all.
 //
 // Re-signing is affordable here because our edits are SIZE-PRESERVING: strings
 // are overwritten in their existing load-command slot and zero-padded. The
@@ -37,7 +37,7 @@ import (
 // external tool. `codesign -s -` would do the same thing by shelling out to a
 // program bk cannot rely on when cross-building.
 //
-// The layout below was verified against a real published bottle before any of
+// The layout below was verified against a real published artifact before any of
 // it was used: recomputing every code slot of ghcr.io/go-zpkg/packages'
 // darwin/aarch64 `rust-lang.org/cargo` v0.99.0 reproduced 8159 of 8159 stored
 // hashes. An unmodified binary hashing to itself is the proof the structure is
@@ -89,7 +89,7 @@ func walkSignature(slice []byte, bo binary.ByteOrder, hdr, ncmd int, apply bool)
 // behind, and the one macOS refuses to run on Apple silicon.
 //
 // It asks the same question `codesign -v` does, without codesign: the answer is
-// needed on machines that do not have it, and about bottles built for a
+// needed on machines that do not have it, and about artifacts built for a
 // platform the asking machine is not. An unsigned Mach-O is not stale — there
 // is nothing to disagree with — so it reports false.
 func MachoSignatureStale(path string) (bool, error) {

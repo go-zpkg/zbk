@@ -27,7 +27,7 @@ import (
 	"github.com/go-compressions/xz"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // maxXzDictionary bounds the window an .xz source archive may make the decoder
@@ -57,10 +57,10 @@ const (
 // URL's extension: .tar.gz/.tgz, .tar.xz, .tar.bz2/.tbz2, .tar, .zip.
 //
 // It returns the SHA-256 of the bytes that arrived, in lowercase hex. The
-// factory signs and attests the bottle it produces; until this existed nothing
-// recorded what the bottle was made FROM, so a source tarball that changed
+// factory signs and attests the artifact it produces; until this existed nothing
+// recorded what the artifact was made FROM, so a source tarball that changed
 // upstream — 57% of this pantry is built from tarballs GitHub generates on
-// request rather than stores — produced a different bottle, correctly signed,
+// request rather than stores — produced a different artifact, correctly signed,
 // whose provenance named a URL and not the bytes that came back from it. The
 // digest is returned even when extraction then fails: what arrived is worth
 // knowing precisely when it was not what was expected.
@@ -242,9 +242,9 @@ func detect(url string) string {
 		name = name[:i]
 	}
 	switch {
-	case strings.HasSuffix(name, bottle.ExtTarGz), strings.HasSuffix(name, ".tgz"):
+	case strings.HasSuffix(name, artifact.ExtTarGz), strings.HasSuffix(name, ".tgz"):
 		return kindTarGz
-	case strings.HasSuffix(name, bottle.ExtTarXz):
+	case strings.HasSuffix(name, artifact.ExtTarXz):
 		return kindTarXz
 	case strings.HasSuffix(name, ".tar.bz2"), strings.HasSuffix(name, ".tbz2"):
 		return kindTarBz2
@@ -303,15 +303,15 @@ func writeFile(target string, perm fs.FileMode, r io.Reader) error {
 }
 
 // extractTar extracts every entry of tr into destDir, stripping strip leading
-// path components. It delegates to the shared bottle.Extract, the pkgx
+// path components. It delegates to the shared artifact.Extract, the pkgx
 // ecosystem's single tar extractor: it strips components, restores each regular
 // file's recorded mtime (tar(1) semantics — recipes such as libexpat 2.8.3
 // depend on generated files staying newer than their sources), rejects absolute
-// or directory-escaping names (and hard-link sources) with bottle.ErrInsecurePath,
+// or directory-escaping names (and hard-link sources) with artifact.ErrInsecurePath,
 // and reproduces dirs, regular files, symlinks and hard links; unsupported entry
 // types (fifos, devices, ...) are skipped.
 func extractTar(tr *tar.Reader, destDir string, strip int) error {
-	return bottle.Extract(tr, destDir, strip)
+	return artifact.Extract(tr, destDir, strip)
 }
 
 // restoreTime gives an extracted file the modification time the archive
@@ -436,7 +436,7 @@ func headCommit(repo *gogit.Repository) string {
 // `path.Clean` removes it before the count, so N components off a "./"-prefixed
 // archive strips N+1 — which does not fail, it FLATTENS: the real root entry is
 // dropped and a subdirectory's namesake takes its place. The tar side of this
-// is go-zpkg/bottle#69, where `hdfgroup.org/HDF5 2.2.0` built the wrong tree
+// is go-zpkg/artifact#69, where `hdfgroup.org/HDF5 2.2.0` built the wrong tree
 // and cmake reported it as an unknown command in "CMakeLists.txt". Zip archives
 // carry "./" prefixes less often, but the two extractors must not disagree
 // about what `strip-components` means.

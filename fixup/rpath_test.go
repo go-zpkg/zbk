@@ -279,7 +279,7 @@ func TestFixRpathsOrchestrator(t *testing.T) {
 func TestFixRpathsAddsOwnLib(t *testing.T) {
 	// The package's own lib dir is added $ORIGIN-relative even when the input
 	// RUNPATH does not already reference it: a bin/ ELF gets $ORIGIN/../lib and a
-	// lib/ ELF gets $ORIGIN/. — so a FROM-scratch bottle finds its sibling libs
+	// lib/ ELF gets $ORIGIN/. — so a FROM-scratch artifact finds its sibling libs
 	// without LD_LIBRARY_PATH.
 	prefix := filepath.Join(t.TempDir(), "acme.org", "tool", "v1.0.0")
 	os.MkdirAll(filepath.Join(prefix, "bin"), 0o755)
@@ -330,7 +330,7 @@ func TestFixRpathsSkipsAndDarwin(t *testing.T) {
 	}
 }
 
-// TestRunpathDropsTheStagingPrefix is what published bottles were carrying: an
+// TestRunpathDropsTheStagingPrefix is what published artifacts were carrying: an
 // autotools build configured with --prefix=<version>+brewing bakes that path
 // into every binary, the entry starts with the project dir so it was kept, and
 // $ORIGIN-relativising it preserved a directory that ceases to exist when the
@@ -393,8 +393,8 @@ func TestUnstage(t *testing.T) {
 //	0x…0f (RPATH)  Library rpath: [$ORIGIN/..]
 //	ld.so: elf_get_dynamic_info: Assertion `info[DT_RPATH] == NULL' failed!
 //
-// glibc's loader refuses a DT_RPATH on what it processes, so a libc bottle
-// fixed this way cannot load its own libc — and `ldd` comes from that bottle
+// glibc's loader refuses a DT_RPATH on what it processes, so a libc artifact
+// fixed this way cannot load its own libc — and `ldd` comes from that artifact
 // (go-zpkg/bk#256).
 func TestSetRunpathModernisesADtRpathTag(t *testing.T) {
 	p := buildELFTag(t, elf.DT_RPATH, "/opt/rpath/only", "libc.so.6", 32)

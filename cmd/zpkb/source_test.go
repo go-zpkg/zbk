@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // provenanceRef builds an in-toto referrer naming the given sources.
-func provenanceRef(t *testing.T, uris, digests []string) bottle.Referrer {
+func provenanceRef(t *testing.T, uris, digests []string) artifact.Referrer {
 	t.Helper()
 	var deps []string
 	for i := range uris {
@@ -23,12 +23,12 @@ func provenanceRef(t *testing.T, uris, digests []string) bottle.Referrer {
 		deps = append(deps, `{"uri":"`+uris[i]+`"`+d+`}`)
 	}
 	body := `{"predicate":{"buildDefinition":{"resolvedDependencies":[` + strings.Join(deps, ",") + `]}}}`
-	return bottle.Referrer{ArtifactType: artifactInToto, Blob: []byte(body)}
+	return artifact.Referrer{ArtifactType: artifactInToto, Blob: []byte(body)}
 }
 
 func TestSourcesAttestedBy(t *testing.T) {
 	t.Run("reads the uri and the digest", func(t *testing.T) {
-		got, err := sourcesAttestedBy([]bottle.Referrer{
+		got, err := sourcesAttestedBy([]artifact.Referrer{
 			{ArtifactType: artifactCycloneDX, Blob: []byte(`{}`)},
 			provenanceRef(t, []string{"https://x/a.tar.gz"}, []string{"abc"}),
 		})
@@ -39,14 +39,14 @@ func TestSourcesAttestedBy(t *testing.T) {
 			t.Fatalf("got %+v", got)
 		}
 	})
-	t.Run("a bottle with no provenance says so", func(t *testing.T) {
-		_, err := sourcesAttestedBy([]bottle.Referrer{{ArtifactType: artifactCycloneDX, Blob: []byte(`{}`)}})
+	t.Run("an artifact with no provenance says so", func(t *testing.T) {
+		_, err := sourcesAttestedBy([]artifact.Referrer{{ArtifactType: artifactCycloneDX, Blob: []byte(`{}`)}})
 		if err == nil || !strings.Contains(err.Error(), "no provenance") {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("provenance that is not JSON says so", func(t *testing.T) {
-		_, err := sourcesAttestedBy([]bottle.Referrer{{ArtifactType: artifactInToto, Blob: []byte(`{`)}})
+		_, err := sourcesAttestedBy([]artifact.Referrer{{ArtifactType: artifactInToto, Blob: []byte(`{`)}})
 		if err == nil || !strings.Contains(err.Error(), "provenance:") {
 			t.Fatalf("err = %v", err)
 		}
@@ -54,7 +54,7 @@ func TestSourcesAttestedBy(t *testing.T) {
 	// A git-built recipe attests a COMMIT, not an archive digest: there is
 	// nothing content-addressed to fetch and the message must say which it is.
 	t.Run("a source with no sha256 is not fetchable", func(t *testing.T) {
-		_, err := sourcesAttestedBy([]bottle.Referrer{
+		_, err := sourcesAttestedBy([]artifact.Referrer{
 			provenanceRef(t, []string{"git+https://x/r"}, []string{""}),
 		})
 		if err == nil || !strings.Contains(err.Error(), "no source archive digest") {
@@ -86,11 +86,11 @@ func TestSourceOutputName(t *testing.T) {
 }
 
 // withSourceSeams points the command at canned attestations and bytes.
-func withSourceSeams(t *testing.T, refs []bottle.Referrer, refErr error, data []byte, pullErr error) {
+func withSourceSeams(t *testing.T, refs []artifact.Referrer, refErr error, data []byte, pullErr error) {
 	t.Helper()
 	a, p := sourceAttestations, sourcePuller
 	t.Cleanup(func() { sourceAttestations, sourcePuller = a, p })
-	sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) { return refs, refErr }
+	sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) { return refs, refErr }
 	sourcePuller = func(_, _ string) ([]byte, error) { return data, pullErr }
 }
 
@@ -108,9 +108,9 @@ func runSourceIn(t *testing.T, dir string, args ...string) (int, string, string)
 	return runSource(args, &out, &errb), out.String(), errb.String()
 }
 
-func TestRunSourceFetchesWhatTheBottleAttests(t *testing.T) {
+func TestRunSourceFetchesWhatTheArtifactAttests(t *testing.T) {
 	dir := t.TempDir()
-	withSourceSeams(t, []bottle.Referrer{
+	withSourceSeams(t, []artifact.Referrer{
 		provenanceRef(t, []string{"https://x/yajl-2.1.0.tar.gz"}, []string{"deadbeef"}),
 	}, nil, []byte("SOURCE BYTES"), nil)
 
@@ -130,7 +130,7 @@ func TestRunSourceFetchesWhatTheBottleAttests(t *testing.T) {
 func TestRunSourcePrintsWithoutFetching(t *testing.T) {
 	dir := t.TempDir()
 	pulled := false
-	withSourceSeams(t, []bottle.Referrer{
+	withSourceSeams(t, []artifact.Referrer{
 		provenanceRef(t, []string{"https://x/a.tar.gz"}, []string{"abc"}),
 	}, nil, nil, nil)
 	old := sourcePuller
@@ -150,13 +150,13 @@ func TestRunSourcePrintsWithoutFetching(t *testing.T) {
 }
 
 // TestRunSourceSaysTheMirrorNeverSawIt: the distinction that matters. The
-// bottle is fine; the mirror simply predates it. Fetching the URI instead
+// artifact is fine; the mirror simply predates it. Fetching the URI instead
 // would be a DIFFERENT artefact unless it still hashes right.
 func TestRunSourceSaysTheMirrorNeverSawIt(t *testing.T) {
 	dir := t.TempDir()
-	withSourceSeams(t, []bottle.Referrer{
+	withSourceSeams(t, []artifact.Referrer{
 		provenanceRef(t, []string{"https://x/a.tar.gz"}, []string{"abc"}),
-	}, nil, nil, bottle.ErrSourceAbsent)
+	}, nil, nil, artifact.ErrSourceAbsent)
 
 	code, _, errs := runSourceIn(t, dir, "p", "1")
 	if code != 1 || !strings.Contains(errs, "the mirror does not hold abc") {
@@ -180,7 +180,7 @@ func TestRunSourceSurfacesEveryOtherFailure(t *testing.T) {
 			withSourceSeams(t, nil, boom, nil, nil)
 		}, 1, "boom"},
 		{"no provenance", []string{"p", "1"}, func(t *testing.T) {
-			withSourceSeams(t, []bottle.Referrer{}, nil, nil, nil)
+			withSourceSeams(t, []artifact.Referrer{}, nil, nil, nil)
 		}, 1, "no provenance"},
 		{"pull fails", []string{"p", "1"}, func(t *testing.T) {
 			withSourceSeams(t, nil, nil, nil, boom)
@@ -188,7 +188,7 @@ func TestRunSourceSurfacesEveryOtherFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.name == "pull fails" {
-				withSourceSeams(t, []bottle.Referrer{
+				withSourceSeams(t, []artifact.Referrer{
 					provenanceRef(t, []string{"https://x/a"}, []string{"abc"}),
 				}, nil, nil, boom)
 			} else {
@@ -205,7 +205,7 @@ func TestRunSourceSurfacesEveryOtherFailure(t *testing.T) {
 // TestRunSourceRefusesOneNameForManySources: -o names one file, and a recipe
 // with a mirror list attests more than one.
 func TestRunSourceRefusesOneNameForManySources(t *testing.T) {
-	withSourceSeams(t, []bottle.Referrer{
+	withSourceSeams(t, []artifact.Referrer{
 		provenanceRef(t, []string{"https://a/x.tgz", "https://b/x.tgz"}, []string{"aa", "bb"}),
 	}, nil, []byte("x"), nil)
 	code, _, errs := runSourceIn(t, t.TempDir(), "-o", "one.tgz", "p", "1")
@@ -216,7 +216,7 @@ func TestRunSourceRefusesOneNameForManySources(t *testing.T) {
 
 func TestRunSourceReportsAnUnwritableTarget(t *testing.T) {
 	dir := t.TempDir()
-	withSourceSeams(t, []bottle.Referrer{
+	withSourceSeams(t, []artifact.Referrer{
 		provenanceRef(t, []string{"https://x/a.tgz"}, []string{"abc"}),
 	}, nil, []byte("x"), nil)
 	code, _, errs := runSourceIn(t, dir, "-o", filepath.Join(dir, "no", "such", "dir", "a.tgz"), "p", "1")

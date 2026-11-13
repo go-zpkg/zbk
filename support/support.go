@@ -30,7 +30,7 @@
 // Both lines have been out of support for a while, and both say
 // `isMaintained: true` — it reflects the PAID extended support openssl sells
 // (the product's own labels call it "Premium support"). A check reading that
-// field would report 1.1.1 as healthy, which is exactly the bottle this fleet
+// field would report 1.1.1 as healthy, which is exactly the artifact this fleet
 // has 32 of.
 //
 // ⛔ AN ABSENT DATE IS NOT A DISTANT ONE. A cycle may carry `eolFrom: null`,

@@ -20,7 +20,7 @@ import (
 	"github.com/go-attest/sbom/provenance"
 
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/fixup"
 	"github.com/go-zpkg/zpkb/moustache"
@@ -32,7 +32,7 @@ const (
 	artifactCycloneDX = "application/vnd.cyclonedx+json"
 	artifactInToto    = "application/vnd.in-toto+json"
 	// artifactOpenVEX is the media type an OpenVEX document is attached under.
-	// It is what makes the rebuild's JUSTIFICATION travel with the bottle
+	// It is what makes the rebuild's JUSTIFICATION travel with the artifact
 	// rather than live in a repository nobody downstream reads.
 	artifactOpenVEX = "application/vnd.openvex+json"
 	buildType       = "https://github.com/go-zpkg/zpkb/buildtype@v1"
@@ -47,8 +47,8 @@ var (
 	sbomJSON      = func(d sbom.Document) ([]byte, error) { return d.CycloneDX() }
 	provJSON      = func(s provenance.Statement) ([]byte, error) { return s.JSON() }
 	simpleSigning = sign.SimpleSigningPayload
-	ociPush       = func(distBase, project, ver, osn, arch string, tarball []byte, ext string, refs []bottle.Referrer, annotations map[string]string) (ocispec.Descriptor, error) {
-		c, err := bottle.NewOCIClient(distBase)
+	ociPush       = func(distBase, project, ver, osn, arch string, tarball []byte, ext string, refs []artifact.Referrer, annotations map[string]string) (ocispec.Descriptor, error) {
+		c, err := artifact.NewOCIClient(distBase)
 		if err != nil {
 			return ocispec.Descriptor{}, err
 		}
@@ -63,45 +63,45 @@ var (
 // glibc's minimum supported kernel.
 const libcSoname = "libc.so.6"
 
-// glibcMinKernelFromTarball finds the C library inside a bottle tarball and
+// glibcMinKernelFromTarball finds the C library inside an artifact tarball and
 // returns glibc's minimum supported kernel (from its .note.ABI-tag) — the value
-// stamped as the org.go-zpkg.glibc.min-kernel annotation on a glibc bottle so a
+// stamped as the org.go-zpkg.glibc.min-kernel annotation on a glibc artifact so a
 // glibc-by-kernel selector can pick it. ext is ".tar.gz" or ".tar.xz".
 //
-// Where the ELF lives depends on the glibc vintage: a modern bottle ships
+// Where the ELF lives depends on the glibc vintage: a modern artifact ships
 // lib/glibc-X.Y/libc.so.6 as a regular file, while glibc before 2.34 ships the
 // image as libc-X.Y.so with libc.so.6 a SYMLINK to it (tar carries no content
 // for a symlink). Both are handled — and `libc.so` is deliberately not, since
 // that one is a linker script, not an ELF.
-// ABIProvidesAnnotation lists the sonames a bottle's shared libraries call
+// ABIProvidesAnnotation lists the sonames an artifact's shared libraries call
 // themselves by, comma-separated and sorted.
 //
 // The compatibility key of a shared library is its soname, and a pkgx
 // constraint cannot express one: libxml2 2.13.9 ships libxml2.2.dylib and
-// 2.15.4 ships libxml2.16.dylib, and `^2` admits both. Recording what a bottle
+// 2.15.4 ships libxml2.16.dylib, and `^2` admits both. Recording what an artifact
 // PROVIDES is the half that can be computed locally; with it, a checker can ask
 // of any published version whether it still provides the soname a dependent
 // recorded, and refuse a constraint that cannot honour it
 // (go-zpkg/packages#207).
 //
-// It belongs beside GlibcVersionAnnotation in go-zpkg/bottle once a resolver
+// It belongs beside GlibcVersionAnnotation in go-zpkg/artifact once a resolver
 // reads it; today only bk writes it, so it lives here rather than forcing a
 // cross-repo bump for a field nothing consumes yet.
 const ABIProvidesAnnotation = "org.go-zpkg.abi.provides"
 
-// sonamesFromTarball reads the ABI name of every shared library in a bottle.
+// sonamesFromTarball reads the ABI name of every shared library in an artifact.
 //
-// bottle.Decompressor, not a local one: every format this factory has ever
+// artifact.Decompressor, not a local one: every format this factory has ever
 // published is handled there, and a reader taught two of the three fails with
 // "gzip: invalid header" on a .tar.zst — which is the default, so the first
 // version of this wrote the annotation on nothing at all.
 //
-// From the tarball rather than the build tree so it also describes a bottle we
+// From the tarball rather than the build tree so it also describes an artifact we
 // did not build — a mirrored one carries whatever upstream linked, and that is
 // exactly the case where nobody knows what is inside (go-zpkg/packages#147).
 //
 // ⛔ ONLY FILES A CONSUMER COULD EVER LOAD. It used to read EVERY regular file
-// in the tarball, and the published go.dev 1.27.3 bottle therefore announced
+// in the tarball, and the published go.dev 1.27.3 artifact therefore announced
 //
 //	org.go-zpkg.abi.provides = libtiffxx.so.6
 //
@@ -112,16 +112,16 @@ const ABIProvidesAnnotation = "org.go-zpkg.abi.provides"
 // -> v1.27.3` symlink turned up inside the go.dev store directory.
 //
 // That is not cosmetic: the whole point of the annotation is that the resolver
-// keys ABI compatibility on sonames (go-zpkg/bottle#83) and a consumer binds
+// keys ABI compatibility on sonames (go-zpkg/artifact#83) and a consumer binds
 // through `abi-<soname>`. A claim to provide libtiffxx.so.6 is an offer to
 // satisfy a libtiff consumer with the Go toolchain.
 //
 // So the publisher now describes exactly what the consumer can search:
-// bottle.LibDirs puts `<prefix>/lib`, `<prefix>/lib64` and `lib/glibc-*` on
+// artifact.LibDirs puts `<prefix>/lib`, `<prefix>/lib64` and `lib/glibc-*` on
 // LD_LIBRARY_PATH and nothing else, so a soname found anywhere else is a claim
 // nothing could honour. Judge and subject count alike.
 func sonamesFromTarball(tarball []byte, ext string) ([]string, error) {
-	r, closeFn, err := bottle.Decompressor(ext, bytes.NewReader(tarball))
+	r, closeFn, err := artifact.Decompressor(ext, bytes.NewReader(tarball))
 	if err != nil {
 		return nil, err
 	}
@@ -158,14 +158,14 @@ func sonamesFromTarball(tarball []byte, ext string) ([]string, error) {
 }
 
 // inLibDir reports whether a tarball path is inside a directory the consumer
-// puts on LD_LIBRARY_PATH. The list is bottle.LibDirs' own: `lib`, `lib64`,
+// puts on LD_LIBRARY_PATH. The list is artifact.LibDirs' own: `lib`, `lib64`,
 // and lib's `glibc-*` sub-libdir.
 //
 // By path COMPONENT, not by prefix: `libexec/` starts with "lib" and holds
 // helper programs nobody links against, and `src/.../testdata/` is where the
 // defect came from. The components are checked all the way down rather than
 // only at the top, because glibc's real libraries live in `lib/glibc-2.41/`
-// and a bottle built with a `--libdir` of its own can nest one deeper.
+// and an artifact built with a `--libdir` of its own can nest one deeper.
 func inLibDir(name string) bool {
 	parts := strings.Split(path.Clean(name), "/")
 	// The last element is the file itself, so a bare `lib` file is not "in"
@@ -178,7 +178,7 @@ func inLibDir(name string) bool {
 	return false
 }
 
-// bottle.Decompressor, for the reason sonamesFromTarball gives directly above
+// artifact.Decompressor, for the reason sonamesFromTarball gives directly above
 // — and this function is where that reason was NOT applied. It knew xz and
 // assumed gzip for everything else, so on a .tar.zst, which is the default
 // codec, glibc's publish died on
@@ -192,7 +192,7 @@ func inLibDir(name string) bool {
 // above. A warning left beside the code it warns about is not a fix for the
 // code next to it.
 func glibcMinKernelFromTarball(tarball []byte, ext string) (string, error) {
-	r, closeFn, err := bottle.Decompressor(ext, bytes.NewReader(tarball))
+	r, closeFn, err := artifact.Decompressor(ext, bytes.NewReader(tarball))
 	if err != nil {
 		return "", err
 	}
@@ -238,39 +238,39 @@ func glibcMinKernelFromTarball(tarball []byte, ext string) (string, error) {
 		return "", err
 	}
 	f.Close()
-	return bottle.GlibcMinKernel(f.Name())
+	return artifact.GlibcMinKernel(f.Name())
 }
 
 // isLibcImage reports whether a file name is glibc's versioned C library image
-// (libc-2.17.so), the real ELF that a pre-2.34 bottle's libc.so.6 links to.
+// (libc-2.17.so), the real ELF that a pre-2.34 artifact's libc.so.6 links to.
 func isLibcImage(base string) bool {
 	return strings.HasPrefix(base, "libc-") && strings.HasSuffix(base, ".so")
 }
 
-// runPublish implements `bk publish`: push a built bottle to an OCI registry
+// runPublish implements `bk publish`: push a built artifact to an OCI registry
 // with a CycloneDX SBOM and an in-toto SLSA provenance statement attached as
 // referrers.
 func runPublish(args []string, stdout, stderr io.Writer) int {
 	f := flag.NewFlagSet("publish", flag.ContinueOnError)
 	f.SetOutput(stderr)
-	to := f.String("to", "", "oci:// destination base, e.g. oci://ghcr.io/go-zpkg/bottles")
+	to := f.String("to", "", "oci:// destination base, e.g. oci://ghcr.io/go-zpkg/artifacts")
 	project := f.String("project", "", "pkgx project, e.g. sqlite.org")
 	version := f.String("version", "", "version, e.g. 3.46.0")
-	platform := f.String("platform", "", "bottle os/arch, e.g. darwin/x86-64")
-	signKey := f.String("sign", "", "sign the bottle with this go-attest/sign secret key file")
-	glibc := f.String("glibc", "", "glibc version this bottle was built against; publishes under the flavored tag <version>-glibc<ver> so builds against different glibc coexist (linux only)")
+	platform := f.String("platform", "", "artifact os/arch, e.g. darwin/x86-64")
+	signKey := f.String("sign", "", "sign the artifact with this go-attest/sign secret key file")
+	glibc := f.String("glibc", "", "glibc version this artifact was built against; publishes under the flavored tag <version>-glibc<ver> so builds against different glibc coexist (linux only)")
 	advisories := f.String("advisories", "", "advisory tree to look this project up in; attaches an OpenVEX document saying what was decided about each vulnerability")
 	var specDeps depFlag
 	f.Var(&specDeps, "spec-dep", "a resolved dependency of this build, `project=version[=hash]`, repeatable. For a lane that builds without a pantry plan — a Go cross-build, say — this is how the TOOLCHAIN gets into the identity, which is the whole point: a rebuild against a patched Go must not land on the first one's address")
 	specRecipe := f.String("spec-recipe", "", "digest of the resolved build — the script after substitution, the environment, the flags. ⛔ NOT a digest of a recipe FILE: a reflowed comment would rebuild the world")
 	specRecipeFrom := f.String("spec-recipe-from", "", "`file` describing the resolved build; its sha256 becomes the recipe digest. For a lane whose build is a command rather than a pantry script: write what decided the output — module, version, package, GOOS/GOARCH, flags, toolchain — and let this digest it, instead of computing a hash in the shell")
-	allowUnsigned := f.Bool("allow-unsigned", false, "publish without a signature. ⛔ A CLIENT VERIFIES FAIL-CLOSED BY DEFAULT, so an unsigned bottle is one nobody can install without turning verification off")
-	allowUnidentified := f.Bool("allow-unidentified", false, "publish without a build identity, under the bare version tag. For a bottle this process did not build — a mirror — where claiming an identity would be a claim nothing supports")
+	allowUnsigned := f.Bool("allow-unsigned", false, "publish without a signature. ⛔ A CLIENT VERIFIES FAIL-CLOSED BY DEFAULT, so an unsigned artifact is one nobody can install without turning verification off")
+	allowUnidentified := f.Bool("allow-unidentified", false, "publish without a build identity, under the bare version tag. For an artifact this process did not build — a mirror — where claiming an identity would be a claim nothing supports")
 	if err := f.Parse(args); err != nil {
 		return 2
 	}
 	if *to == "" || *project == "" || *version == "" || *platform == "" || f.NArg() != 1 {
-		fmt.Fprintln(stderr, "usage: bk publish --to oci://… --project P --version V --platform os/arch <bottle>")
+		fmt.Fprintln(stderr, "usage: bk publish --to oci://… --project P --version V --platform os/arch <artifact>")
 		return 2
 	}
 	osn, arch, ok := splitPlatform(*platform)
@@ -301,15 +301,15 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "publish:", err)
 		return 2
 	}
-	var spec bottle.Concrete
+	var spec artifact.Concrete
 	if recipe != "" || len(specDeps.deps) > 0 {
-		spec = bottle.Concrete{Platform: *platform, Deps: specDeps.deps, Recipe: recipe}
+		spec = artifact.Concrete{Platform: *platform, Deps: specDeps.deps, Recipe: recipe}
 	}
 	if err := everythingSignedAndIdentified(kp, spec, *allowUnsigned, *allowUnidentified); err != nil {
 		fmt.Fprintln(stderr, "publish:", err)
 		return 2
 	}
-	if _, _, err := publishBottle(publishOptions{
+	if _, _, err := publishArtifact(publishOptions{
 		Dist: *to, Project: *project, Version: *version,
 		OS: osn, Arch: arch, Path: f.Arg(0), Glibc: *glibc, Key: kp,
 		Advisories: *advisories, Concrete: spec,
@@ -326,11 +326,11 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 }
 
 // everythingSignedAndIdentified is the rule, enforced before anything is
-// pushed: a bottle this factory publishes says WHO vouches for it and WHAT it
+// pushed: an artifact this factory publishes says WHO vouches for it and WHAT it
 // is, or it is not published.
 //
 // ⛔⛔ BOTH WERE SILENT, AND SILENCE IS WHY THEY HAPPENED. On 2026-11-05 the
-// wasip1 lane published 30 bottles to a fresh registry, green, and every one
+// wasip1 lane published 30 artifacts to a fresh registry, green, and every one
 // of them was unsigned and unidentified:
 //
 //	HASH    PUBLISHED  SIGNED BY   BUILT BY     WHAT
@@ -345,18 +345,18 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 //
 // ⛔ THE DEROGATIONS ARE FLAGS WITH NO DEFAULT, AND THEY ARE SEPARATE. One
 // `--force` covering both would let a lane that only needed to mirror an
-// unidentified bottle also start publishing unsigned ones. A workflow that
+// unidentified artifact also start publishing unsigned ones. A workflow that
 // wants either has to write it down, in its own source, where a reader sees
 // it — which is the point of making it a flag rather than a warning.
-func everythingSignedAndIdentified(kp *sign.Keypair, spec bottle.Concrete, allowUnsigned, allowUnidentified bool) error {
+func everythingSignedAndIdentified(kp *sign.Keypair, spec artifact.Concrete, allowUnsigned, allowUnidentified bool) error {
 	if kp == nil && !allowUnsigned {
-		return errors.New("refusing to publish unsigned: a client verifies fail-closed by default, so this bottle " +
+		return errors.New("refusing to publish unsigned: a client verifies fail-closed by default, so this artifact " +
 			"would be refused at install time. Pass --sign <key>, or --allow-unsigned to publish one anyway")
 	}
 	if spec.IsZero() && !allowUnidentified {
 		return errors.New("refusing to publish without a build identity: the tag would be the bare version, which " +
 			"two different builds can both claim, and nothing would record what this one is. Pass --spec-dep and " +
-			"--spec-recipe to state it, or --allow-unidentified for a bottle this process did not build")
+			"--spec-recipe to state it, or --allow-unidentified for an artifact this process did not build")
 	}
 	return nil
 }
@@ -366,7 +366,7 @@ func everythingSignedAndIdentified(kp *sign.Keypair, spec bottle.Concrete, allow
 // ⛔ BOTH AT ONCE IS REFUSED, NOT RECONCILED. They are two spellings of one
 // value, and a precedence rule between them is a second definition of the
 // build's identity — the exact shape of a defect this project has already
-// paid for once, where two definitions of one hash meant a bottle failed its
+// paid for once, where two definitions of one hash meant an artifact failed its
 // own verification with a message that read as tampering.
 //
 // The file is digested here rather than in the caller's shell because a
@@ -397,14 +397,14 @@ func recipeDigestFromFlags(literal, from string) (string, error) {
 }
 
 // depFlag collects repeated --spec-dep values.
-type depFlag struct{ deps []bottle.Dep }
+type depFlag struct{ deps []artifact.Dep }
 
 func (d *depFlag) String() string { return "" }
 
 // Set parses `project=version[=hash]`.
 //
 // ⛔ THE HASH IS OPTIONAL AND ITS ABSENCE IS NOT A FAILURE. A toolchain taken
-// from the runner's own image — `setup-go` — has a version and no bottle
+// from the runner's own image — `setup-go` — has a version and no artifact
 // identity, and that is the truth about it. Refusing it would push a lane
 // back to publishing nothing at all, which is what this guard exists to end.
 func (d *depFlag) Set(s string) error {
@@ -412,7 +412,7 @@ func (d *depFlag) Set(s string) error {
 	if len(parts) < 2 || len(parts) > 3 || parts[0] == "" || parts[1] == "" {
 		return fmt.Errorf("want project=version[=hash], got %q", s)
 	}
-	dep := bottle.Dep{Project: parts[0], Version: parts[1]}
+	dep := artifact.Dep{Project: parts[0], Version: parts[1]}
 	if len(parts) == 3 {
 		dep.Hash = parts[2]
 	}
@@ -468,23 +468,23 @@ func lastLine(s string) string {
 	return lines[len(lines)-1]
 }
 
-// publishOptions describes one bottle push.
+// publishOptions describes one artifact push.
 type publishOptions struct {
 	Dist     string // oci:// destination base
 	Project  string // pkgx project slug
 	Version  string // TRUE software version (what the SBOM/provenance record)
 	OS, Arch string // pkgx-form platform, e.g. linux + x86-64
-	Path     string // the built bottle tarball on disk
-	Glibc    string // glibc this bottle was built against ("" = system glibc)
+	Path     string // the built artifact tarball on disk
+	Glibc    string // glibc this artifact was built against ("" = system glibc)
 	Key      *sign.Keypair
 	Time     time.Time // attestation timestamp; zero = buildTime()
 	// Source is what the build was made from — the candidate URL that answered
-	// and the digest of what came back. Empty for `bk publish` on a bottle this
+	// and the digest of what came back. Empty for `bk publish` on an artifact this
 	// process did not build, and for the few recipes with no distributable.
 	Source build.SourceRef
 	// BuildEnv is every dependency the build resolved, at the version it used:
 	// the compiler, its libc, the tools the recipe invoked. Empty for
-	// `bk publish` on a bottle this process did not build — the same honest
+	// `bk publish` on an artifact this process did not build — the same honest
 	// gap as Source, and for the same reason.
 	BuildEnv []moustache.Dep
 	// Advisories is the advisory tree to look this project up in. Empty means
@@ -493,7 +493,7 @@ type publishOptions struct {
 	Advisories string
 	// Origin is what the factory knows about HOW this was built — see
 	// provOrigin. Zero means nothing is stated, which is the honest value for
-	// `bk publish` on a bottle this process did not build, and which a
+	// `bk publish` on an artifact this process did not build, and which a
 	// promotion gate must treat as "not promotable" rather than as "fine".
 	Origin provOrigin
 	// Concrete is what the build IS: the platform, the resolved closure and
@@ -502,36 +502,36 @@ type publishOptions struct {
 	// the address from the description instead of taking it on trust.
 	//
 	// ⛔ THE ZERO VALUE IS A STATEMENT, NOT A GAP TO PAPER OVER. `bk publish`
-	// on a bottle this process did not build knows nothing about how it was
+	// on an artifact this process did not build knows nothing about how it was
 	// made, so it publishes an unhashed tag and no annotation — the honest
-	// shape for a mirrored bottle, and distinguishable from a build whose
-	// description we do hold. bottle.Concrete.Hash() returns "" for it, and
-	// bottle.SpecOf reports "no spec" rather than an error.
-	Concrete bottle.Concrete
+	// shape for a mirrored artifact, and distinguishable from a build whose
+	// description we do hold. artifact.Concrete.Hash() returns "" for it, and
+	// artifact.SpecOf reports "no spec" rather than an error.
+	Concrete artifact.Concrete
 }
 
-// publishBottle pushes a built bottle with its SBOM, SLSA provenance and (given
+// publishArtifact pushes a built artifact with its SBOM, SLSA provenance and (given
 // a key) signature attached as referrers, and reports the registry tag it landed
-// under. Shared by `bk publish` and `bk factory`, so a factory-published bottle
+// under. Shared by `bk publish` and `bk factory`, so a factory-published artifact
 // carries byte-identical attestations, tags and glibc annotations.
-// publishBottle returns the registry tag it published under AND the descriptor
+// publishArtifact returns the registry tag it published under AND the descriptor
 // of the per-platform manifest it pushed. The descriptor is what the end-of-run
 // index check needs: it cannot discover the manifest, because that lookup would
 // go through the very index whose contents are in question.
-func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
+func publishArtifact(o publishOptions) (string, ocispec.Descriptor, error) {
 	tarball, err := osReadFile(o.Path)
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
 	}
-	// The FILE decides the media type, not a flag: a bottle mirrored from an
+	// The FILE decides the media type, not a flag: an artifact mirrored from an
 	// upstream dist arrives in whatever codec that dist used, and mislabelling it
 	// would make every puller decompress with the wrong decoder.
-	ext := bottle.ExtTarGz
+	ext := artifact.ExtTarGz
 	switch {
-	case strings.HasSuffix(o.Path, bottle.ExtTarXz):
-		ext = bottle.ExtTarXz
-	case strings.HasSuffix(o.Path, bottle.ExtTarZst):
-		ext = bottle.ExtTarZst
+	case strings.HasSuffix(o.Path, artifact.ExtTarXz):
+		ext = artifact.ExtTarXz
+	case strings.HasSuffix(o.Path, artifact.ExtTarZst):
+		ext = artifact.ExtTarZst
 	}
 	// The SBOM/provenance keep the TRUE software version; only the registry TAG
 	// gets the glibc flavor, so builds of the same version against different
@@ -559,16 +559,16 @@ func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
 	var annotations map[string]string
 	// ⛔ THE SPEC GOES ON FIRST, so that nothing below can overwrite it by
 	// assigning a fresh map. The tag says WHICH build; this says WHAT build,
-	// and bottle.VerifySpec refuses the pair when they disagree — so a bottle
+	// and artifact.VerifySpec refuses the pair when they disagree — so an artifact
 	// published with one and not the other is worse than one published with
 	// neither.
 	if spec := o.Concrete; !spec.IsZero() {
-		annotations = map[string]string{bottle.SpecAnnotation: bottle.MarshalSpec(spec)}
+		annotations = map[string]string{artifact.SpecAnnotation: artifact.MarshalSpec(spec)}
 	}
 	// ⛔ EVERY BRANCH BELOW ADDS, NONE REPLACES. Each of these used to build a
 	// fresh map, which was harmless while the spec did not exist and would
 	// now drop it — leaving a tag that claims a hash and a manifest that does
-	// not say what the hash is of, which bottle.VerifySpec reads as a bottle
+	// not say what the hash is of, which artifact.VerifySpec reads as an artifact
 	// that does not match its own description.
 	set := func(k, v string) {
 		if annotations == nil {
@@ -577,22 +577,22 @@ func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
 		annotations[k] = v
 	}
 	switch {
-	case o.Project == bottle.GlibcProject:
-		// The glibc bottle IS the glibc — no flavored tag; instead self-describe
+	case o.Project == artifact.GlibcProject:
+		// The glibc artifact IS the glibc — no flavored tag; instead self-describe
 		// its min supported kernel (from libc.so.6's .note.ABI-tag) so a
 		// glibc-by-kernel selector can pick it.
 		mk, err := glibcMinKernelFromTarball(tarball, ext)
 		if err != nil {
 			return "", ocispec.Descriptor{}, err
 		}
-		set(bottle.GlibcMinKernelAnnotation, mk)
+		set(artifact.GlibcMinKernelAnnotation, mk)
 	case o.Glibc != "":
 		// A tool built against a specific glibc: flavor the tag + self-describe
 		// which glibc, so a glibc-aware resolver matches it without parsing tags.
-		set(bottle.GlibcVersionAnnotation, strings.TrimPrefix(o.Glibc, "="))
+		set(artifact.GlibcVersionAnnotation, strings.TrimPrefix(o.Glibc, "="))
 	}
-	// Every bottle says which ABIs it provides, whatever else is annotated.
-	// A failure to read one is not a reason to refuse the publish: the bottle is
+	// Every artifact says which ABIs it provides, whatever else is annotated.
+	// A failure to read one is not a reason to refuse the publish: the artifact is
 	// correct, the description of it is merely missing, and the alternative is a
 	// factory that stops on a field nothing consumes yet.
 	if names, err := sonamesFromTarball(tarball, ext); err != nil {
@@ -625,8 +625,8 @@ func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
 // loudest of the three, because the old one still verifies against the old
 // bytes and now sits beside content it was never made for.
 //
-// The check is cheap and reads only the manifest: `BottleDigest` takes the
-// layer digest off the per-platform manifest without pulling the bottle.
+// The check is cheap and reads only the manifest: `ArtifactDigest` takes the
+// layer digest off the per-platform manifest without pulling the artifact.
 //
 // ⛔ IT IS NOT A REBUILD GUARD. Re-publishing the SAME bytes is the normal,
 // idempotent case — a retried run, a re-dispatch — and is allowed, silently.
@@ -638,13 +638,13 @@ func publishBottle(o publishOptions) (string, ocispec.Descriptor, error) {
 // would turn a network blip into a halted campaign. Only a digest that is
 // present AND different refuses.
 func refuseToMoveATag(o publishOptions, tag string, tarball []byte) error {
-	// A bottle with no identity lands on the bare version, which has always
+	// An artifact with no identity lands on the bare version, which has always
 	// been a moving tag — `bk publish` of something this process did not
 	// build cannot know what it is, and that is stated in buildTag.
 	if o.Concrete.IsZero() {
 		return nil
 	}
-	published, err := ociBottleDigest(o.Dist, o.Project, tag, o.OS, o.Arch)
+	published, err := ociArtifactDigest(o.Dist, o.Project, tag, o.OS, o.Arch)
 	if err != nil || published == "" {
 		return nil
 	}
@@ -670,7 +670,7 @@ func refuseToMoveATag(o publishOptions, tag string, tarball []byte) error {
 // It survives as the prefix those tags share, which is what lets the builds
 // of a version be LISTED.
 func flavoredTag(project, version, glibc string) string {
-	if glibc == "" || project == bottle.GlibcProject {
+	if glibc == "" || project == artifact.GlibcProject {
 		return version
 	}
 	return version + "-glibc" + strings.TrimPrefix(glibc, "=")
@@ -680,16 +680,16 @@ func flavoredTag(project, version, glibc string) string {
 // build's identity appended, `1.3.2-habcdefghijklmnop`.
 //
 // ⛔⛔ THE HASH COMES FROM THE SPEC, NOT FROM A SECOND COMPUTATION. It is
-// `Concrete.Hash()`, the same value `bottle.VerifySpec` recomputes from the
+// `Concrete.Hash()`, the same value `artifact.VerifySpec` recomputes from the
 // annotation on the other side; a tag built from anything else would make
-// every bottle fail its own verification, and the message — "the bottle does
+// every artifact fail its own verification, and the message — "the artifact does
 // not match its own description" — reads as tampering rather than as a bug
 // here.
 //
 // An empty spec yields the bare flavoured version. That is `bk publish` on a
-// bottle this process did not build: we do not know what it is, so we do not
+// artifact this process did not build: we do not know what it is, so we do not
 // give it an address that claims we do.
-func buildTag(project, version, glibc string, spec bottle.Concrete) string {
+func buildTag(project, version, glibc string, spec artifact.Concrete) string {
 	return flavoredTag(project, version, glibc) + spec.VariantTag()
 }
 
@@ -699,9 +699,9 @@ func buildTag(project, version, glibc string, spec bottle.Concrete) string {
 //
 // ⛔ THIS IS THE AXIS A VULNERABILITY REBUILD MOVES ALONG. When a Go patch
 // release fixes a standard-library defect, nothing about the recipe or the
-// upstream version changes — only `go.dev` in this list does. A bottle that
+// upstream version changes — only `go.dev` in this list does. An artifact that
 // does not record it cannot be asked "were you built with the fixed
-// compiler?", and a rebuild counter over such bottles would be a number
+// compiler?", and a rebuild counter over such artifacts would be a number
 // nobody could derive or check.
 //
 // A purl rather than a path: the prefix is where this machine put it, which is
@@ -730,7 +730,7 @@ func builderWithVersion() string { return builderID + "@" + bkVersion() }
 // question this build was asked.
 //
 // ⛔ IT WAS `{}`. The shape of a provenance was published, signed, for every
-// bottle in the registry, and it said nothing — not the platform, not the
+// artifact in the registry, and it said nothing — not the platform, not the
 // version, not even the project. An attestation whose presence implies a
 // guarantee it does not give is worse than no attestation, because a reader
 // stops looking once they see one.
@@ -756,19 +756,19 @@ func buildParams(project, version, osn, arch string, o provOrigin) map[string]st
 	return p
 }
 
-// provOrigin is what the FACTORY knows about a build and the bottle cannot
+// provOrigin is what the FACTORY knows about a build and the artifact cannot
 // show: whether host tools drove it, and which registry its inputs came from.
 //
 // ⛔ IT EXISTS BECAUSE "WAS THIS BUILT SOVEREIGNLY" HAD NO ANSWER IN THE
-// ARTEFACT. Measured 2026-11-01 on a published bottle:
+// ARTEFACT. Measured 2026-11-01 on a published artifact:
 //
 //	$ bk buildenv -platform linux/s390x lz4.org 1.10.0
 //	buildenv: lz4.org 1.10.0 (linux/s390x): the provenance records no build
 //	environment
 //
 // An empty build environment is what a `--bootstrap` build produces, because
-// it resolves no bottles — so the absence is a HINT and not a statement. It is
-// also what an older bk produced, and what `bk publish` produces for a bottle
+// it resolves no artifacts — so the absence is a HINT and not a statement. It is
+// also what an older bk produced, and what `bk publish` produces for an artifact
 // this process did not build. Three different situations, one silence.
 //
 // That silence matters now: go-zpkg/packages#316 needs the s390x toolchain to
@@ -779,7 +779,7 @@ func buildParams(project, version, osn, arch string, o provOrigin) map[string]st
 //
 // ⛔ THREE STATES, NOT A BOOL, AND THE EMPTY ONE MUST NOT BE SAFE. A `bool`
 // zero value is false, which would read as "not a bootstrap" — so every
-// bottle published before this existed, and every one published by a path
+// artifact published before this existed, and every one published by a path
 // that does not set it, would claim to be promotable. Unknown has to fail
 // closed, so it is a distinct state and the promotion check requires an
 // explicit "0".
@@ -788,7 +788,7 @@ type provOrigin struct {
 	// host distribution, "0" when it did not, and "" when nothing was stated.
 	Bootstrap string
 	// Dist is the registry the build RESOLVED ITS INPUTS FROM — the fact that
-	// distinguishes a bottle built against the seed's loopback registry from
+	// distinguishes an artifact built against the seed's loopback registry from
 	// one built against ghcr, which no digest or signature can show.
 	Dist string
 }
@@ -802,9 +802,9 @@ func boolParam(b bool) string {
 }
 
 // buildReferrers builds the CycloneDX SBOM and in-toto SLSA provenance
-// attestations for a bottle (subject = the bottle itself; the tarball digest
+// attestations for an artifact (subject = the artifact itself; the tarball digest
 // binds them).
-func buildReferrers(project, version, osn, arch string, tarball []byte, src build.SourceRef, env []moustache.Dep, now time.Time, kp *sign.Keypair, origin provOrigin) ([]bottle.Referrer, error) {
+func buildReferrers(project, version, osn, arch string, tarball []byte, src build.SourceRef, env []moustache.Dep, now time.Time, kp *sign.Keypair, origin provOrigin) ([]artifact.Referrer, error) {
 	sum := sha256.Sum256(tarball)
 	dg := hex.EncodeToString(sum[:])
 	purl := purlFor(project, version)
@@ -819,7 +819,7 @@ func buildReferrers(project, version, osn, arch string, tarball []byte, src buil
 		BuildType: buildType,
 		// ⛔ A BUILDER THAT NEVER CHANGES CANNOT TELL TWO BUILDS APART.
 		// builderID was the bare string `https://github.com/go-zpkg/zpkb`, so
-		// every bottle ever published claimed the identical builder —
+		// every artifact ever published claimed the identical builder —
 		// measured 2026-10-09 on stedolan.github.io/jq, whose signed SLSA
 		// statement carries buildDefinition {} and that constant.
 		//
@@ -837,7 +837,7 @@ func buildReferrers(project, version, osn, arch string, tarball []byte, src buil
 	if err != nil {
 		return nil, err
 	}
-	refs := []bottle.Referrer{
+	refs := []artifact.Referrer{
 		{ArtifactType: artifactCycloneDX, MediaType: artifactCycloneDX, Blob: sb},
 		{ArtifactType: artifactInToto, MediaType: artifactInToto, Blob: pr},
 	}
@@ -858,21 +858,21 @@ func buildReferrers(project, version, osn, arch string, tarball []byte, src buil
 // is a bare Ed25519 signature: it does not say which key made it, so a
 // verifier facing several signatures would otherwise try every trusted key
 // against every one of them. The key id turns that product back into a walk
-// — and bottle treats it as a HINT only, trying it first and then the rest,
+// — and artifact treats it as a HINT only, trying it first and then the rest,
 // so a wrong one costs microseconds and changes no verdict.
 //
 // A NAME is deliberately absent. It would be written by whoever pushed the
 // referrer, and the line it would appear in — "signed by: …" — is the one a
 // reader uses to decide whether to trust the artefact. The name a user sees
 // comes from their own trust set, which is the only place it means anything.
-func signatureReferrer(payload []byte, kp *sign.Keypair) bottle.Referrer {
+func signatureReferrer(payload []byte, kp *sign.Keypair) artifact.Referrer {
 	ann := map[string]string{
-		bottle.CosignSignatureAnnotation: kp.SignPayload(payload),
-		bottle.SignerKeyIDAnnotation:     hex.EncodeToString(kp.ID[:]),
+		artifact.CosignSignatureAnnotation: kp.SignPayload(payload),
+		artifact.SignerKeyIDAnnotation:     hex.EncodeToString(kp.ID[:]),
 	}
-	return bottle.Referrer{
-		ArtifactType: bottle.ArtifactTypeSignature,
-		MediaType:    bottle.MediaSimpleSigning,
+	return artifact.Referrer{
+		ArtifactType: artifact.ArtifactTypeSignature,
+		MediaType:    artifact.MediaSimpleSigning,
 		Blob:         payload,
 		Annotations:  ann,
 	}
@@ -880,7 +880,7 @@ func signatureReferrer(payload []byte, kp *sign.Keypair) bottle.Referrer {
 
 // buildTime is the timestamp stamped into attestations. It honours
 // SOURCE_DATE_EPOCH (the reproducible-builds standard) so re-publishing the
-// same bottle yields byte-identical SBOM/provenance — hence the same referrer
+// same artifact yields byte-identical SBOM/provenance — hence the same referrer
 // digests, so a re-push is idempotent instead of accumulating duplicates. With
 // the variable unset (or unparseable) it falls back to the wall clock.
 func buildTime() time.Time {
@@ -906,7 +906,7 @@ func splitPlatform(p string) (osn, arch string, ok bool) {
 // A material with no digest of any kind would say only "this URL was involved",
 // which the recipe already says and which no verifier can check — so an empty
 // SourceRef produces no material at all rather than a decorative one. That is
-// also what `bk publish` emits for a bottle this process did not build: it does
+// also what `bk publish` emits for an artifact this process did not build: it does
 // not know what the source was, and inventing a URI from the recipe would
 // attest a guess.
 func materialsOf(src build.SourceRef) []provenance.Material {

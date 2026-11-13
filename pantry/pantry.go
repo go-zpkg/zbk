@@ -90,7 +90,7 @@ type Recipe struct {
 	// provenance records WHY WE MAY SHIP THIS RECIPE, not anything the build
 	// consumes. It cannot change a byte of the output, so it must not change
 	// the identity of the output. Were it ever to appear in the hash, a
-	// reworded `note` would re-address every bottle of that project.
+	// reworded `note` would re-address every artifact of that project.
 	Provenance *Provenance `yaml:"provenance" json:"-"`
 }
 

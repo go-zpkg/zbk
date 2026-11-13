@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -19,15 +19,15 @@ import (
 	uxz "github.com/ulikunitz/xz"
 )
 
-// ⛔⛔ EVERY CODEC A BOTTLE IS ACTUALLY PUBLISHED IN. The first reader sniffed
+// ⛔⛔ EVERY CODEC A ARTIFACT IS ACTUALLY PUBLISHED IN. The first reader sniffed
 // gzip only, and every unit test passed — because each test wrote its own
 // fixture in the codec the reader happened to support. Then `mirror` pulled a
 // real one:
 //
 //	zlib.net/darwin/aarch64/v1.3.2.tar.zst
 //
-// `Codec` is `bottle.ExtTarZst`. A gzip-only reader could not read a single
-// published bottle. These tests exist so the fixtures cannot agree with the
+// `Codec` is `artifact.ExtTarZst`. A gzip-only reader could not read a single
+// published artifact. These tests exist so the fixtures cannot agree with the
 // reader by accident again: each one names the codec it writes.
 func writeTar(t *testing.T, path string, wrap func(io.Writer) (io.WriteCloser, error)) string {
 	t.Helper()
@@ -240,8 +240,8 @@ func TestATypeChangeIsReportedAsType(t *testing.T) {
 	_ = d
 }
 
-// An owner difference. bottlepkg.normalise zeroes uid/gid precisely so this
-// cannot happen to a bottle it writes — but a bottle from elsewhere can carry
+// An owner difference. artifactpkg.normalise zeroes uid/gid precisely so this
+// cannot happen to an artifact it writes — but an artifact from elsewhere can carry
 // them, and silently ignoring the field would hide a real difference.
 func TestAnOwnerDifferenceIsReported(t *testing.T) {
 	d := t.TempDir()

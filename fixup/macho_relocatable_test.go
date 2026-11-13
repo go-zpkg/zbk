@@ -25,7 +25,7 @@ func place(t *testing.T, path string, cmds ...machoCmd) {
 }
 
 // An install name pointing into $ZPKG_DIR becomes an @rpath reference, so the
-// bottle resolves it wherever $ZPKG_DIR turns out to be.
+// artifact resolves it wherever $ZPKG_DIR turns out to be.
 func TestInstallNamesBecomeRpathReferences(t *testing.T) {
 	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
 	prefix := filepath.Join(zpkgx, "other.org", "bar", "v2.0.0")
@@ -205,7 +205,7 @@ func TestRpathReadErrorSurfaces(t *testing.T) {
 }
 
 // A dependency's MINOR upgrade must not orphan its dependents, which is why the
-// reference is major-versioned. Measured on the published gnu.org/grep bottle:
+// reference is major-versioned. Measured on the published gnu.org/grep artifact:
 // it named /Users/runner/.pkgx/pcre.org/v2/v10.47/lib/libpcre2-8.0.dylib, the
 // machine had pcre2 v10.48, grep could not start — and curl's configure
 // reported it as "'grep' utility not found in 'PATH'".
@@ -239,7 +239,7 @@ func TestDependencyVersionsAreMajorOnly(t *testing.T) {
 // Once a dependency is itself built with an @rpath install name, its dependents
 // record @rpath/<project>/v<FULL version>/… — which never reached the
 // absolute-path branch, so the version stayed whole and the reference breaks on
-// the dependency's next minor release. Measured on the grep bottle rebuilt
+// the dependency's next minor release. Measured on the grep artifact rebuilt
 // after pcre2 had been: @rpath/pcre.org/v2/v10.48/lib/libpcre2-8.0.dylib.
 func TestAlreadyRpathReferencesAreMajorVersionedToo(t *testing.T) {
 	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
@@ -275,7 +275,7 @@ func TestAlreadyRpathReferencesAreMajorVersionedToo(t *testing.T) {
 // A Mach-O that references @rpath/… and has NO LC_RPATH loads nowhere, on any
 // machine. Found in the published registry — pkgx.sh 2.11.0 references
 // @rpath/tukaani.org/xz/v5.8.3/lib/liblzma.5.dylib with zero rpaths and dies
-// with "Reason: no LC_RPATH's found" — on a bottle that built, signed,
+// with "Reason: no LC_RPATH's found" — on an artifact that built, signed,
 // attested and published without a complaint.
 //
 // It happens without anyone writing it: a dependency's install name is what its
@@ -323,7 +323,7 @@ func TestNoRpathReferenceNeedsNoRpath(t *testing.T) {
 }
 
 // TestAnAbsoluteRpathBecomesRelocatable is the llvm.org case. Its darwin
-// bottle has, on every one of the 118 Mach-O files that reference a sibling
+// artifact has, on every one of the 118 Mach-O files that reference a sibling
 // package, exactly two rpaths: "@loader_path/../lib" — its own lib directory,
 // which cannot reach a sibling — and "/Users/runner/.pkgx", the CI runner's
 // home. It loaded on the runner and nowhere else:

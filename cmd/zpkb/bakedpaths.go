@@ -27,7 +27,7 @@ import (
 //	                   coreutils' bin/pr into `diff` (pantry-overlay#92)
 //	gnu.org/findutils  AC_PATH_PROG([SORT],[sort]) would have baked coreutils'
 //	                   bin/sort into the installed `updatedb` (#93)
-//	gnu.org/libtool    upstream's own bottle SHIPS one:
+//	gnu.org/libtool    upstream's own artifact SHIPS one:
 //	                   : ${SED="/__w/_actions/pkgxdev/brewkit/v1/libexec/sed"}
 //	                   — three of ten recipes in one batch died on it
 //
@@ -57,7 +57,7 @@ import (
 //	    : ${LOCATE_DB=/opt/gnu.org/findutils/v4.10.0+brewing/var/locate/locatedb}
 //	    : ${LIBEXECDIR=/opt/gnu.org/findutils/v4.10.0+brewing/libexec}
 //	    : ${BINDIR=/opt/gnu.org/findutils/v4.10.0+brewing/bin}
-//	  — the STAGING tree, which does not exist after the bottle is installed,
+//	  — the STAGING tree, which does not exist after the artifact is installed,
 //	    so updatedb cannot find its own frcode. go-zpkg/zpkb#152's class, in a
 //	    script rather than an rpath.
 //
@@ -87,7 +87,7 @@ type bakedScan struct {
 // stagingPattern recognises a staging tree, wherever it is rooted.
 //
 // ⛔ IT DOES NOT TAKE THE STORE ROOT, and that is the measured part: the
-// staging path found in a shipped bottle is rooted at /opt, while the machine
+// staging path found in a shipped artifact is rooted at /opt, while the machine
 // reading it has its store at ~/.pkgx. A rule anchored on the local store root
 // would have seen nothing. `+brewing` is zpkb's own staging suffix
 // (buildscript/wrapper.go:384, fixup/macho.go:591), so the string is ours to
@@ -103,7 +103,7 @@ var stagingPattern = regexp.MustCompile(`/[A-Za-z0-9._+/-]*\+brewing(?:/[A-Za-z0
 var hostToolPattern = regexp.MustCompile(
 	`/(?:usr|opt|bin|sbin|home|Users|__w|work|tmp|private)(?:/[A-Za-z0-9._+-]+)+`)
 
-// hostToolAllowed are the absolute paths a bottle may legitimately name.
+// hostToolAllowed are the absolute paths an artifact may legitimately name.
 //
 // ⛔ EVERY ENTRY IS HERE FOR A STATED REASON, because an allow-list assembled
 // to make a check quiet is how the check stops meaning anything.
@@ -111,7 +111,7 @@ var hostToolAllowed = map[string]bool{
 	"/usr/bin/env":               true, // the portable shebang; a store path here would be WORSE
 	"/bin/sh":                    true, // POSIX guarantees it, and configure bakes it on purpose
 	"/usr/lib/dyld":              true, // darwin's loader, named by every Mach-O
-	"/usr/lib/libSystem.B.dylib": true, // darwin's libc, which no bottle provides
+	"/usr/lib/libSystem.B.dylib": true, // darwin's libc, which no artifact provides
 }
 
 // storePathPattern builds the regexp that recognises "<store>/<project>/v<ver>".
@@ -214,7 +214,7 @@ func scanFile(r io.Reader, rel string, res []*regexp.Regexp) ([][]storePathHit, 
 //
 // Rule C is restricted to these, which is a scope choice with a cost: a baked
 // host path in a .pc file or a cmake module would not be seen. It is made
-// because a bottle's man pages and texinfo mention /usr/bin by the hundred,
+// because an artifact's man pages and texinfo mention /usr/bin by the hundred,
 // and a census drowned in documentation is one nobody reads. Stated here so
 // the next person widens it on purpose rather than discovering the gap.
 //
@@ -327,11 +327,11 @@ func reportStorePaths(scan bakedScan, self string, allowed map[string]bool, cens
 			project, len(hits), hits[0].Path, hits[0].File)
 	}
 	// ⛔ RULE B, AND IT IS FATAL WITH NO DEROGATION. A staging tree does not
-	// exist once the bottle is installed, so a reference to one is wrong in
+	// exist once the artifact is installed, so a reference to one is wrong in
 	// every tree, for every consumer, with no case in which it is the intent.
 	if len(scan.Staging) > 0 {
 		sortHits(scan.Staging)
-		fmt.Fprintf(&b, "bakedpaths: %d reference(s) to a +brewing STAGING tree, which does not exist once this bottle is installed — measured in gnu.org/findutils v4.10.0, whose updatedb cannot find its own frcode (go-zpkg/zpkb#152):",
+		fmt.Fprintf(&b, "bakedpaths: %d reference(s) to a +brewing STAGING tree, which does not exist once this artifact is installed — measured in gnu.org/findutils v4.10.0, whose updatedb cannot find its own frcode (go-zpkg/zpkb#152):",
 			len(scan.Staging))
 		for _, h := range firstFew(scan.Staging, 5) {
 			fmt.Fprintf(&b, "\n      %s at +%d: %s", h.File, h.Offset, h.Path)
@@ -363,7 +363,7 @@ func reportStorePaths(scan bakedScan, self string, allowed map[string]bool, cens
 	// `updatedb`), so it is the most valuable rule here. It is not fatal yet
 	// because its POPULATION has not been read: the allow-list above holds four
 	// entries chosen from one machine, and a gate built on that would fail
-	// honest bottles and be switched off within the day. Counting first, with a
+	// honest artifacts and be switched off within the day. Counting first, with a
 	// sample printed, is how the allow-list gets written from what is there
 	// rather than from what I expect (`a-sweep-that-measured-its-own-regex`).
 	if len(scan.Host) > 0 {

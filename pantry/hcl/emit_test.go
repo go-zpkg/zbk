@@ -79,7 +79,7 @@ func TestConvertChoosesBlocksAndObjects(t *testing.T) {
 //
 // What is left is a defect in yaml.v3, not in either format: a string whose
 // first line is indented marshals to a block scalar the same library cannot
-// read back. bottle refuses rather than hand out YAML that fails later.
+// read back. artifact refuses rather than hand out YAML that fails later.
 func TestConvertRefusesWhatCannotBeReadBack(t *testing.T) {
 	_, err := Convert([]byte("test:\n  fixture: |4\n      indented\n  script: make\n"))
 	if err == nil {
@@ -294,7 +294,7 @@ func TestFirstDiffNumberToleranceIsNarrow(t *testing.T) {
 	// And this is where the tolerance correctly declines to help:
 	// fmt.Sprint(20250127.0) is "2.0250127e+07", which is NOT "20250127". The
 	// two do not render alike, so they are not the same — and the real fix was
-	// bottle keeping integral numbers as integers, not a looser comparison
+	// artifact keeping integral numbers as integers, not a looser comparison
 	// here.
 	if d := firstDiff(map[string]any{"k": 20250127.0}, map[string]any{"k": int64(20250127)}, ""); d == "" {
 		t.Error("a float that renders in exponent form is not the integer")

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -44,13 +44,13 @@ func (r *tagsRegistry) base(ns string) string {
 
 // ⛔⛔ A TAG LISTING IS NOT A VERSION LIST, AND THIS FLEET HAS PUBLISHED THAT
 // MISTAKE. ghcr implements no referrers API, so ORAS keeps referrers under
-// `sha256-<digest>` TAGS, and bottle's own notes record a release reported as
+// `sha256-<digest>` TAGS, and artifact's own notes record a release reported as
 // "2 version(s) tagged" where the two were referrers. Platform tags
 // (`<ver>--<os>-<arch>`) are in the same listing.
 //
 // A copy that took the listing at face value would walk those as versions and
 // fail on each — or worse, succeed at copying a referrer as though it were a
-// release. bottle.IsVersionTag is what decides, and this asserts the verb asks
+// release. artifact.IsVersionTag is what decides, and this asserts the verb asks
 // it rather than restating the rule.
 func TestCopyDryRunListsOnlyVersionTags(t *testing.T) {
 	reg := newTagsRegistry(t, []string{
@@ -138,17 +138,17 @@ type stubVerifier struct {
 func (s stubVerifier) Platforms(string, string) ([]string, error) {
 	return s.platforms, s.platErr
 }
-func (s stubVerifier) BottleDigest(string, string, string, string) (string, error) {
+func (s stubVerifier) ArtifactDigest(string, string, string, string) (string, error) {
 	return s.digest, s.digestErr
 }
-func (s stubVerifier) VerifyBottleDigest(string, string, string, string, string) error {
+func (s stubVerifier) VerifyArtifactDigest(string, string, string, string, string) error {
 	return s.verifyErr
 }
 
 // ⛔ ZERO PLATFORMS IS THE ONE THAT MATTERS. A version whose index arrived
 // without the manifests it names would otherwise report "0 platform(s)
 // verified" and exit 0 — the shape of a copy that moved an index and left the
-// bottles behind, reported as a success.
+// artifacts behind, reported as a success.
 func TestVerifyCopied(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -190,7 +190,7 @@ func stubCopy(t *testing.T, copyErr error, n int, verifyErr error) *int {
 	oldCopy, oldVerify := copyPublished, verifyAtDestination
 	t.Cleanup(func() { copyPublished, verifyAtDestination = oldCopy, oldVerify })
 	verified := 0
-	copyPublished = func(context.Context, *bottle.OCIClient, *bottle.OCIClient, string, string) (ocispec.Descriptor, error) {
+	copyPublished = func(context.Context, *artifact.OCIClient, *artifact.OCIClient, string, string) (ocispec.Descriptor, error) {
 		return ocispec.Descriptor{}, copyErr
 	}
 	verifyAtDestination = func(copyVerifier, string, string) (int, error) {
@@ -238,7 +238,7 @@ func TestCopyNoVerifySkipsTheCheck(t *testing.T) {
 		t.Fatalf("exit %d, stderr: %s", code, errb.String())
 	}
 	if !strings.Contains(out.String(), "(not verified)") {
-		t.Errorf("output does not say the bottle was not verified:\n%s", out.String())
+		t.Errorf("output does not say the artifact was not verified:\n%s", out.String())
 	}
 	if *verified != 0 {
 		t.Errorf("--no-verify still verified %d time(s)", *verified)

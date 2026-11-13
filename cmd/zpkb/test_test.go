@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/buildscript"
 	"github.com/go-zpkg/zpkb/target"
 	"mvdan.cc/sh/v3/interp"
@@ -38,9 +38,9 @@ func testTestbed(t *testing.T) string {
 // beside it that names the version alone.
 func installTestBuild(t *testing.T, store, project, version string) string {
 	t.Helper()
-	v := bottle.Ver{Raw: version}
-	hash := bottle.StoreHash(v, "digest:"+project+"@"+version, "")
-	if err := os.MkdirAll(bottle.StoreBuildPrefix(store, project, v, hash), 0o755); err != nil {
+	v := artifact.Ver{Raw: version}
+	hash := artifact.StoreHash(v, "digest:"+project+"@"+version, "")
+	if err := os.MkdirAll(artifact.StoreBuildPrefix(store, project, v, hash), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return hash
@@ -900,10 +900,10 @@ func TestRunTestNamesTheBuildItRunsAgainst(t *testing.T) {
 		t.Setenv("ZPKG_PANTRY_DIR", dir)
 		t.Setenv("ZPKG_DIR", filepath.Join(dir, "pkgx"))
 		store := filepath.Join(dir, "pkgx")
-		v := bottle.Ver{Raw: "1.2.3"}
+		v := artifact.Ver{Raw: "1.2.3"}
 		for _, seed := range []string{"a", "b"} {
-			h := bottle.StoreHash(v, "digest:"+seed, "")
-			if err := os.MkdirAll(bottle.StoreBuildPrefix(store, "proj.org", v, h), 0o755); err != nil {
+			h := artifact.StoreHash(v, "digest:"+seed, "")
+			if err := os.MkdirAll(artifact.StoreBuildPrefix(store, "proj.org", v, h), 0o755); err != nil {
 				t.Fatal(err)
 			}
 		}

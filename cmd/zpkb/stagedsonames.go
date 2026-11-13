@@ -14,7 +14,7 @@ import (
 // not contain.
 //
 // The sovereign rootfs has nothing underneath it, so a NEEDED soname that no
-// staged bottle provides is a binary that cannot start — and it says so only
+// staged artifact provides is a binary that cannot start — and it says so only
 // when something runs it, which is deep inside a build and attributed to
 // whatever happened to run first. The s390x second generation met this twice
 // in a row, on two different tools, a full build apart:
@@ -22,7 +22,7 @@ import (
 //	mkdir: error while loading shared libraries: libselinux.so.1
 //	sed:   error while loading shared libraries: libselinux.so.1
 //
-// Both came from the same cause — a bottle built on a host that HAS libselinux,
+// Both came from the same cause — an artifact built on a host that HAS libselinux,
 // whose configure auto-detects it — and each cost a round trip to a runner to
 // learn the next name. The tree can answer the whole question at once, before
 // a single build starts.
@@ -39,7 +39,7 @@ func auditStagedSonames(zpkgDir string) string {
 // scanSonames walks a tree and returns what it PROVIDES and what it NEEDS.
 //
 // Separate from the report because the same two sets answer the question over
-// a registry, where each bottle is unpacked on its own: the 78 projects of a
+// a registry, where each artifact is unpacked on its own: the 78 projects of a
 // seed order cannot be installed together — cmake wants curl `>=5<8.13` and
 // cargo wants `8` — so a union over separate trees is the only way to ask
 // "which soname does NOBODY here provide".

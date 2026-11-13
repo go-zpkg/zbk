@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -59,7 +59,7 @@ func dir(name string, mode int64) tar.Header {
 // and the DIRECTORIES 0755 on one host and 0775 on the other — the two
 // umasks, 0022 and 0002.
 //
-// Two digests would have said "different bottle" and nothing more. The report
+// Two digests would have said "different artifact" and nothing more. The report
 // has to name MODE, and name it on the directories, or the next person
 // diffs two tarballs by hand as I did.
 func TestTheUmaskDefectIsReportedAsModeOnDirectories(t *testing.T) {
@@ -75,7 +75,7 @@ func TestTheUmaskDefectIsReportedAsModeOnDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rep.Identical() {
-		t.Fatal("the two bottles were called identical; they differ in directory mode")
+		t.Fatal("the two artifacts were called identical; they differ in directory mode")
 	}
 	if len(rep.Diffs) != 1 {
 		t.Fatalf("want exactly one difference, got %v", rep.Diffs)
@@ -162,7 +162,7 @@ func TestNothingComparedIsNotIdentical(t *testing.T) {
 	}
 }
 
-// Entry ORDER is not a difference. WriteBottle sorts, so this is normally
+// Entry ORDER is not a difference. WriteArtifact sorts, so this is normally
 // moot — but a report that depended on order would turn one reordering into
 // hundreds of spurious content diffs, burying whatever is really wrong.
 func TestOrderIsNotADifference(t *testing.T) {
@@ -180,7 +180,7 @@ func TestOrderIsNotADifference(t *testing.T) {
 }
 
 // ⛔ "IDENTICAL APART FROM TIMESTAMPS" IS A DIFFERENT CLAIM FROM BIT-IDENTITY,
-// and it is the useful one here: bottlepkg deliberately does NOT fix mtime to
+// and it is the useful one here: artifactpkg deliberately does NOT fix mtime to
 // an epoch, so two builds an hour apart differ by design. WithoutMTime makes
 // a caller say which question it is asking instead of relaxing Identical().
 func TestTimestampsAreReportedAndCanBeSetAsideSeparately(t *testing.T) {
@@ -215,7 +215,7 @@ func TestTimestampsAreReportedAndCanBeSetAsideSeparately(t *testing.T) {
 	}
 }
 
-// A plain .tar and a .tar.gz of the same content are the same bottle: a
+// A plain .tar and a .tar.gz of the same content are the same artifact: a
 // caller comparing a rebuild against something already unpacked should not be
 // told they differ because of the envelope.
 func TestGzipIsSniffedNotAssumedFromTheName(t *testing.T) {

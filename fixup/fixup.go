@@ -1,5 +1,5 @@
 // Package fixup performs the post-build relocatability fix-ups brewkit applies
-// before a package is bottled: rewriting hardcoded paths in .pc/.cmake files
+// before a package is packaged: rewriting hardcoded paths in .pc/.cmake files
 // and in installed scripts, removing libtool .la files, consolidating
 // lib64→lib, flattening single-dir include trees, and (via rpath.go) fixing
 // ELF RUNPATHs.
@@ -104,7 +104,7 @@ func FixUp(opts Options) error {
 // left the inverse unsaid: on the build path only checkRpathResolvable ran, so
 // a stale code signature, a 32-bit magic over a 64-bit cputype, a duplicate
 // LC_RPATH and an absolute /opt/homebrew reference were all checked on the
-// bottles we COPY and on none of the bottles we MAKE.
+// artifacts we COPY and on none of the artifacts we MAKE.
 //
 // What is fatal here is what is never correct and always fatal later:
 //
@@ -205,7 +205,7 @@ func recipeName(opts Options) string {
 }
 
 // fixPCFiles rewrites absolute build/install prefixes in pkg-config .pc files
-// to ${pcfiledir}-relative form so the bottle relocates.
+// to ${pcfiledir}-relative form so the artifact relocates.
 func fixPCFiles(prefix, buildInstall string, log func(string, ...any)) error {
 	for _, part := range []string{"share", "lib"} {
 		d := filepath.Join(prefix, part, "pkgconfig")

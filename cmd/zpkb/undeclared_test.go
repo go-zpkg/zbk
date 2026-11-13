@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // mkStore lays out a pkgx store: one copy of the Mach-O fixture per project.
@@ -81,7 +81,7 @@ func TestOwnerOf(t *testing.T) {
 // declaration one hop further out, and counting it as a defect is what made the
 // first version of this over-report.
 func TestUndeclaredOfFollowsDeclarationsTransitively(t *testing.T) {
-	g := &bottle.Graph{Deps: map[string][]bottle.Edge{
+	g := &artifact.Graph{Deps: map[string][]artifact.Edge{
 		"app.org": {{Of: "app.org", On: "mid.org"}},
 		"mid.org": {{Of: "mid.org", On: "deep.org"}},
 	}}
@@ -116,10 +116,10 @@ func TestRunUndeclared(t *testing.T) {
 	store := mkStore(t, "gnu.org/nettle")
 	oldG, oldI := undeclaredGraph, undeclaredInstall
 	defer func() { undeclaredGraph, undeclaredInstall = oldG, oldI }()
-	undeclaredGraph = func(map[string]string, string, string) (*bottle.Graph, error) {
-		return &bottle.Graph{Deps: map[string][]bottle.Edge{}}, nil
+	undeclaredGraph = func(map[string]string, string, string) (*artifact.Graph, error) {
+		return &artifact.Graph{Deps: map[string][]artifact.Edge{}}, nil
 	}
-	undeclaredInstall = func(map[string]string, string) ([]bottle.Resolved, error) { return nil, nil }
+	undeclaredInstall = func(map[string]string, string) ([]artifact.Resolved, error) { return nil, nil }
 
 	code, out, _ := run2(t, "undeclared", "--store", store, "gnu.org/nettle")
 	if code != 1 {
@@ -138,12 +138,12 @@ func TestRunUndeclaredAllDeclared(t *testing.T) {
 	store := mkStore(t, "gnu.org/nettle")
 	oldG, oldI := undeclaredGraph, undeclaredInstall
 	defer func() { undeclaredGraph, undeclaredInstall = oldG, oldI }()
-	undeclaredGraph = func(map[string]string, string, string) (*bottle.Graph, error) {
-		return &bottle.Graph{Deps: map[string][]bottle.Edge{
+	undeclaredGraph = func(map[string]string, string, string) (*artifact.Graph, error) {
+		return &artifact.Graph{Deps: map[string][]artifact.Edge{
 			"gnu.org/nettle": {{Of: "gnu.org/nettle", On: "other.org/dep"}},
 		}}, nil
 	}
-	undeclaredInstall = func(map[string]string, string) ([]bottle.Resolved, error) { return nil, nil }
+	undeclaredInstall = func(map[string]string, string) ([]artifact.Resolved, error) { return nil, nil }
 
 	code, out, _ := run2(t, "undeclared", "--store", store, "gnu.org/nettle")
 	if code != 0 {
@@ -183,13 +183,13 @@ func TestRunUndeclaredKeepsGoingPastAFailure(t *testing.T) {
 	oldG, oldI := undeclaredGraph, undeclaredInstall
 	defer func() { undeclaredGraph, undeclaredInstall = oldG, oldI }()
 
-	undeclaredGraph = func(roots map[string]string, _, _ string) (*bottle.Graph, error) {
+	undeclaredGraph = func(roots map[string]string, _, _ string) (*artifact.Graph, error) {
 		if roots["broken.org"] != "" {
 			return nil, errors.New("no such project")
 		}
-		return &bottle.Graph{Deps: map[string][]bottle.Edge{}}, nil
+		return &artifact.Graph{Deps: map[string][]artifact.Edge{}}, nil
 	}
-	undeclaredInstall = func(roots map[string]string, _ string) ([]bottle.Resolved, error) {
+	undeclaredInstall = func(roots map[string]string, _ string) ([]artifact.Resolved, error) {
 		if roots["offline.org"] != "" {
 			return nil, errors.New("registry unreachable")
 		}
@@ -220,10 +220,10 @@ func TestRunUndeclaredMakesAndRemovesItsOwnStore(t *testing.T) {
 		made = d
 		return d, err
 	}
-	undeclaredGraph = func(map[string]string, string, string) (*bottle.Graph, error) {
-		return &bottle.Graph{Deps: map[string][]bottle.Edge{}}, nil
+	undeclaredGraph = func(map[string]string, string, string) (*artifact.Graph, error) {
+		return &artifact.Graph{Deps: map[string][]artifact.Edge{}}, nil
 	}
-	undeclaredInstall = func(map[string]string, string) ([]bottle.Resolved, error) { return nil, nil }
+	undeclaredInstall = func(map[string]string, string) ([]artifact.Resolved, error) { return nil, nil }
 
 	if code, _, _ := run2(t, "undeclared", "a.org"); code != 0 {
 		t.Errorf("exit = %d, want 0 for an empty store", code)
@@ -261,10 +261,10 @@ func TestRunUndeclaredReportsAnOwnerOnce(t *testing.T) {
 	store := mkStore(t, "gnu.org/nettle")
 	oldG, oldI := undeclaredGraph, undeclaredInstall
 	defer func() { undeclaredGraph, undeclaredInstall = oldG, oldI }()
-	undeclaredGraph = func(map[string]string, string, string) (*bottle.Graph, error) {
-		return &bottle.Graph{Deps: map[string][]bottle.Edge{}}, nil
+	undeclaredGraph = func(map[string]string, string, string) (*artifact.Graph, error) {
+		return &artifact.Graph{Deps: map[string][]artifact.Edge{}}, nil
 	}
-	undeclaredInstall = func(map[string]string, string) ([]bottle.Resolved, error) { return nil, nil }
+	undeclaredInstall = func(map[string]string, string) ([]artifact.Resolved, error) { return nil, nil }
 
 	_, out, _ := run2(t, "undeclared", "--store", store, "a.org", "b.org")
 	if n := strings.Count(out, "gnu.org/nettle"); n != 1 {

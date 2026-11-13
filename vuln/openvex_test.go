@@ -28,7 +28,7 @@ func opts(subjects ...Subject) VEXOptions {
 
 const product = "pkg:oci/openssl@sha256:abc?repository_url=ghcr.io/go-zpkg/openssl.org&tag=3.5.8_1--linux-x86-64"
 
-// productVersion is the version `product` is a bottle of. It is a constant
+// productVersion is the version `product` is an artifact of. It is a constant
 // rather than a literal in each fixture because the scoping rule compares it
 // against what a record names, and two spellings of "the version under test"
 // would make a failure look like a disagreement about the rule.
@@ -314,7 +314,7 @@ func TestEveryEventTypeMapsToAStatus(t *testing.T) {
 }
 
 // The same records produce the same bytes, whatever order they are handed in.
-// A document that differed run to run could not be attached to a bottle and
+// A document that differed run to run could not be attached to an artifact and
 // compared with the one already there.
 func TestEncodingIsDeterministic(t *testing.T) {
 	a := mustParse(t, `schema-version: 1
@@ -711,7 +711,7 @@ func TestAProductWithNoVersionIsRefused(t *testing.T) {
 
 // Splitting one record into two statements must not cost determinism: the
 // same input still has to produce the same bytes, or a re-push of an
-// unchanged bottle would attach a second referrer beside the first.
+// unchanged artifact would attach a second referrer beside the first.
 func TestASplitDocumentIsStillByteStable(t *testing.T) {
 	mk := func() ([]byte, error) {
 		return EncodeVEX(opts(Subject{

@@ -6,7 +6,7 @@ import (
 )
 
 // TestWasip1Target: ZPKB_TARGET=wasip1/wasm resolves to the cross triple
-// wasm32-wasip1 and the bottle slug wasip1/wasm.
+// wasm32-wasip1 and the artifact slug wasip1/wasm.
 func TestWasip1Target(t *testing.T) {
 	t.Setenv("ZPKB_TARGET", "wasip1/wasm")
 	tgt, err := Resolve()
@@ -49,8 +49,8 @@ func TestWasmIsAnArchOfWasip1Only(t *testing.T) {
 // from these lists, so they must name every platform and arch exactly once.
 // ⛔ THE BSDs BELONG HERE BECAUSE THE REGEXP IS THE POINT. A platform absent
 // from this vocabulary turns a recipe's `freebsd:` block into a DEPENDENCY on
-// a project called "freebsd" — bottle says exactly that at pkgx.go:1563, and
-// bottle has listed these three since before any bottle existed for them. bk
+// a project called "freebsd" — artifact says exactly that at pkgx.go:1563, and
+// artifact has listed these three since before any artifact existed for them. bk
 // not listing them was the two halves disagreeing about what a recipe key
 // means.
 func TestVocabularyListsAreSortedAndComplete(t *testing.T) {

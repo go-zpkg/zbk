@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // stubRegistry answers the two registry reads nextRebuild makes: which
@@ -15,17 +15,17 @@ func stubRegistry(t *testing.T, tags []string, publishedOn map[string][]string, 
 	oldV, oldP := versionsFor, publishedTagFor
 	t.Cleanup(func() { versionsFor, publishedTagFor = oldV, oldP })
 
-	versionsFor = func(_, _, _ string) ([]bottle.Ver, bool, error) {
+	versionsFor = func(_, _, _ string) ([]artifact.Ver, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
-		out := make([]bottle.Ver, 0, len(tags))
+		out := make([]artifact.Ver, 0, len(tags))
 		for _, s := range tags {
-			out = append(out, bottle.ParseVer(s))
+			out = append(out, artifact.ParseVer(s))
 		}
 		return out, true, nil
 	}
-	publishedTagFor = func(_ string, v bottle.Ver, osn, arch string) (string, bool, error) {
+	publishedTagFor = func(_ string, v artifact.Ver, osn, arch string) (string, bool, error) {
 		for _, s := range publishedOn[osn+"/"+arch] {
 			if s == v.Raw {
 				return v.Raw, true, nil
@@ -53,7 +53,7 @@ func TestTheFirstRebuildIsOne(t *testing.T) {
 
 // ⛔ TestNothingPublishedMeansNoCounter. A `_1` on a version that is not here
 // claims a predecessor that does not exist, and would sort AFTER a plain
-// `3.3.11` published later — so the first bottle of a version must be plain.
+// `3.3.11` published later — so the first artifact of a version must be plain.
 func TestNothingPublishedMeansNoCounter(t *testing.T) {
 	stubRegistry(t, []string{"3.3.11"}, map[string][]string{"linux/x86-64": {"3.3.11"}}, nil)
 	n, err := nextRebuild("fftw.org", "3.3.11", "darwin", "aarch64")
@@ -125,10 +125,10 @@ func TestAnUnreadableRegistryRefusesRatherThanGuesses(t *testing.T) {
 func TestAFailedPublicationCheckRefuses(t *testing.T) {
 	oldV, oldP := versionsFor, publishedTagFor
 	t.Cleanup(func() { versionsFor, publishedTagFor = oldV, oldP })
-	versionsFor = func(_, _, _ string) ([]bottle.Ver, bool, error) {
-		return []bottle.Ver{bottle.ParseVer("3.3.11")}, true, nil
+	versionsFor = func(_, _, _ string) ([]artifact.Ver, bool, error) {
+		return []artifact.Ver{artifact.ParseVer("3.3.11")}, true, nil
 	}
-	publishedTagFor = func(string, bottle.Ver, string, string) (string, bool, error) {
+	publishedTagFor = func(string, artifact.Ver, string, string) (string, bool, error) {
 		return "", false, errors.New("registry said 500")
 	}
 	_, err := nextRebuild("fftw.org", "3.3.11", "darwin", "aarch64")
@@ -188,7 +188,7 @@ func TestAFactoryRebuildFailsRatherThanPublishingUnnumbered(t *testing.T) {
 		"--platform", "linux/x86-64", "--rebuild", "--force")
 
 	if len(h.published) != 0 {
-		t.Errorf("%d bottle(s) published although the rebuild number could not be read", len(h.published))
+		t.Errorf("%d artifact(s) published although the rebuild number could not be read", len(h.published))
 	}
 	detail := h.detailFile(t)
 	if !strings.Contains(detail, "rebuild") || !strings.Contains(detail, "connection refused") {
@@ -206,7 +206,7 @@ func keysOf(m map[string]bool) []string {
 
 // TestRebuiltVersionLeavesZeroAlone, because `3.3.11_0` is a spelling of
 // `3.3.11` that nothing else in the fleet produces, and two spellings of one
-// bottle is what the tag rules exist to prevent.
+// artifact is what the tag rules exist to prevent.
 func TestRebuiltVersionLeavesZeroAlone(t *testing.T) {
 	if got := rebuiltVersion("3.3.11", 0); got != "3.3.11" {
 		t.Errorf("rebuiltVersion(…, 0) = %q, want 3.3.11", got)
@@ -215,13 +215,13 @@ func TestRebuiltVersionLeavesZeroAlone(t *testing.T) {
 
 // TestSameNumsIgnoresTheCounterAndNothingElse.
 func TestSameNumsIgnoresTheCounterAndNothingElse(t *testing.T) {
-	if !sameNums(bottle.ParseVer("3.3.11_7"), bottle.ParseVer("3.3.11")) {
+	if !sameNums(artifact.ParseVer("3.3.11_7"), artifact.ParseVer("3.3.11")) {
 		t.Error("a rebuild is not recognised as the same version")
 	}
-	if sameNums(bottle.ParseVer("3.3.11"), bottle.ParseVer("3.3.1")) {
+	if sameNums(artifact.ParseVer("3.3.11"), artifact.ParseVer("3.3.1")) {
 		t.Error("3.3.1 and 3.3.11 were treated as the same version")
 	}
-	if sameNums(bottle.ParseVer("3.3.11"), bottle.ParseVer("3.3.11.0")) {
+	if sameNums(artifact.ParseVer("3.3.11"), artifact.ParseVer("3.3.11.0")) {
 		t.Error("a different component count was treated as the same version")
 	}
 }

@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zpkb/bottlepkg"
+	"github.com/go-zpkg/artifact"
+	"github.com/go-zpkg/zpkb/artifactpkg"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/config"
 	"github.com/go-zpkg/zpkb/logical"
@@ -28,7 +28,7 @@ import (
 )
 
 // defaultEpoch pins SOURCE_DATE_EPOCH when the environment leaves it unset, so
-// re-publishing the same bottle produces byte-identical SBOM/provenance — hence
+// re-publishing the same artifact produces byte-identical SBOM/provenance — hence
 // identical referrer digests, so a re-push is idempotent instead of piling up
 // duplicates. (factory.sh pinned the same value.)
 const defaultEpoch = 1700000000
@@ -61,11 +61,11 @@ var (
 	factoryOverrides = overrides.Apply
 	factoryList      = versions.List
 	factoryResolve   = versions.Resolve
-	factoryPublish   = publishBottle
+	factoryPublish   = publishArtifact
 	// factoryPlan settles what a build IS without building it: the resolved
 	// version, the resolved closure, and the identity those give it.
 	//
-	// ⛔ A SEAM OF ITS OWN BECAUSE THE SKIP DEPENDS ON IT. A bottle is
+	// ⛔ A SEAM OF ITS OWN BECAUSE THE SKIP DEPENDS ON IT. An artifact is
 	// addressed by its identity now, so "is this already published?" cannot
 	// be answered before the closure is resolved — and asking it of the bare
 	// version, as this did while a version was an address, gave the wrong
@@ -78,23 +78,23 @@ var (
 	}
 	// factoryPublishedVersion is the newest version of a project the REGISTRY
 	// holds for this platform, membership checked — what --test-only tests.
-	factoryPublishedVersion = bottle.PickVersionFor
-	factoryUpstreamVersions = bottle.VersionsFor
+	factoryPublishedVersion = artifact.PickVersionFor
+	factoryUpstreamVersions = artifact.VersionsFor
 	factoryRemoveAll        = os.RemoveAll
-	factoryDownload         = bottle.DownloadBottle
+	factoryDownload         = artifact.DownloadArtifact
 	factoryHasPlatform      = func(dist, project, ver, osn, arch string) (bool, error) {
-		c, err := bottle.NewOCIClient(dist)
+		c, err := artifact.NewOCIClient(dist)
 		if err != nil {
 			return false, err
 		}
 		return c.HasPlatform(project, ver, osn, arch)
 	}
-	// factoryPublishedBuilder reads what made the bottle already sitting at a
+	// factoryPublishedBuilder reads what made the artifact already sitting at a
 	// tag. Separate from factoryHasPlatform rather than folded into it,
 	// because that one is stubbed in a dozen tests and widening it would make
 	// every one of them restate a fact they do not care about.
 	factoryPublishedBuilder = func(dist, project, ver, osn, arch string) (string, error) {
-		c, err := bottle.NewOCIClient(dist)
+		c, err := artifact.NewOCIClient(dist)
 		if err != nil {
 			return "", err
 		}
@@ -103,12 +103,12 @@ var (
 	}
 )
 
-// staleBuilderNote is the half-sentence appended to a SKIP when the bottle
+// staleBuilderNote is the half-sentence appended to a SKIP when the artifact
 // already at that tag was made by a DIFFERENT factory from the one running.
 //
 // ⛔⛔ THE SKIP WAS TRUE AND USELESS. A build's identity is
 // {platform, variants, closure, recipe} and deliberately NOT the builder — a
-// zpkb release must not re-address every bottle in the registry, which is Nix's
+// zpkb release must not re-address every artifact in the registry, which is Nix's
 // and Spack's position about their own build tools. The consequence is that a
 // zpkb fix which changes the produced BYTES with every input unchanged lands on
 // the same tag, finds it occupied, and is skipped. Forever, silently, on every
@@ -121,7 +121,7 @@ var (
 // becomes a fact somebody can act on, which is the smallest honest fix.
 //
 // ⛔ AND IT NEVER TURNS A SKIP INTO A FAILURE. The registry may be unreachable,
-// the bottle may predate provenance, the statement may not parse: all three are
+// the artifact may predate provenance, the statement may not parse: all three are
 // "" and all three mean nothing is known, not that anything is wrong. The note
 // is empty whenever the comparison cannot be made.
 func staleBuilderNote(dist, project, tag, osn, arch string) string {
@@ -138,7 +138,7 @@ func staleBuilderNote(dist, project, tag, osn, arch string) string {
 }
 
 // runFactory implements `bk factory`: build a set of pantry recipes — expanded
-// to their full runtime closure, deps first — and publish every resulting bottle
+// to their full runtime closure, deps first — and publish every resulting artifact
 // to an OCI registry, signed and attested. It is the pure-Go replacement for
 // packages/factory.sh, and keeps its contract:
 //
@@ -169,31 +169,31 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	overridesDir := fs.String("overrides", "overrides", `directory of *.patch recipe overrides ("" to skip)`)
 	to := fs.String("to", envOr("DIST", "oci://ghcr.io/go-zpkg/packages"), "oci:// registry to publish to")
 	platform := fs.String("platform", envOr("PLATFORM", ""), "target os/arch, e.g. linux/x86-64 (required)")
-	bottles := fs.String("bottles", "dist", "local directory the built bottles are staged in")
+	artifacts := fs.String("artifacts", "dist", "local directory the built artifacts are staged in")
 	maxVersions := fs.Int("max-versions", envInt("MAX_VERSIONS"), "cap versions built per requested project, newest first (0 = all)")
 	versionSpec := fs.String("versions", envOr("VERSIONS", ""), `only consider versions of the REQUESTED projects that match this pkgx constraint. A BARE version is a RANGE, not an exact match: "2.28.0" means >=2.28.0 within major 2, so an exact version needs "=2.28.0". Also "^3", ">=2.4". Applied before --max-versions. A closure-only dependency is NOT governed by this: it resolves to the newest version every one of its dependents can use`)
-	mirrorFrom := fs.String("mirror-from", "", "instead of building, copy each bottle from this upstream pkgx dist (e.g. https://dist.pkgx.dev) and republish it signed + attested — for versions we cannot or need not rebuild, such as ancient glibc")
+	mirrorFrom := fs.String("mirror-from", "", "instead of building, copy each artifact from this upstream pkgx dist (e.g. https://dist.pkgx.dev) and republish it signed + attested — for versions we cannot or need not rebuild, such as ancient glibc")
 	noPublish := fs.Bool("no-publish", envBool("NO_PUBLISH"),
-		"BUILD and stage each bottle under --bottles, and push nothing. Not a dry run: the compile, the staging, the packing and the package's own test all happen — only the one irreversible step is skipped. This is what lets a recipe be built TWICE and the two bottles compared (`zpkb reproduce`) without publishing a second copy of something already published")
+		"BUILD and stage each artifact under --artifacts, and push nothing. Not a dry run: the compile, the staging, the packing and the package's own test all happen — only the one irreversible step is skipped. This is what lets a recipe be built TWICE and the two artifacts compared (`zpkb reproduce`) without publishing a second copy of something already published")
 	rebuild := fs.Bool("rebuild", envBool("REBUILD"), "publish a build of an ALREADY-PUBLISHED version as the next `_N` rebuild instead of replacing its tag — Homebrew's `rebuild`, Debian's `+bN`. For a recipe fix that changes the binary without changing the upstream version: fftw gained SIMD codelets and went out as the same 3.3.11, so nothing could tell the two apart. NOT folded into --force, which every manual darwin dispatch already sets: a counter minted on every forced run would bump N each time a lane was retried. ⛔ upstream pkgx/libpkgx cannot parse `_N` at all, so a project carrying one is unreadable to an upstream client")
-	requireOrigin := fs.Bool("require-origin", false, "with --mirror-from, PROMOTE instead of mirror: refuse any bottle whose source provenance does not prove the host toolchain was unused, and carry that verdict forward instead of restating it as ours. This is how a sovereign seed reaches the production registry — generations 0 and 1 publish only to a throwaway registry, and `bk origin` is the only thing that can tell one of their bottles from a host-built one")
-	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc bottle instead of the build container's`)
+	requireOrigin := fs.Bool("require-origin", false, "with --mirror-from, PROMOTE instead of mirror: refuse any artifact whose source provenance does not prove the host toolchain was unused, and carry that verdict forward instead of restating it as ours. This is how a sovereign seed reaches the production registry — generations 0 and 1 publish only to a throwaway registry, and `bk origin` is the only thing that can tell one of their artifacts from a host-built one")
+	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc artifact instead of the build container's`)
 	glibc := fs.String("glibc", "", "build and publish the whole closure against this exact glibc, e.g. 2.27.0 (implies --libc=zpkgx)")
-	bootstrap := fs.Bool("bootstrap", false, "FIRST FILL ONLY on an architecture no registry has: build without the base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point (see build.BootstrapToolDeps), so without this nothing can be built first. Bottles made this way were driven by unpinned host tools: publish them to a throwaway registry, use them to stage the sovereign rootfs, and rebuild everything inside it")
-	advisories := fs.String("advisories", envOr("ADVISORIES_DIR", ""), "advisory tree (`<dir>/<project>/advisories.yaml`) to attach as an OpenVEX document beside each bottle's SBOM and provenance, so a rebuild carries the finding that justified it. Validated ONCE before anything is built")
+	bootstrap := fs.Bool("bootstrap", false, "FIRST FILL ONLY on an architecture no registry has: build without the base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point (see build.BootstrapToolDeps), so without this nothing can be built first. Artifacts made this way were driven by unpinned host tools: publish them to a throwaway registry, use them to stage the sovereign rootfs, and rebuild everything inside it")
+	advisories := fs.String("advisories", envOr("ADVISORIES_DIR", ""), "advisory tree (`<dir>/<project>/advisories.yaml`) to attach as an OpenVEX document beside each artifact's SBOM and provenance, so a rebuild carries the finding that justified it. Validated ONCE before anything is built")
 	jobs := fs.Int("jobs", envInt("JOBS"), "parallelism handed to each recipe build (`hw.concurrency`); 0 = one per CPU. Lower it when the target is emulated.")
 	pinToDependents := fs.Bool("pin-to-dependents", envBool("PIN_TO_DEPENDENTS"), "hold a REQUESTED project to the constraints its dependents place on it, as a closure-only one already is. For a SEED, where every project is named and none would otherwise be held to anything: gnu.org/glibc asks for gnu.org/gcc 14 and a seed naming gcc built 16.2.0. OFF by default, because naming a project is how you say \"this version, whatever else wants\" — a repair run must not be talked out of it. An explicit project@constraint still wins. It only sees the dependents IN THIS RUN: a batch that does not reach gnu.org/glibc never learns glibc asks gcc for 14, so for a partial seed use `bk closure --build --pins` over the whole order file and pass the words")
-	keepBuildTrees := fs.Bool("keep-build-trees", envBool("KEEP_BUILD_TREES"), "leave each PUBLISHED build tree on disk. By default a tree is removed once its bottle is published, because a run of seventy-six keeps all seventy-six otherwise and the s390x seed filled its disk on the fifty-seventh. A FAILED build's tree is always kept: it is the only copy of what went wrong")
-	force := fs.Bool("force", envBool("FORCE"), "rebuild and republish even when the bottle is already in the registry — the projects you REQUESTED only, never the dependency closure behind them")
-	compress := fs.String("compress", envOr("COMPRESS", "zstd"), "codec for NEW bottles: zstd or gzip. Already-published bottles are never rewritten, so gzip stays readable; this only governs what we create")
-	signKey := fs.String("sign", "", "sign published bottles with this go-attest/sign secret key file (else $SIGNING_KEY)")
+	keepBuildTrees := fs.Bool("keep-build-trees", envBool("KEEP_BUILD_TREES"), "leave each PUBLISHED build tree on disk. By default a tree is removed once its artifact is published, because a run of seventy-six keeps all seventy-six otherwise and the s390x seed filled its disk on the fifty-seventh. A FAILED build's tree is always kept: it is the only copy of what went wrong")
+	force := fs.Bool("force", envBool("FORCE"), "rebuild and republish even when the artifact is already in the registry — the projects you REQUESTED only, never the dependency closure behind them")
+	compress := fs.String("compress", envOr("COMPRESS", "zstd"), "codec for NEW artifacts: zstd or gzip. Already-published artifacts are never rewritten, so gzip stays readable; this only governs what we create")
+	signKey := fs.String("sign", "", "sign published artifacts with this go-attest/sign secret key file (else $SIGNING_KEY)")
 	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
 	failures := fs.String("failures", "failures.txt", "write the list of failed builds here")
 	failuresDetail := fs.String("failures-detail", "failures-detail.txt", "write each failure's error tail here")
 	runTests := fs.Bool("test", true, "run each published package's own test: block and RECORD the outcome (never changes the run's result)")
 	testsFile := fs.String("tests", "tests.txt", "write one line per package's test outcome here")
 	testTimeout := fs.Duration("test-timeout", 5*time.Minute, "give up on one package's test after this long")
-	testOnly := fs.Bool("test-only", envBool("TEST_ONLY"), "build NOTHING: run the recorded test for each project's already-published version. What the factory publishes it tests once, and never again — this is how a bottle that stopped working gets noticed")
+	testOnly := fs.Bool("test-only", envBool("TEST_ONLY"), "build NOTHING: run the recorded test for each project's already-published version. What the factory publishes it tests once, and never again — this is how an artifact that stopped working gets noticed")
 	sourceMirror := fs.String("source-mirror", envOr("SOURCE_MIRROR", ""), "keep every source archive a build downloads in this registry, addressed by its sha256 (e.g. oci://ghcr.io/go-zpkg). 57% of this pantry builds from tarballs GitHub GENERATES on request rather than stores, so for those it is the first stored artefact they have ever had")
 	sourcePinStrict := fs.Bool("source-pin-strict", false, "fail a fetch when the mirror cannot be ASKED what a URL served before, rather than warning and continuing. A mismatch always fails; this is only about an unreadable store, and the two are different facts -- treating them alike is how trust-on-first-use becomes trust-every-time")
 	if err := fs.Parse(args); err != nil {
@@ -204,7 +204,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	// ⛔ A GATE THAT GUARDS NOTHING IS WORSE THAN NO GATE, because the operator
-	// believes it ran. --require-origin reads the SOURCE bottle's provenance,
+	// believes it ran. --require-origin reads the SOURCE artifact's provenance,
 	// and without --mirror-from there is no source to read.
 	//
 	// Refused HERE, beside the other argument checks, and not further down
@@ -212,14 +212,14 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	// reason — a missing pantry, say — would otherwise mask it, and the
 	// operator would read the exit code as being about that instead.
 	if *requireOrigin && *mirrorFrom == "" {
-		fmt.Fprintln(stderr, "factory: --require-origin reads the provenance of the bottle being copied, "+
+		fmt.Fprintln(stderr, "factory: --require-origin reads the provenance of the artifact being copied, "+
 			"so it needs --mirror-from. On a BUILD the origin is recorded from this run's own inputs and there is nothing to check.")
 		return 2
 	}
 	// ⛔ REFUSED RATHER THAN QUIETLY IGNORED, because both combinations would
 	// do something other than what was asked and look like they worked.
 	//
-	// --mirror-from COPIES a bottle somebody else built; publishing it is the
+	// --mirror-from COPIES an artifact somebody else built; publishing it is the
 	// entire operation, so "mirror but do not publish" is a run that downloads
 	// and discards.
 	//
@@ -227,7 +227,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	// pushed beside an existing one. With nothing pushed, the counter is
 	// minted against a registry that will never see the result.
 	if *noPublish && *mirrorFrom != "" {
-		fmt.Fprintln(stderr, "factory: --no-publish with --mirror-from would download each bottle and discard it. "+
+		fmt.Fprintln(stderr, "factory: --no-publish with --mirror-from would download each artifact and discard it. "+
 			"Mirroring IS publishing: there is no build here to keep.")
 		return 2
 	}
@@ -261,7 +261,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// --glibc is the whole-stack glibc floor: it only means anything when the
-	// build links our own glibc bottle rather than the container's.
+	// build links our own glibc artifact rather than the container's.
 	if *glibc != "" && *libc == "" {
 		*libc = "zpkgx"
 	}
@@ -270,9 +270,9 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	// pantry is read, before the closure walk resolves a single version over
 	// the network, and a long way before the first build.
 	//
-	// `vexReferrer` refuses to publish a bottle whose advisory file does not
+	// `vexReferrer` refuses to publish an artifact whose advisory file does not
 	// parse, which is the right answer in the wrong place: a chunk of fifty
-	// runs for hours and the fortieth bottle is where that refusal lands. One
+	// runs for hours and the fortieth artifact is where that refusal lands. One
 	// read of the tree up front makes it a usage error instead of a lost run.
 	advisoryCount, err := checkAdvisories(*advisories)
 	if err != nil {
@@ -377,10 +377,10 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "closure: %d project(s) for %s (from %d requested)\n", len(list), *platform, len(want))
 	if *bootstrap {
-		// Loud, and in the artefact's own log: these bottles were driven by
+		// Loud, and in the artefact's own log: these artifacts were driven by
 		// whatever tools the host had, and the only record of that is here.
 		fmt.Fprintln(stdout, "BOOTSTRAP: no base toolchain in the build environment — "+
-			"these bottles are a SEED, not a release; rebuild them inside the sovereign rootfs")
+			"these artifacts are a SEED, not a release; rebuild them inside the sovereign rootfs")
 	}
 
 	zpkgxBin := *zpkgx
@@ -406,7 +406,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	f := &factory{
 		runner: runner, tgt: tgt, host: target.Host(),
 		osn: osn, arch: arch, platform: *platform,
-		dist: *to, bottles: *bottles, glibc: *glibc,
+		dist: *to, artifacts: *artifacts, glibc: *glibc,
 		force: *force, key: kp, when: factoryTime(),
 		mirror:           strings.TrimRight(*mirrorFrom, "/"),
 		requireOrigin:    *requireOrigin,
@@ -420,7 +420,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		skippedOverrides: skippedOverrides,
 		requested:        requested,
 		advisories:       *advisories,
-		// A mirror run copies a bottle somebody else built and does not
+		// A mirror run copies an artifact somebody else built and does not
 		// install it here, so there is nothing to test — asking would
 		// report "not run" for every package and say nothing.
 		// --test-only is a request to test, so it turns testing on rather
@@ -433,7 +433,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	}
 	if f.mirror != "" {
 		setUpstreamDist(f.mirror)
-		fmt.Fprintf(stdout, "mirror: copying bottles from %s (no build)\n", f.mirror)
+		fmt.Fprintf(stdout, "mirror: copying artifacts from %s (no build)\n", f.mirror)
 	}
 
 	for _, proj := range list {
@@ -464,7 +464,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		// `platforms:` was parsed and consulted by nobody, so a darwin run
 		// attempted every linux-only recipe and collected the failures. Of the
 		// 81 recipes whose platforms: excludes darwin, seven do have a darwin
-		// bottle and all seven are MIRRORS — this factory has never built one,
+		// artifact and all seven are MIRRORS — this factory has never built one,
 		// so nothing that could succeed is being dropped here.
 		if !pantry.Supports(rec, tgt.Platform, tgt.Arch) {
 			fmt.Fprintf(stdout, "SKIP %s (recipe does not target %s)\n", proj, *platform)
@@ -516,20 +516,20 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 
 // factory carries one run's configuration and tallies.
 type factory struct {
-	runner   *build.Runner
-	tgt      target.Target
-	host     target.Target
-	osn      string
-	arch     string
-	platform string
-	dist     string
-	bottles  string
-	glibc    string
-	force    bool
-	key      *sign.Keypair
-	when     time.Time
-	mirror   string // upstream dist to copy from, "" = build
-	// requireOrigin turns `--mirror-from` into a PROMOTION: refuse any bottle
+	runner    *build.Runner
+	tgt       target.Target
+	host      target.Target
+	osn       string
+	arch      string
+	platform  string
+	dist      string
+	artifacts string
+	glibc     string
+	force     bool
+	key       *sign.Keypair
+	when      time.Time
+	mirror    string // upstream dist to copy from, "" = build
+	// requireOrigin turns `--mirror-from` into a PROMOTION: refuse any artifact
 	// whose source provenance does not prove the host toolchain was unused,
 	// and carry that verdict into the republished attestation rather than
 	// re-stating it as our own.
@@ -537,18 +537,18 @@ type factory struct {
 	// rebuild mints a `_N` counter when the version being built is already
 	// published here, instead of replacing its tag. See rebuild.go.
 	rebuild bool
-	// noPublish BUILDS and stages the bottle under --bottles, and pushes
+	// noPublish BUILDS and stages the artifact under --artifacts, and pushes
 	// nothing.
 	//
 	// ⛔ IT EXISTS FOR A QUESTION NOTHING COULD ASK BEFORE: do two builds of
-	// one recipe produce the same bottle? Answering it means building twice,
-	// and every bottle this factory produced until now went straight to the
+	// one recipe produce the same artifact? Answering it means building twice,
+	// and every artifact this factory produced until now went straight to the
 	// registry — so asking the question meant publishing a second copy of
 	// something already published, which is exactly what `--force` is
-	// deliberately loud about. The bottle is written to --bottles either way;
+	// deliberately loud about. The artifact is written to --artifacts either way;
 	// this only skips the push.
 	//
-	// ⛔ NOT A DRY RUN. The compile happens, the tree is staged, the bottle is
+	// ⛔ NOT A DRY RUN. The compile happens, the tree is staged, the artifact is
 	// packed, and the package's own test still runs. What does NOT happen is
 	// the one irreversible part. A flag that also skipped the build would be
 	// useless for the question it exists for.
@@ -563,13 +563,13 @@ type factory struct {
 	pinToDependents bool
 	// keepBuildTrees leaves a published build tree on disk. See dropBuildTree.
 	keepBuildTrees bool
-	// advisories is the advisory tree each published bottle's OpenVEX document
+	// advisories is the advisory tree each published artifact's OpenVEX document
 	// is built from, "" = attach none.
 	//
 	// It is VALIDATED ONCE, before the first build, by checkAdvisories. The
 	// alternative is finding a record that does not parse on the fortieth
-	// bottle of a run that has been going for hours — `vexReferrer` refuses
-	// rather than publishing a bottle whose justification could not be read,
+	// artifact of a run that has been going for hours — `vexReferrer` refuses
+	// rather than publishing an artifact whose justification could not be read,
 	// which is right at the publish and far too late for the run.
 	advisories string
 	// wantPer overrides want for one project, from a `project@constraint` word
@@ -578,7 +578,7 @@ type factory struct {
 	wantPer map[string]string
 	// skippedOverrides maps a project onto the overrides that were meant to
 	// change its recipe and could not be applied. Building it anyway produces a
-	// bottle from a recipe we know is not the one we meant to build.
+	// artifact from a recipe we know is not the one we meant to build.
 	skippedOverrides map[string][]string
 	// requested is the set of projects the operator NAMED, as opposed to the
 	// ones the closure walk added. --force applies only to the first: see
@@ -614,22 +614,22 @@ type factory struct {
 // the right question for a build and the wrong one for a test: --test-only
 // exists to say whether what we PUBLISHED works. The seed's sweep reported
 //
-//	not-run openssl.org 4.0.3   no bottle here for this platform
-//	not-run tcl-lang.org 9.1.0  no bottle here for this platform
+//	not-run openssl.org 4.0.3   no artifact here for this platform
+//	not-run tcl-lang.org 9.1.0  no artifact here for this platform
 //
-// for two projects the registry holds perfectly good bottles of, at other
+// for two projects the registry holds perfectly good artifacts of, at other
 // versions. A test of a version nobody published is a test of nothing, and
-// reporting it as "no bottle here" reads as a gap in the registry when the
+// reporting it as "no artifact here" reads as a gap in the registry when the
 // gap was in the question.
 //
-// bottle.PickVersionFor checks that the version is actually installable for
+// artifact.PickVersionFor checks that the version is actually installable for
 // this platform, which our registry's tag listing does not imply — it spans
 // every platform. Where it falls back to the upstream dist (a project we
 // have never published) it cannot check, and buildOne's own publish check
 // catches that one step later.
 //
 // One version, not --max-versions of them: the question is whether the
-// bottle a consumer gets works, and that is the newest published one.
+// artifact a consumer gets works, and that is the newest published one.
 func (f *factory) versionsToVisit(rec *pantry.Recipe, proj string, requested bool, max int) ([]string, error) {
 	if !f.testOnly {
 		return f.versionsFor(rec, proj, requested, max)
@@ -748,12 +748,12 @@ func (f *factory) versionsFor(rec *pantry.Recipe, proj string, requested bool, m
 }
 
 // buildOne builds and publishes one (project, version), unless the registry
-// already has that bottle for this platform.
+// already has that artifact for this platform.
 // forcing reports whether the skip-if-published check should be bypassed for
 // this project.
 //
 // --force means "rebuild what I asked for, even though it is published" — a
-// stale bottle refreshed on purpose. It used to mean that for the whole
+// stale artifact refreshed on purpose. It used to mean that for the whole
 // dependency closure too, and that is a different and much more expensive
 // thing: dispatching 27 projects expanded to 76, and the run spent 2h40
 // rebuilding twenty-five published dependencies (zlib, ncurses, sqlite, the
@@ -766,7 +766,7 @@ func (f *factory) forcing(proj string) bool { return f.force && f.requested[proj
 func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 	// An override that did not apply is not a warning. The recipe about to be
 	// built is the UNPATCHED one, and it will fail for whatever the patch
-	// existed to fix — or, worse, succeed and publish a bottle missing a
+	// existed to fix — or, worse, succeed and publish an artifact missing a
 	// correction somebody made on purpose.
 	//
 	// Measured 2026-09-24: mozilla.org/nss failed two rebuilds on the exact
@@ -778,7 +778,7 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 	}
 	// ⛔ THE VERSION-ONLY TAG, AND ONLY FOR --test-only. It is the prefix the
 	// builds of this version share, not an address: `HasPlatform` on it
-	// answers "is there any bottle of this version here", which is the right
+	// answers "is there any artifact of this version here", which is the right
 	// question when nothing is being built and the wrong one when something
 	// is — see the plan below.
 	tag := flavoredTag(proj, ver, f.glibc)
@@ -795,7 +795,7 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 			// a negative one.
 			f.recordTest(testNotRun, proj, ver, fmt.Errorf("publish-check: %w", err))
 		case !published:
-			f.recordTest(testNotRun, proj, ver, errors.New("no bottle here for this platform — nothing to test"))
+			f.recordTest(testNotRun, proj, ver, errors.New("no artifact here for this platform — nothing to test"))
 		default:
 			// Nothing was built on this path, so there is no identity to hand
 			// over: the store is asked, and refuses if it holds two.
@@ -836,14 +836,14 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 	fmt.Fprintf(f.stdout, "::group::build %s %s (%s)\n", proj, ver, f.platform)
 	tw := &tailWriter{w: f.stdout, max: failTailLines}
 	f.runner.Run = runBashTo(tw, tw)
-	res, err := factoryBuild(f.runner, plan, rec, proj, f.tgt, f.host, f.bottles)
+	res, err := factoryBuild(f.runner, plan, rec, proj, f.tgt, f.host, f.artifacts)
 	fmt.Fprintln(f.stdout, "::endgroup::")
 	if err != nil {
 		f.failDetail(proj, ver, "build", err, tw.tail())
 		return
 	}
-	if res.BottlePath == "" {
-		f.fail(proj, ver, "package", fmt.Errorf("build produced no bottle"))
+	if res.ArtifactPath == "" {
+		f.fail(proj, ver, "package", fmt.Errorf("build produced no artifact"))
 		return
 	}
 
@@ -868,15 +868,15 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 				proj, res.Version, f.platform, publishVersion)
 		}
 	}
-	// ⛔ THE BOTTLE IS ALREADY ON DISK HERE. `res.BottlePath` is under
-	// --bottles whether or not anything is pushed, which is why --no-publish
+	// ⛔ THE ARTIFACT IS ALREADY ON DISK HERE. `res.ArtifactPath` is under
+	// --artifacts whether or not anything is pushed, which is why --no-publish
 	// can stop at this line and still leave something to compare. It is
 	// counted as ok and NOT added to f.pushed: nothing was pushed, and a
 	// later step that reads f.pushed (the catalogue, the index) must not be
 	// told otherwise.
 	if f.noPublish {
 		fmt.Fprintf(f.stdout, "✅ BUILT %s %s %s — not published (--no-publish): %s\n",
-			proj, buildTag(proj, res.Version, f.glibc, res.Concrete), f.platform, res.BottlePath)
+			proj, buildTag(proj, res.Version, f.glibc, res.Concrete), f.platform, res.ArtifactPath)
 		f.ok++
 		f.testPublished(rec, proj, res.Version, res.SpecHash)
 		f.dropBuildTree(proj, res.Version, res.SpecHash)
@@ -884,18 +884,18 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 	}
 	tag, desc, err := factoryPublish(publishOptions{
 		Dist: f.dist, Project: proj, Version: publishVersion,
-		OS: f.osn, Arch: f.arch, Path: res.BottlePath,
+		OS: f.osn, Arch: f.arch, Path: res.ArtifactPath,
 		Glibc: f.glibc, Key: f.key, Time: f.when,
 		Source: res.Source, BuildEnv: res.BuildEnv,
 		Advisories: f.advisories,
 		// ⛔ STATED, not inferred from an empty BuildEnv. A bootstrap build
-		// resolves no bottles, so its BuildEnv is empty — but so is one for a
-		// bottle we only mirrored, and so was every bottle published before
+		// resolves no artifacts, so its BuildEnv is empty — but so is one for a
+		// artifact we only mirrored, and so was every artifact published before
 		// the field existed. A promotion gate needs the difference said out
 		// loud (go-zpkg/packages#316).
 		Origin: provOrigin{Bootstrap: boolParam(f.runner.Bootstrap), Dist: f.dist},
 		// What this build IS. It becomes the tag's `-h<hash>` and the
-		// manifest's spec annotation, which bottle.VerifySpec checks against
+		// manifest's spec annotation, which artifact.VerifySpec checks against
 		// each other — so the two cannot be published out of step.
 		Concrete: res.Concrete,
 	})
@@ -916,7 +916,7 @@ func (f *factory) buildOne(rec *pantry.Recipe, proj, ver string) {
 	f.dropBuildTree(proj, res.Version, res.SpecHash)
 }
 
-// dropBuildTree removes a build tree once its bottle is PUBLISHED.
+// dropBuildTree removes a build tree once its artifact is PUBLISHED.
 //
 // The Runner clears a tree at the start of that project's own build, which is
 // enough for one build and nothing for a run of seventy-six. The s390x seed
@@ -954,14 +954,14 @@ func (f *factory) dropBuildTree(proj, ver, hash string) {
 // dist actually carries for this platform (newest first, capped) for a requested
 // project, or just its newest for a closure-only dependency. Upstream's listing
 // — not the recipe's tags — is the truth here: only a version upstream published
-// a bottle for can be copied.
+// an artifact for can be copied.
 func (f *factory) mirrorVersionsFor(proj string, requested bool, max int) ([]string, error) {
 	vs, err := factoryUpstreamVersions(proj, f.osn, f.arch)
 	if err != nil {
 		return nil, err
 	}
 	if len(vs) == 0 {
-		return nil, fmt.Errorf("no upstream bottle for %s/%s", f.osn, f.arch)
+		return nil, fmt.Errorf("no upstream artifact for %s/%s", f.osn, f.arch)
 	}
 	out := make([]string, 0, len(vs))
 	here := make(map[string]bool, len(vs)) // what THIS arch actually has
@@ -992,7 +992,7 @@ func (f *factory) mirrorVersionsFor(proj string, requested bool, max int) ([]str
 		if p := keepPresent(out[:1], here); len(p) == 1 {
 			return p, nil
 		}
-		return nil, fmt.Errorf("no upstream bottle of %s for %s/%s at the version the arches agree on", proj, f.osn, f.arch)
+		return nil, fmt.Errorf("no upstream artifact of %s for %s/%s at the version the arches agree on", proj, f.osn, f.arch)
 	}
 	if out = f.matching(proj, out); len(out) == 0 {
 		return nil, fmt.Errorf("no upstream version matches %q", f.want)
@@ -1001,7 +1001,7 @@ func (f *factory) mirrorVersionsFor(proj string, requested bool, max int) ([]str
 		out = out[:max]
 	}
 	if out = keepPresent(out, here); len(out) == 0 {
-		return nil, fmt.Errorf("no upstream bottle of %s for %s/%s among the versions the arches agree on", proj, f.osn, f.arch)
+		return nil, fmt.Errorf("no upstream artifact of %s for %s/%s among the versions the arches agree on", proj, f.osn, f.arch)
 	}
 	fmt.Fprintf(f.stdout, "versions %s: %d to consider (%s, upstream)\n", proj, len(out), f.platform)
 	return out, nil
@@ -1047,7 +1047,7 @@ func (f *factory) matching(proj string, vers []string) []string {
 	}
 	out := make([]string, 0, len(vers))
 	for _, v := range vers {
-		if bottle.ParseVer(v).Satisfies(want) {
+		if artifact.ParseVer(v).Satisfies(want) {
 			out = append(out, v)
 		}
 	}
@@ -1073,7 +1073,7 @@ func isBareVersion(s string) bool {
 	return s != "" && s[0] >= '0' && s[0] <= '9'
 }
 
-// mirrorOne copies one upstream bottle into our registry, republished with our
+// mirrorOne copies one upstream artifact into our registry, republished with our
 // own SBOM, provenance and signature (and, for glibc, its min-kernel floor).
 func (f *factory) mirrorOne(proj, ver string) {
 	tag := flavoredTag(proj, ver, f.glibc)
@@ -1087,7 +1087,7 @@ func (f *factory) mirrorOne(proj, ver string) {
 			return
 		}
 	}
-	// ⛔ BEFORE THE DOWNLOAD, so a bottle that may not be promoted is not even
+	// ⛔ BEFORE THE DOWNLOAD, so an artifact that may not be promoted is not even
 	// fetched. The check is about the SOURCE's provenance, and nothing about
 	// having the tarball in hand makes it more promotable.
 	srcOrigin := provOrigin{Dist: f.dist}
@@ -1109,8 +1109,8 @@ func (f *factory) mirrorOne(proj, ver string) {
 		return
 	}
 	// Stage it in the same pkgx dist layout a build writes, so the Pages mirror
-	// picks a mirrored bottle up exactly like a built one.
-	dir := filepath.Join(f.bottles, filepath.FromSlash(proj), f.osn, f.arch)
+	// picks a mirrored artifact up exactly like a built one.
+	dir := filepath.Join(f.artifacts, filepath.FromSlash(proj), f.osn, f.arch)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		f.fail(proj, ver, "fetch", err)
 		return
@@ -1125,7 +1125,7 @@ func (f *factory) mirrorOne(proj, ver string) {
 	// and says, at publish time, what would otherwise surface weeks later as a
 	// third package's dyld error. See go-zpkg/packages#147.
 	if f.osn == "darwin" {
-		switch checked, problems, aerr := auditMirroredBottle(path, ext, proj, ver); {
+		switch checked, problems, aerr := auditMirroredArtifact(path, ext, proj, ver); {
 		case aerr != nil:
 			fmt.Fprintf(f.stderr, "⚠️  %s %s (%s): not audited: %v\n", proj, ver, f.platform, aerr)
 		case len(problems) > 0:
@@ -1140,7 +1140,7 @@ func (f *factory) mirrorOne(proj, ver string) {
 			}
 		}
 	}
-	// A MIRRORED bottle gets the document too. We did not build it, but we
+	// A MIRRORED artifact gets the document too. We did not build it, but we
 	// are the one republishing it signed — and "what is known about this
 	// package" is not a property of who compiled it.
 	tag, desc, err := factoryPublish(publishOptions{
@@ -1178,13 +1178,13 @@ func appendMissing(list, want []string) []string {
 	return list
 }
 
-// setUpstreamDist points the bottle package at the dist being mirrored. Upstream
-// static dists carry no signatures (attestations are OCI referrers), and bottle
+// setUpstreamDist points the artifact package at the dist being mirrored. Upstream
+// static dists carry no signatures (attestations are OCI referrers), and artifact
 // verifies by default, so verification is turned off for the copy unless the
 // operator demanded it — mirroring copies bytes, it does not install them, and
 // what we publish is re-signed with OUR key.
 func setUpstreamDist(from string) {
-	bottle.DistBase = from
+	artifact.DistBase = from
 	if _, ok := os.LookupEnv("ZPKG_VERIFY"); !ok {
 		os.Setenv("ZPKG_VERIFY", "0")
 	}
@@ -1241,7 +1241,7 @@ func factoryWant(recipes, file, lock string) ([]string, error) {
 		// NO `pins nothing` CHECK HERE ANY MORE, and the reason is worth a
 		// paragraph because the check it replaces was a good one.
 		//
-		// Until bottle v0.38.0 a pin could carry an empty project or an
+		// Until artifact v0.38.0 a pin could carry an empty project or an
 		// empty version, so this loop skipped it and the count afterwards
 		// caught a lock that pinned nothing — building nothing while
 		// reporting success is how a run silently stops being locked.
@@ -1252,8 +1252,8 @@ func factoryWant(recipes, file, lock string) ([]string, error) {
 		// reported rather than letting it sit.
 		//
 		// Deleting it does not mean trusting another repository. The
-		// contract bk depends on is pinned by TestBottleRefusesALockThatPinsNothing,
-		// which fails if bottle ever relaxes — a test that goes red is
+		// contract bk depends on is pinned by TestArtifactRefusesALockThatPinsNothing,
+		// which fails if artifact ever relaxes — a test that goes red is
 		// worth more than a branch that cannot run.
 		out := make([]string, 0, len(d.Pins))
 		for _, p := range d.Pins {
@@ -1278,7 +1278,7 @@ func factoryWant(recipes, file, lock string) ([]string, error) {
 	return out, nil
 }
 
-// factorySigningKey loads the bottle signing key from a file, or — as CI has it
+// factorySigningKey loads the artifact signing key from a file, or — as CI has it
 // — straight from $SIGNING_KEY, so no secret is ever staged on disk.
 func factorySigningKey(path string) (*sign.Keypair, error) {
 	if path != "" {
@@ -1362,7 +1362,7 @@ type tailWriter struct {
 	//
 	// Measured on go-zpkg/packages run 35504607323, darwin/x86-64: grpc.io had
 	// finished compiling and the panic took the WHOLE job with it — the two
-	// bottles already built were never published, and the run reported a build
+	// artifacts already built were never published, and the run reported a build
 	// failure for a build that had succeeded.
 	mu    sync.Mutex
 	w     io.Writer
@@ -1474,15 +1474,15 @@ func (t *tailWriter) tail() string {
 		"\n--- last " + strconv.Itoa(len(lines)) + " lines ---\n" + body
 }
 
-// setCodec maps the --compress flag onto the extension bottlepkg writes with.
+// setCodec maps the --compress flag onto the extension artifactpkg writes with.
 // Named codecs rather than extensions on the CLI: "zstd" is what an operator
 // knows the format as, ".tar.zst" is how it lands on disk.
 func setCodec(name string) error {
 	switch name {
 	case "gzip", "gz":
-		bottlepkg.Codec = bottle.ExtTarGz
+		artifactpkg.Codec = artifact.ExtTarGz
 	case "zstd", "zst":
-		bottlepkg.Codec = bottle.ExtTarZst
+		artifactpkg.Codec = artifact.ExtTarZst
 	default:
 		return fmt.Errorf("unknown --compress %q (gzip or zstd)", name)
 	}
@@ -1496,7 +1496,7 @@ func setCodec(name string) error {
 // It is NOT "the arches bk can target" -- target.supportedArches is that, and
 // it is wider. This list asks a different question: whose UPSTREAM version
 // list do we cap against? s390x is deliberately absent. Upstream publishes no
-// s390x bottles at all, so every entry would cost one fetch per project and
+// s390x artifacts at all, so every entry would cost one fetch per project and
 // contribute nothing, and unionWithSiblingArches prints a line per project
 // when a list cannot be read. Add it here when there is an upstream list to
 // read, not when there is a runner.
@@ -1509,7 +1509,7 @@ var siblingArches = map[string][]string{
 // this OS, newest first, so a capped mirror cuts the same list everywhere.
 //
 // A version present only for a sibling arch stays in the list on purpose: this
-// job will report that upstream has no bottle for it here, which is a fact worth
+// job will report that upstream has no artifact for it here, which is a fact worth
 // printing, rather than silently choosing a different set than its sibling.
 func (f *factory) unionWithSiblingArches(proj string, mine []string) []string {
 	seen := map[string]bool{}
@@ -1541,7 +1541,7 @@ func (f *factory) unionWithSiblingArches(proj string, mine []string) []string {
 }
 
 // lessVersionDesc orders versions newest first.
-func lessVersionDesc(a, b string) bool { return bottle.ParseVer(b).Satisfies("<" + a) }
+func lessVersionDesc(a, b string) bool { return artifact.ParseVer(b).Satisfies("<" + a) }
 
 // newestSatisfying picks the newest candidate version of proj that satisfies
 // EVERY constraint its dependents placed on it.
@@ -1579,7 +1579,7 @@ func (f *factory) newestSatisfying(rec *pantry.Recipe, proj string, cs []string)
 func satisfyingAll(vers, cs []string) []string {
 	kept := make([]string, 0, len(vers))
 	for _, s := range vers {
-		v := bottle.ParseVer(s)
+		v := artifact.ParseVer(s)
 		ok := true
 		for _, c := range cs {
 			if !v.Satisfies(c) {
@@ -1605,7 +1605,7 @@ func satisfyingAll(vers, cs []string) []string {
 //
 // So: one line per package, in all four states, in a file of its own. A
 // reader can then ask the question a gate would have answered badly — which
-// of these is a bottle nobody can run — with the evidence in front of them.
+// of these is an artifact nobody can run — with the evidence in front of them.
 // factoryTestRunner builds the run function a recorded test executes under.
 // A seam, so a test of testPublished's four outcomes does not need pkgx on
 // the machine — the first version of these tests stubbed testRun instead,
@@ -1637,7 +1637,7 @@ func (f *factory) testPublished(rec *pantry.Recipe, proj, ver, hash string) {
 //
 // Separate from testPublished because --test-only reaches two of them
 // without running anything: a registry that could not be reached and a
-// platform with no bottle are both "not run", and neither is a failure.
+// platform with no artifact are both "not run", and neither is a failure.
 func (f *factory) recordTest(state testState, proj, ver string, err error) {
 	f.testCounts[state]++
 	fmt.Fprintf(&f.tests, "%s %s %s %s\n", state, proj, ver, f.platform)

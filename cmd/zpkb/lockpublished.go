@@ -5,7 +5,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // ⛔ A LOCK PINNED WHAT COULD NOT BE INSTALLED, AND SAID NOTHING.
@@ -39,14 +39,14 @@ import (
 // # publishedTagFor IS THE ONLY INSTRUMENT THAT CAN ANSWER THIS
 //
 // Three others look like they can and cannot: the catalogue carries one
-// version per project, bottle.VersionsFor spans every platform (our registry's
+// version per project, artifact.VersionsFor spans every platform (our registry's
 // tag listing is not per-platform), and `crane ls` shows only the suffixed
 // tags while publication may live in the unsuffixed index.
 var (
-	lockPublishedTagFor = bottle.PublishedTagFor
-	lockPickPublished   = bottle.PickVersionFor
+	lockPublishedTagFor = artifact.PublishedTagFor
+	lockPickPublished   = artifact.PickVersionFor
 	// PickVersionForAll, not PickVersionFor: see publishedVersionFor.
-	lockPickPublishedAll = bottle.PickVersionForAll
+	lockPickPublishedAll = artifact.PickVersionForAll
 )
 
 // unpublishedPin is a pin the named platform cannot install.
@@ -67,7 +67,7 @@ type unpublishedPin struct {
 // is how a check becomes decoration. It is reported as its own line.
 func unpublishedPins(pins []lockedPin, osn, arch string) (bad []unpublishedPin, failed []string) {
 	for _, p := range pins {
-		tag, ok, err := lockPublishedTagFor(p.Project, bottle.ParseVer(p.Version), osn, arch)
+		tag, ok, err := lockPublishedTagFor(p.Project, artifact.ParseVer(p.Version), osn, arch)
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("%s: %v", p.Project, err))
 			continue
@@ -129,7 +129,7 @@ func reportUnpublished(w io.Writer, pins []lockedPin, bad []unpublishedPin, fail
 			}
 			fmt.Fprintf(w, "    %-28s %-14s (%s)\n", u.Project, u.Locked, here)
 		}
-		if mode != bottle.PinsPublished {
+		if mode != artifact.PinsPublished {
 			fmt.Fprintln(w, "    `bk lock -runnable` pins what is published instead.")
 		}
 	}
@@ -138,9 +138,9 @@ func reportUnpublished(w io.Writer, pins []lockedPin, bad []unpublishedPin, fail
 // lockModeOf names the mode for the lock document and for the report.
 func lockModeOf(runnable bool) string {
 	if runnable {
-		return bottle.PinsPublished
+		return artifact.PinsPublished
 	}
-	return bottle.PinsFromRecipes
+	return artifact.PinsFromRecipes
 }
 
 // publishedVersionFor is the `-runnable` resolver: the newest version

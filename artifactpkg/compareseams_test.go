@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"compress/gzip"
@@ -39,7 +39,7 @@ func (f *failing) Seek(off int64, whence int) (int64, error) {
 }
 func (f *failing) Close() error { return nil }
 
-func TestAFileThatFailsToReadIsAnErrorNotAnEmptyBottle(t *testing.T) {
+func TestAFileThatFailsToReadIsAnErrorNotAnEmptyArtifact(t *testing.T) {
 	want := errors.New("the disk went away mid-sniff")
 	old := openForRead
 	openForRead = func(string) (readSeekCloser, error) {
@@ -48,7 +48,7 @@ func TestAFileThatFailsToReadIsAnErrorNotAnEmptyBottle(t *testing.T) {
 	t.Cleanup(func() { openForRead = old })
 
 	if _, err := readEntries("anything"); !errors.Is(err, want) {
-		t.Fatalf("err = %v, want %v — an unreadable file must not read as an empty bottle", err, want)
+		t.Fatalf("err = %v, want %v — an unreadable file must not read as an empty artifact", err, want)
 	}
 }
 

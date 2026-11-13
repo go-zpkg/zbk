@@ -29,7 +29,7 @@ import (
 //	                             stubs carried does not run on Alpine
 //
 // cmd/venvlaunch answers all three because a binary can read /proc/self/exe.
-// This file is the other half: getting that binary into the bottle, and
+// This file is the other half: getting that binary into the artifact, and
 // leaving the venv in a state it can use WITHOUT writing anything at run time.
 
 // Seams. pyLookPath and pyRelink are indirected so that the two error branches
@@ -64,7 +64,7 @@ const venvLaunchName = "venvlaunch"
 // running zpkb.
 //
 // ⛔⛔ PATH FIRST, AND THE ORDER IS THE WHOLE CORRECTNESS ARGUMENT. The binary
-// that goes into the bottle must be for the bottle's TARGET, and the two
+// that goes into the artifact must be for the artifact's TARGET, and the two
 // candidates answer for different platforms:
 //
 //	on PATH             resolved from the recipe's build dependencies, so it
@@ -160,14 +160,14 @@ func installVenvLaunch(prefix, venv string, names []string) error {
 //
 // ⛔⛔ THIS IS WHAT LETS THE LAUNCHER WRITE NOTHING. `python -m venv` makes
 // bin/python, bin/python3 and bin/pythonX.Y symlinks to the interpreter it was
-// run with, by ABSOLUTE path. That path is the build store's, so a bottle
+// run with, by ABSOLUTE path. That path is the build store's, so an artifact
 // unpacked anywhere else has a venv whose interpreter does not exist — which is
 // the single fact the three deleted stubs existed to repair, at run time, on
 // every invocation of every packaged tool. A relative link survives the store
 // moving as a unit, exactly as `@loader_path/../../..` already does for our
 // rpaths (go-zpkg/pantry-overlay#28), and it is written once, here, in the
 // build sandbox: no lock, no race, no NFS restriction, no rewritten file inside
-// a signed bottle.
+// a signed artifact.
 //
 // Only <venv>/bin is walked. The console scripts in it are regular files, not
 // symlinks, so their absolute shebangs are untouched — and unread: venvlaunch

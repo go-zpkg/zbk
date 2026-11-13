@@ -100,7 +100,7 @@ func TestRepairIndexesNoopsWithoutWork(t *testing.T) {
 }
 
 // TestRepairIndexesReportsAnUnusableRegistry, rather than failing the run: the
-// bottles are pushed and valid, and throwing away a whole build over an index
+// artifacts are pushed and valid, and throwing away a whole build over an index
 // check would cost more than the check is worth.
 func TestRepairIndexesReportsAnUnusableRegistry(t *testing.T) {
 	withEnsurer(t, nil, errors.New("bad dist"))

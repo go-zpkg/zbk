@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/vuln"
 )
 
-// vexReferrer builds the OpenVEX document a bottle carries, or nothing.
+// vexReferrer builds the OpenVEX document an artifact carries, or nothing.
 //
-// This is the step that makes a rebuild SELF-JUSTIFYING. Until now a bottle
+// This is the step that makes a rebuild SELF-JUSTIFYING. Until now an artifact
 // rebuilt for a security fix looked exactly like one rebuilt for any other
 // reason: the version string said `_1` and nothing said why. The SBOM says
 // what is inside, the provenance says how it was built, and this says which
@@ -28,10 +28,10 @@ import (
 //	a file that parses                               → the document
 //
 // A file that exists and cannot be read must not become a silent omission. The
-// bottle would be published, look complete, and assert nothing — and the
+// artifact would be published, look complete, and assert nothing — and the
 // absence of a VEX document reads as "nothing was ever found", which is the
 // opposite of what a broken record means.
-func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now time.Time) (*bottle.Referrer, error) {
+func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now time.Time) (*artifact.Referrer, error) {
 	if dir == "" {
 		return nil, nil
 	}
@@ -51,7 +51,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 	}
 	// The same guard `bk advisories` applies, for the same reason: a file
 	// copied from a neighbouring project would otherwise attach its findings
-	// to this bottle, signed.
+	// to this artifact, signed.
 	if f.Project != project {
 		return nil, fmt.Errorf("advisories: %s says project %q", path, f.Project)
 	}
@@ -63,7 +63,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 		Author: builderID,
 		Role:   "Document Creator",
 		// The SAME timestamp the SBOM and the provenance use, which honours
-		// SOURCE_DATE_EPOCH — so re-publishing the same bottle produces a
+		// SOURCE_DATE_EPOCH — so re-publishing the same artifact produces a
 		// byte-identical document, hence the same referrer digest, hence an
 		// idempotent re-push rather than an accumulating pile.
 		Timestamp: now,
@@ -76,7 +76,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 			// one artefact, not four descriptions that happen to agree.
 			// Version as well as the purl that already spells it: the encoder
 			// decides from this field whether the record has anything to say
-			// about THIS bottle, and a check that re-parsed the purl would be
+			// about THIS artifact, and a check that re-parsed the purl would be
 			// a second spelling of the same fact (go-zpkg/bk#340).
 			Products: []vuln.Product{{ID: purl, Version: version, PURL: purl, SHA256: dg}},
 		}},
@@ -84,7 +84,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 	if err != nil {
 		return nil, err
 	}
-	return &bottle.Referrer{ArtifactType: artifactOpenVEX, MediaType: artifactOpenVEX, Blob: doc}, nil
+	return &artifact.Referrer{ArtifactType: artifactOpenVEX, MediaType: artifactOpenVEX, Blob: doc}, nil
 }
 
 // checkAdvisories reads every record in a tree and returns how many projects
@@ -94,7 +94,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 // its `project:` agrees with its directory — because those are exactly the two
 // that would stop a publish. An EMPTY tree is an error for the reason `bk
 // advisories` makes it one: a run that was told where the records are and found
-// none would otherwise publish every bottle with no document and look correct.
+// none would otherwise publish every artifact with no document and look correct.
 //
 // An unset dir is not an error and reads nothing: attaching no document is the
 // honest state for a factory that has no advisory tree.
@@ -129,8 +129,8 @@ func checkAdvisories(dir string) (int, error) {
 // vexDocumentID is the document's IRI.
 //
 // It must be DETERMINISTIC — no timestamp, no counter — or a re-push of an
-// unchanged bottle would produce a different document and a second referrer
-// beside the first. It names the platform because two platforms' bottles are
+// unchanged artifact would produce a different document and a second referrer
+// beside the first. It names the platform because two platforms' artifacts are
 // two artefacts, and a document asserting something about one must not claim
 // to be the other.
 func vexDocumentID(project, version, osn, arch string) string {

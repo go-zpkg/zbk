@@ -16,7 +16,7 @@ import (
 // judgements are ones bk cannot fake.
 //
 // It is the test that would have caught the defect in the first place. A
-// bottle with a rewritten install name and a stale signature is not slow or
+// artifact with a rewritten install name and a stale signature is not slow or
 // subtly wrong — it is killed on sight, with no output whatsoever:
 //
 //	$ ./bin/main ; echo $?
@@ -62,7 +62,7 @@ func TestRewrittenBinaryStillRunsAndVerifies(t *testing.T) {
 	exe := filepath.Join(dir, "bin", "main")
 	run(cc, "-o", exe, mainC, dylib)
 
-	// The staged tree is gone by the time a bottle is installed; only the final
+	// The staged tree is gone by the time an artifact is installed; only the final
 	// one exists. Until the install name is fixed, the binary cannot resolve it.
 	if err := os.Rename(dylib, filepath.Join(real, "libfoo.dylib")); err != nil {
 		t.Fatal(err)
