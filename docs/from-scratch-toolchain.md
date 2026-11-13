@@ -5,15 +5,15 @@ what shipped, kept because the hazards below are still the ones that bite.**
 
 ## What shipped, and how to read this note
 
-The mechanism is `--libc=zpkgx` on `zbk build` and `zbk factory` — not the
-`ZBK_ZPKG_LIBC=1` environment variable the body of this note names. That name was
+The mechanism is `--libc=zpkgx` on `zpkb build` and `zpkb factory` — not the
+`ZPKB_ZPKG_LIBC=1` environment variable the body of this note names. That name was
 the design-time one; every occurrence below should be read as "the sovereign-libc
 mode". The rest of the analysis stands as written.
 
 ⛔ The commands were `bk` and `pkgx` when this was written, and the flag value
-was `pkgx`. They are `zbk` and `zpkgx`, and the value is `zpkgx`
-(go-zpkg/zbk#457). This note has been brought in line throughout: where it
-says `zbk` or `zpkgx` it means the tool, and where it says **upstream pkgx**
+was `pkgx`. They are `zpkb` and `zpkgx`, and the value is `zpkgx`
+(go-zpkg/zpkb#457). This note has been brought in line throughout: where it
+says `zpkb` or `zpkgx` it means the tool, and where it says **upstream pkgx**
 it means the project this one forked from.
 
 Two other things changed on the way from note to code:
@@ -31,13 +31,13 @@ Two other things changed on the way from note to code:
   so C++ recipes link `-stdlib=libc++` instead of the container's libstdc++.
 
 `--glibc <version>` pins the sysroot to an exact glibc line (see the
-"old-CI-base glibc" hazard below), and `zbk builder` stages the FROM-scratch
+"old-CI-base glibc" hazard below), and `zpkb builder` stages the FROM-scratch
 rootfs the whole thing was for: three static Go binaries plus toolchain bottles
 from the signed registry, nothing else.
 
 ## The problem
 
-`zbk` builds C/C++ recipes with whatever compiler `zbk` resolves onto `PATH`. On
+`zpkb` builds C/C++ recipes with whatever compiler `zpkb` resolves onto `PATH`. On
 Linux that is the bottled `llvm.org` clang (added implicitly by
 `buildscript.WrapOptions.depPlus`), but clang still links against **the build
 host's glibc** — in CI that is the Debian container's `/usr/lib/.../libc.so.6`
@@ -54,7 +54,7 @@ file` or `version 'GLIBC_2.NN' not found`.
 
 The fix already exists as a recipe-level pattern — the **envoy recipe** on the
 `new/envoyproxy` branch writes a `clang.cfg` that re-targets clang at the
-`gnu.org/glibc` bottle. This note generalises that pattern into a `zbk`
+`gnu.org/glibc` bottle. This note generalises that pattern into a `zpkb`
 build-env mechanism that applies to **every** recipe without the recipe having
 to opt in.
 
@@ -116,9 +116,9 @@ bottled libc. (The stricter `-nostdinc -isystem $glibc/include` "sysroot" regime
 `gnu.org/glibc/README.md` is only needed when the bottled glibc is *older* than the
 host — e.g. deliberately building a manylinux-2.28 floor. See Hazard (f).)
 
-## Generalising into a `zbk` build-env mechanism
+## Generalising into a `zpkb` build-env mechanism
 
-The insertion points in `zbk` are already the right shape. Two functions own the
+The insertion points in `zpkb` are already the right shape. Two functions own the
 build environment:
 
 * `build.EvalDeps` (`build/build.go`) assembles the `zpkgx +…` closure: a
@@ -127,7 +127,7 @@ build environment:
   `eval "$(zpkgx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
   script. `depPlus` is exactly where `+llvm.org` is appended today.
 
-The mechanism adds, **for a linux target only, when `ZBK_ZPKG_LIBC=1`**:
+The mechanism adds, **for a linux target only, when `ZPKB_ZPKG_LIBC=1`**:
 
 1. **Implicit toolchain deps.** Inject `gnu.org/glibc` and
    `gnu.org/gcc/libstdcxx` into the `zpkgx +…` closure (clang from `llvm.org` is
@@ -159,8 +159,8 @@ The mechanism adds, **for a linux target only, when `ZBK_ZPKG_LIBC=1`**:
 Sketch of the wrapper addition (see the experimental Go at the end):
 
 ```sh
-# --- ZBK_ZPKG_LIBC: retarget clang at the pkgx glibc bottle (linux only) ---
-if [ -n "$ZBK_ZPKG_LIBC" ]; then
+# --- ZPKB_ZPKG_LIBC: retarget clang at the pkgx glibc bottle (linux only) ---
+if [ -n "$ZPKB_ZPKG_LIBC" ]; then
   GLIBCLIB=$(dirname "$(ls "$ZPKG_DIR"/gnu.org/glibc/v*/lib/glibc-*/libc.so.6 2>/dev/null | sort | tail -1)")
   GLIBCLD=$(ls "$GLIBCLIB"/ld-linux*.so.* 2>/dev/null | head -1)
   GCCLIB=$(dirname "$(ls "$ZPKG_DIR"/gnu.org/gcc/libstdcxx/v*/lib*/libgcc_s.so.1 2>/dev/null | head -1)")
@@ -213,7 +213,7 @@ that sets `LDFLAGS` may or may not clobber ours depending on order.
    to `CFLAGS`/`LDFLAGS` still inherits the loader retarget.
 2. Detect the hazard: after the build, the verifier (below) fails the build if
    any produced ELF's `PT_INTERP` is not the pkgx loader. This converts a silent
-   host-glibc leak into a hard build error. Under `ZBK_ZPKG_LIBC=1` this check is
+   host-glibc leak into a hard build error. Under `ZPKB_ZPKG_LIBC=1` this check is
    the real guarantee; the `clang.cfg` is best-effort, the verifier is the gate.
 3. A recipe that legitimately needs the host gcc (e.g. a kernel module) opts out
    via a per-recipe skip (analogous to the existing `skip: [fix-patchelf]`).
@@ -244,7 +244,7 @@ wrong. Constraints:
   bottle and a target-arch `--dynamic-linker`. pkgx bottles are per-arch, so
   this is expressible, but the prototype and first landing scope to
   **Target.Arch == Host.Arch** (native). Cross-arch libc retarget is future
-  work; the gate is `ZBK_ZPKG_LIBC=1 && linux && Target==Host arch`.
+  work; the gate is `ZPKB_ZPKG_LIBC=1 && linux && Target==Host arch`.
 
 ### (e) Recipes with no compile step (pure scripts)
 
@@ -292,7 +292,7 @@ readelf -d <bin> | grep -E 'NEEDED|RPATH|RUNPATH'
 ```
 
 Proposed Go helper (in `fixup`, so it can gate the build under
-`ZBK_ZPKG_LIBC=1`):
+`ZPKB_ZPKG_LIBC=1`):
 
 ```go
 // ReadInterp returns an ELF's PT_INTERP (the requested dynamic linker), or ""
@@ -317,7 +317,7 @@ Two ways, matching what the recipes already do:
   fix-up point `$ORIGIN` at them (heavier bottle, but truly `FROM scratch` with
   no pkgx dep).
 
-The first is the pkgx-idiomatic choice and is what `ZBK_ZPKG_LIBC=1` should pair
+The first is the pkgx-idiomatic choice and is what `ZPKB_ZPKG_LIBC=1` should pair
 with; the verifier checks link-correctness, the runtime-dep declaration checks
 closure-completeness.
 
@@ -445,7 +445,7 @@ viable future variant.
   loader/glibc name differs); a full autotools package with `configure` probes
   and host-tool sub-builds (the Hazard (a) `GLIBC_2.29` class); and the
   cross-arch (Target ≠ Host) libc retarget (Hazard (d)). Those are the next
-  milestones before wiring `ZBK_ZPKG_LIBC=1` into a default path.
+  milestones before wiring `ZPKB_ZPKG_LIBC=1` into a default path.
 
 ## Experimental Go (off by default)
 
@@ -454,7 +454,7 @@ behind an off-by-default switch — see `buildscript`:
 
 * `WrapOptions.LibcZpkgx` (Go-side gate, default `false`) makes `Wrap` emit the
   clang.cfg-generation shell, itself additionally guarded at runtime by
-  `if [ -n "$ZBK_ZPKG_LIBC" ]`. With `LibcZpkgx` false the wrapper output is
+  `if [ -n "$ZPKB_ZPKG_LIBC" ]`. With `LibcZpkgx` false the wrapper output is
   byte-identical to before, so nothing in the default build path changes.
 * The emitted block is skipped for a `windows` target and for a cross-arch build
   (`Target.Arch != Host.Arch`) — Hazards (d)/(e).

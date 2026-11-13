@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/go-zpkg/zbk/httpretry"
+	"github.com/go-zpkg/zpkb/httpretry"
 	"io"
 	"io/fs"
 	"net/http"

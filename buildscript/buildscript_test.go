@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 func opts(platform, arch, version string) Options {

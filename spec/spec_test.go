@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 var tgt = target.Target{Platform: "linux", Arch: "x86-64"}

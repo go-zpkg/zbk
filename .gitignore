@@ -9,4 +9,5 @@ cov.out
 # ignored, never a directory or a source file that happens to share the name.
 /bk
 /zbk
+/zpkb
 /venvlaunch

@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// TestWasip1Target: ZBK_TARGET=wasip1/wasm resolves to the cross triple
+// TestWasip1Target: ZPKB_TARGET=wasip1/wasm resolves to the cross triple
 // wasm32-wasip1 and the bottle slug wasip1/wasm.
 func TestWasip1Target(t *testing.T) {
-	t.Setenv("ZBK_TARGET", "wasip1/wasm")
+	t.Setenv("ZPKB_TARGET", "wasip1/wasm")
 	tgt, err := Resolve()
 	if err != nil {
 		t.Fatalf("Resolve() = %v", err)
@@ -20,7 +20,7 @@ func TestWasip1Target(t *testing.T) {
 		t.Error("wasip1/wasm must be a cross build on every host bk runs on")
 	}
 	// the "+" spelling too
-	t.Setenv("ZBK_TARGET", "wasip1+wasm")
+	t.Setenv("ZPKB_TARGET", "wasip1+wasm")
 	if tgt, err = Resolve(); err != nil || tgt.Slug() != "wasip1/wasm" {
 		t.Errorf("wasip1+wasm: %+v, %v", tgt, err)
 	}
@@ -30,7 +30,7 @@ func TestWasip1Target(t *testing.T) {
 // become valid for linux, nor x86-64 for wasip1.
 func TestWasmIsAnArchOfWasip1Only(t *testing.T) {
 	for _, bad := range []string{"linux/wasm", "darwin/wasm", "windows/wasm", "wasip1/x86-64", "wasip1/aarch64", "wasip1/s390x"} {
-		t.Setenv("ZBK_TARGET", bad)
+		t.Setenv("ZPKB_TARGET", bad)
 		if _, _, _, err := Override(); err == nil {
 			t.Errorf("%s accepted", bad)
 		} else if !strings.Contains(err.Error(), "unsupported target arch") {
@@ -38,7 +38,7 @@ func TestWasmIsAnArchOfWasip1Only(t *testing.T) {
 		}
 	}
 	for _, good := range []string{"linux/x86-64", "linux/s390x", "windows/aarch64", "darwin/aarch64", "wasip1/wasm"} {
-		t.Setenv("ZBK_TARGET", good)
+		t.Setenv("ZPKB_TARGET", good)
 		if _, _, ok, err := Override(); err != nil || !ok {
 			t.Errorf("%s refused: %v", good, err)
 		}

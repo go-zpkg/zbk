@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 func wasiTgt() target.Target {
@@ -25,23 +25,23 @@ func TestWrapWasip1C(t *testing.T) {
 		})
 		for _, want := range []string{
 			`"+llvm.org"`, `"+github.com/WebAssembly/wasi-libc"`, `"+compiler-rt.llvm.org/wasi"`,
-			`export ZBK_CC="clang --target=wasm32-wasip1 --sysroot="$ZBK_WASI_SYSROOT" -resource-dir="$ZBK_WASI_RT" -mcpu=lime1 --rtlib=compiler-rt`,
-			`export ZBK_CXX="clang++ --target=wasm32-wasip1`,
-			`export CC="${CC:-$ZBK_CC}" CXX="${CXX:-$ZBK_CXX}"`,
+			`export ZPKB_CC="clang --target=wasm32-wasip1 --sysroot="$ZPKB_WASI_SYSROOT" -resource-dir="$ZPKB_WASI_RT" -mcpu=lime1 --rtlib=compiler-rt`,
+			`export ZPKB_CXX="clang++ --target=wasm32-wasip1`,
+			`export CC="${CC:-$ZPKB_CC}" CXX="${CXX:-$ZPKB_CXX}"`,
 			`export AR=llvm-ar RANLIB=llvm-ranlib NM=llvm-nm STRIP=llvm-strip`,
 			`$ZPKG_DIR/github.com/WebAssembly/wasi-libc/v[0-9]*`,
 			`$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*`,
 			`the wasip1 toolchain is not installed`,
 			// C++: libc++ is its own bottle, named only when installed
 			`$ZPKG_DIR/libcxx.llvm.org/wasi/v[0-9]*`,
-			`${ZBK_WASI_CXX:+ -fno-exceptions -stdlib=libc++ -nostdinc++ -isystem $ZBK_WASI_CXX/include/wasm32-wasip1/c++/v1 -L$ZBK_WASI_CXX/lib/wasm32-wasip1}`,
+			`${ZPKB_WASI_CXX:+ -fno-exceptions -stdlib=libc++ -nostdinc++ -isystem $ZPKB_WASI_CXX/include/wasm32-wasip1/c++/v1 -L$ZPKB_WASI_CXX/lib/wasm32-wasip1}`,
 		} {
 			if !strings.Contains(s, want) {
 				t.Errorf("host %s: missing %q:\n%s", host.Platform, want, s)
 			}
 		}
 		// the HOST's sovereign libc must not leak into a wasm compile
-		for _, bad := range []string{"ZBK_GLIBC_PREFIX", "-fPIC", "--dynamic-linker", "LDFLAGS", "-pie", "glibc", "linux-headers"} {
+		for _, bad := range []string{"ZPKB_GLIBC_PREFIX", "-fPIC", "--dynamic-linker", "LDFLAGS", "-pie", "glibc", "linux-headers"} {
 			if strings.Contains(s, bad) {
 				t.Errorf("host %s: wasip1 target got %q:\n%s", host.Platform, bad, s)
 			}

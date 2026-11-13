@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 func lin() target.Target { return target.Target{Platform: "linux", Arch: "x86-64"} }

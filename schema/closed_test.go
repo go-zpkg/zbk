@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/schema"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/schema"
 )
 
 // rootIsOpen reports whether the schema admits unknown keys at the root. It
@@ -52,7 +52,7 @@ func TestAnUnknownKeyIsRefused(t *testing.T) {
 		t.Fatal(err)
 	} else if open {
 		t.Skip("the schema is open at the root (additionalProperties: true), so an " +
-			"unknown key validates by design — see the reopening in zbk and " +
+			"unknown key validates by design — see the reopening in zpkb and " +
 			"go-zpkg/packages#420, #431. Close it and these cases apply again.")
 	}
 	const valid = `

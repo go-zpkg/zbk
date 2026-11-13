@@ -9,7 +9,7 @@ import (
 
 	gogit "github.com/go-git/go-git/v5"
 
-	"github.com/go-zpkg/zbk/useragent"
+	"github.com/go-zpkg/zpkb/useragent"
 )
 
 // osWriteFlags is how extracted regular files are opened.

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/buildscript"
-	"github.com/go-zpkg/zbk/config"
-	"github.com/go-zpkg/zbk/fixup"
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/buildscript"
+	"github.com/go-zpkg/zpkb/config"
+	"github.com/go-zpkg/zpkb/fixup"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 var errBoom = errors.New("boom")
@@ -1483,7 +1483,7 @@ func TestBuildExportsThePrefixMapOfTheRealRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(res.ScriptPath)
-	want := "export ZBK_FILE_PREFIX_MAP=\"" + config.Compute("acme.org/tool", "1.2.3", testBuildHash, tgt).Root + "=/build\"\n"
+	want := "export ZPKB_FILE_PREFIX_MAP=\"" + config.Compute("acme.org/tool", "1.2.3", testBuildHash, tgt).Root + "=/build\"\n"
 	if !strings.Contains(string(b), want) {
 		t.Errorf("script lacks %q:\n%s", want, b)
 	}

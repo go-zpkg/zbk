@@ -12,12 +12,12 @@ import (
 	"strings"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/buildscript"
-	"github.com/go-zpkg/zbk/config"
-	"github.com/go-zpkg/zbk/fixup"
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/buildscript"
+	"github.com/go-zpkg/zpkb/config"
+	"github.com/go-zpkg/zpkb/fixup"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // Runner drives a full build. Its side-effecting steps are fields so the whole

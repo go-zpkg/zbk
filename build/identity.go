@@ -9,9 +9,9 @@ import (
 	"sort"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // concreteOf describes what this build IS, in the form the bottle carries and
@@ -30,7 +30,7 @@ import (
 // recompute, and nothing published carries the inputs to `spec.Hash`: the
 // annotation holds the platform, the resolved closure and a recipe DIGEST, so
 // `Concrete.Hash()` can be recomputed from the bottle and ours could not.
-// `spec` remains what it was written for, `zbk lock`, whose domain string is
+// `spec` remains what it was written for, `zpkb lock`, whose domain string is
 // frozen into every lock file in existence.
 //
 // ⛔ DEPENDENCIES ARE IDENTIFIED BY THEIR OWN HASH, WHICH MAKES THIS MERKLE.

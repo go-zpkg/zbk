@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 func idRecipe() *pantry.Recipe {

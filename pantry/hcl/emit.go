@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/pantry"
+	"github.com/go-zpkg/zpkb/pantry"
 )
 
 // convertFn is a seam. The two guards below protect against a defect in the

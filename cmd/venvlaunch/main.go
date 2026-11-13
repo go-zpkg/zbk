@@ -1,4 +1,4 @@
-// venvlaunch is the entry point `zbk bkpyvenv seal` installs as
+// venvlaunch is the entry point `zpkb bkpyvenv seal` installs as
 // $PREFIX/bin/<cmd> for a Python application packaged into a virtualenv.
 //
 // ⛔⛔ IT IS A BINARY BECAUSE A SCRIPT HAS NO $ORIGIN. The kernel resolves a
@@ -16,7 +16,7 @@
 //	                              start in a FROM-scratch image at all
 //	no `env -S`                   busybox's env has no -S (coreutils/env.c
 //	                              parses "+i0u:*"), so the shebang this
-//	                              replaces does not run on Alpine (zbk#435)
+//	                              replaces does not run on Alpine (zpkb#435)
 //	no 127-character limit        execve(2) truncates a shebang at 127 bytes
 //	                              before Linux 5.1, 255 after, SILENTLY
 //	no interpreter at all         a CGO_ENABLED=0 Go binary has no PT_INTERP

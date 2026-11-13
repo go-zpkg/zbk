@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/go-versions/semver"
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // Options carries everything script generation needs beyond the node itself.

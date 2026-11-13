@@ -83,13 +83,13 @@ jobs:
             freebsd/amd64 freebsd/arm64 netbsd/amd64 openbsd/amd64; do
             os=${target%/*}
             arch=${target#*/}
-            out="zbk-${os}-${arch}"
+            out="zpkb-${os}-${arch}"
             if [ "$os" = "windows" ]; then
               out="${out}.exe"
             fi
             echo "building $out"
             CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-              go build -trimpath -ldflags="-s -w" -o "$DIST/${out}" ./cmd/zbk
+              go build -trimpath -ldflags="-s -w" -o "$DIST/${out}" ./cmd/zpkb
 
             # venvlaunch is the entry point `bkpyvenv seal` installs into a
             # python-venv bottle (cmd/venvlaunch, go-zpkg/zpkgx#151). It ships
@@ -118,7 +118,7 @@ jobs:
             fi
           done
           cd "$DIST"
-          sha256sum zbk-* venvlaunch-* > SHA256SUMS
+          sha256sum zpkb-* venvlaunch-* > SHA256SUMS
           cat SHA256SUMS
 
       # An ASSERTION, not a hope. bk writes its own module version into every
@@ -161,13 +161,13 @@ jobs:
           # the same stamp, and the dirty-tree check matters for it exactly as
           # much: a launcher built from an unknown tree is one nobody can
           # trace, and it ends up inside every python-venv bottle.
-          for bin in "$DIST"/zbk-* "$DIST"/venvlaunch-*; do
+          for bin in "$DIST"/zpkb-* "$DIST"/venvlaunch-*; do
             name=$(basename "$bin")
             info=$(go version -m "$bin")
             stamped=$(printf '%s\n' "$info" | awk '$1=="mod" {print $3; exit}')
             echo "$name: $stamped"
             if [ "$stamped" != "$TAG" ]; then
-              echo "::error::$name stamps $stamped but this is $TAG — a zbk build would name the wrong version in every lock it writes, and a venvlaunch build would be untraceable inside the bottles it ships in"
+              echo "::error::$name stamps $stamped but this is $TAG — a zpkb build would name the wrong version in every lock it writes, and a venvlaunch build would be untraceable inside the bottles it ships in"
               bad=1
             fi
             if printf '%s\n' "$info" | grep -q 'vcs\.modified=true'; then
@@ -184,9 +184,9 @@ jobs:
           # debug.ReadBuildInfo: this one proves the COMMAND works, on the
           # binary a user will actually run. A wiring break (missing case,
           # wrong field, output to stderr) is invisible to `go version -m`.
-          got=$("$DIST/zbk-linux-amd64" version | awk '{print $2}')
+          got=$("$DIST/zpkb-linux-amd64" version | awk '{print $2}')
           if [ "$got" != "$TAG" ]; then
-            echo "::error::zbk version says '$got', want exactly '$TAG'"
+            echo "::error::zpkb version says '$got', want exactly '$TAG'"
             bad=1
           fi
           exit "$bad"
@@ -214,7 +214,7 @@ jobs:
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
-            ${{ runner.temp }}/dist/zbk-*
+            ${{ runner.temp }}/dist/zpkb-*
             ${{ runner.temp }}/dist/venvlaunch-*
             ${{ runner.temp }}/dist/SHA256SUMS
 
@@ -230,5 +230,5 @@ jobs:
           else
             gh release create "$TAG" "$DIST"/* \
               --title "$TAG" \
-              --notes "Static, dependency-free \`zbk\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs, and \`venvlaunch\` for the same targets except windows — the entry point \`bkpyvenv seal\` installs into a python-venv bottle, which needs no interpreter of its own to start. Verify downloads against SHA256SUMS; every file here also carries a Sigstore provenance attestation (\`gh attestation verify -R go-zpkg/zbk <file>\`). Each \`zbk\` binary reports its own version into every lock it writes."
+              --notes "Static, dependency-free \`zpkb\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs, and \`venvlaunch\` for the same targets except windows — the entry point \`bkpyvenv seal\` installs into a python-venv bottle, which needs no interpreter of its own to start. Verify downloads against SHA256SUMS; every file here also carries a Sigstore provenance attestation (\`gh attestation verify -R go-zpkg/zpkb <file>\`). Each \`zpkb\` binary reports its own version into every lock it writes."
           fi

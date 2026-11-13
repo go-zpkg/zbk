@@ -24,4 +24,4 @@ package useragent
 // String identifies bk to the hosts it fetches from. It names the project so an
 // operator reading their logs can find out who is asking, which is the whole
 // social contract behind a User-Agent.
-const String = "zbk (+https://github.com/go-zpkg/zbk)"
+const String = "zpkb (+https://github.com/go-zpkg/zpkb)"

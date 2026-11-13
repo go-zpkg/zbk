@@ -11,13 +11,13 @@ import (
 	"testing"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/schema"
+	"github.com/go-zpkg/zpkb/schema"
 	"gopkg.in/yaml.v3"
 )
 
 // CorpusEnv names a pantry to survey: a directory holding projects/<slug>/
 // package.yml or package.hcl.
-const CorpusEnv = "ZBK_PANTRY_CORPUS"
+const CorpusEnv = "ZPKB_PANTRY_CORPUS"
 
 // ⛔⛔ "0 REJECTIONS OVER 1890 RECIPES" MEASURED NOTHING WHILE THE SCHEMA WAS
 // OPEN. package.schema.json sets `"additionalProperties": true` at the root
@@ -26,7 +26,7 @@ const CorpusEnv = "ZBK_PANTRY_CORPUS"
 // describes the corpus — it is evidence the schema declined to ask.
 //
 // Worse than vacuous, it is misleading in the one direction that costs:
-// a recipe may declare `sha256`, `license` or `provenance` and zbk will
+// a recipe may declare `sha256`, `license` or `provenance` and zpkb will
 // ACCEPT it and silently drop it. To a reader of the recipe the source looks
 // verified. Nothing anywhere says otherwise.
 //
@@ -177,7 +177,7 @@ func walk(dir string) (out []recipe, unreadable int, err error) {
 
 // rootKeys is the set of keys one recipe declares, per container. An HCL
 // recipe is read through the same converter the factory uses, so this surveys
-// what zbk would actually see rather than what the file looks like.
+// what zpkb would actually see rather than what the file looks like.
 //
 // `distributable` and `versions` may each be a list of objects; every element
 // is surveyed, because one stray key in the second entry is still a key the

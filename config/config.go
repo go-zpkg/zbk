@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // userHomeDir is a seam so tests can exercise the no-home fallback paths.
@@ -36,7 +36,7 @@ type Paths struct {
 // ⛔⛔ IT MUST AGREE WITH bottle.Dir(), AND FOR A WHILE IT DID NOT. This
 // returned `~/.pkgx` long after bottle/pkgx.go:385 moved the store to
 // `~/.zpkg`, so one product had two functions computing the store root and
-// they disagreed — zbk staged and looked in upstream pkgx's directory while
+// they disagreed — zpkb staged and looked in upstream pkgx's directory while
 // everything built on bottle used ours. The duplication is the defect; this
 // is the cheap half of the fix and the two should become one call.
 func ZpkgDir() string {
@@ -89,7 +89,7 @@ func dataHomeFor(goos, home string) string {
 //
 // With the hash in it the bottle stays relocatable AND names itself, which is
 // the combination Nix gives up (its paths are absolute) and Spack gives up
-// (its paths are not designed to move). See go-zpkg/zbk#410.
+// (its paths are not designed to move). See go-zpkg/zpkb#410.
 //
 // An empty hash is not accepted: a caller that does not know the identity
 // has not resolved the closure yet, and the prefix must not be chosen before

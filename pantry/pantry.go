@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-zpkg/zbk/schema"
+	"github.com/go-zpkg/zpkb/schema"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
 )
@@ -76,12 +76,12 @@ type Recipe struct {
 	// Typed rather than left in the generic document because a field nothing
 	// decodes is a field nothing can require, and `additionalProperties` is
 	// true at the root: before this, a recipe could carry `provenance` and
-	// zbk would accept it and drop it, which reads to anyone opening the
+	// zpkb would accept it and drop it, which reads to anyone opening the
 	// recipe as a record that exists.
 	// ⛔⛔ `json:"-"` IS LOAD-BEARING, AND A GOLDEN TEST CAUGHT ITS ABSENCE.
 	// spec.hashRecipes json.Marshals the whole Recipe, so a new field adds a
 	// key to the canonical form and moves the LOCK SPEC HASH that every lock
-	// file in existence holds — `zbk lock --check` would then report every
+	// file in existence holds — `zpkb lock --check` would then report every
 	// project as changed, which reads as "the pantry moved" rather than "the
 	// tool did". TestTheLockSpecHashIsTheValueLockFilesHold said so in one
 	// line.
@@ -139,7 +139,7 @@ type Runtime struct {
 // ⛔⛔ THE DISTINCTION IS LOAD-BEARING SINCE THE SCHEMA WAS CLOSED. Closing
 // `additionalProperties` (#423) made us refuse 42 of the 1932 upstream
 // recipes, which is intended — they rely on keys nothing here implements. But
-// `zbk overrides` validated the OVERRIDDEN recipe and reported every error as
+// `zpkb overrides` validated the OVERRIDDEN recipe and reported every error as
 // "override(s) whose premise is gone", so a recipe our schema declines became
 // indistinguishable from a patch that no longer applies, and the step went red
 // on `additional properties 'aliases' not allowed` for python.org,

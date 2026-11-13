@@ -54,7 +54,7 @@ jobs:
   #
   # ⛔ AND THE `go` DIRECTIVE IS THE TOOLCHAIN. This lane always pinned
   # go-version 1.27.2, so what CI built was never vulnerable — but `go install
-  # github.com/go-zpkg/zbk/cmd/bk@main` builds with the user's toolchain, and a
+  # github.com/go-zpkg/zpkb/cmd/bk@main` builds with the user's toolchain, and a
   # directive of 1.27.1 let 1.27.1 do it. Raising the directive is what forces
   # every builder, here and on a laptop, onto the fixed standard library.
   # Measured on a copy before the change was made: 22 findings at 1.27.1, 6 at
