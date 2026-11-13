@@ -1,13 +1,25 @@
 # zbk — a pure-Go brewkit
 
-`zbk` is a from-scratch, `CGO_ENABLED=0` reimplementation of [pkgx](https://pkgx.sh)'s
-build tool [brewkit](https://github.com/pkgxdev/brewkit) (originally Deno/TypeScript
-with Ruby + `patchelf` helpers). It reads a pantry recipe — `package.hcl` or
-`package.yml`, tried in that order — builds the package in a zpkgx environment,
-relocates the install tree, and packages a bottle.
+`zbk` is a `CGO_ENABLED=0` build tool written from scratch in Go. It reads a
+recipe, builds the package in a zpkgx environment, relocates the install tree,
+and packages a bottle.
 
-The reference brewkit is a *native* build tool — everything pivots on the host it
-runs on being the thing it builds for. `zbk` is **Target ≠ Host by design**: the
+It was written from a **bibliography** rather than from one predecessor:
+[pkgx](https://pkgx.sh)'s [brewkit](https://github.com/pkgxdev/brewkit)
+(Deno/TypeScript with Ruby and `patchelf` helpers) for the recipe shape,
+[Guix](https://guix.gnu.org) for checking a digest when it is *recorded*
+rather than at every build, [Arch](https://man.archlinux.org/man/PKGBUILD.5)'s
+`validpgpkeys` for requiring a fingerprint rather than a keyring,
+[Homebrew](https://docs.brew.sh)'s `rebuild` and Debian's `+bN` for the
+rebuild counter, and [Spack](https://spack.readthedocs.io) for the concrete
+spec. Each entry is credited where it is used, below.
+
+⛔ **The format is `package.hcl`, with its own schema.** `package.yml` is
+still read, tried second, and is on its way out with the rest of the pkgx
+compatibility — see [the pantry question](https://github.com/go-zpkg/packages/issues/431).
+
+A *native* build tool — brewkit among them — pivots on the host it runs on
+being the thing it builds for. `zbk` is **Target ≠ Host by design**: the
 build target (platform/arch/triple) is a first-class value, so cross-compilation —
 notably **Windows PE bottles built on a linux/darwin host** — is a supported path
 rather than a retrofit.
@@ -56,7 +68,7 @@ The packages, all at 100% statement coverage (`go test ./... -coverprofile` + `g
 |----------|--------------|
 | `target` | the single source of truth for the build **target** vs the **host** (`ZBK_TARGET` / `--platform`), incl. the llvm-mingw Windows cross triples and the `wasip1/wasm` target (`wasm32-wasip1`; no POSIX relocation; `wasm` is an arch of `wasip1` only). C/C++ for wasip1 uses our own toolchain from source — the `llvm.org` bottle's clang/wasm-ld, the `github.com/WebAssembly/wasi-libc` sysroot and the `compiler-rt.llvm.org/wasi` builtins — imposed through `$ZBK_CC`/`$ZBK_CXX` (`clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1`), which the cc/gcc/clang shims re-exec; `AR`/`RANLIB`/`NM`/`STRIP` are the LLVM ones, and recipes pass `--host={{hw.target}}` (= `wasm32-wasip1`) to configure |
 | `config` | the build workspace layout, keyed on the target so a cross build never collides with a native one |
-| `schema` | an authoritative **JSON Schema** for `package.yml` — there is no official one; this is derived from libpkgx's parser and validated against the entire pkgxdev/pantry corpus (0 rejections over 1890 recipes) |
+| `schema` | ⛔ **Being retired with the rest of the pkgx compatibility.** A JSON Schema for `package.yml`, derived from libpkgx's parser and exercised against `pkgxdev/pantry` — 1890 recipes, 0 rejections. That number says the parser accepts what **pkgx** writes; it says nothing about our own recipes, and it is their corpus rather than ours. `package.hcl` has its own schema (`pantry/hcl`), which is the one this project keeps. |
 | `pantry` | parses + schema-validates a `package.yml` into a shared `Recipe` |
 | `pantry/hcl` | an **HCL2 front-end** — a `package.hcl` decodes into the *same* `Recipe` via the same schema, so a recipe written in HCL2 yields an identical build |
 | `fixup`  | post-build relocatability: `.pc`/`.cmake` path rewriting, libtool `.la` cleanup, `lib64→lib`, single-dir header flattening, and a **pure-Go ELF RUNPATH rewriter** (`debug/elf`, no `patchelf`). A Windows target skips all POSIX relocation. |
@@ -1348,7 +1360,12 @@ Almost nothing, before this. `zbk` does verify a source checksum when a recipe
 declares one — but measured over a fresh `pkgxdev/pantry`, exactly **one recipe
 of 904** declares one, and that one (`openssl.org`) points at a `.sha256`
 served by the *same host* as the tarball: it detects corruption, not
-substitution. The same recipe declares `sig: ${{url}}.asc`, and nothing in bk
+substitution. ⛔ That is a measurement of **their** corpus, and it is cited
+here because it is what this project resolved from when the feature was
+written — not as a standard ours is held to. Ours is the opposite rule:
+`zbk lint --require-provenance` refuses a recipe of ours that records no
+provenance, and `sourcepin` will not record a digest without naming who signed
+it. The same recipe declares `sig: ${{url}}.asc`, and nothing in bk
 reads that field at all.
 
 So `--source-mirror` grew a second job. It already kept every archive a build
