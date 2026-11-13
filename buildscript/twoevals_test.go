@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // Two `pkgx +…` invocations, not one — and the TOOL one first, because every
@@ -36,10 +36,10 @@ func TestWrapEmitsTwoClosuresToolsFirst(t *testing.T) {
 	}
 
 	// Each says which closure failed, so an operator is not left guessing.
-	if !strings.Contains(s, "zbk: the tool environment failed") {
+	if !strings.Contains(s, "zpkb: the tool environment failed") {
 		t.Error("the tool closure's failure is not named")
 	}
-	if !strings.Contains(s, "zbk: the dependency environment failed") {
+	if !strings.Contains(s, "zpkb: the dependency environment failed") {
 		t.Error("the link closure's failure is not named")
 	}
 }

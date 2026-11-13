@@ -49,7 +49,7 @@ import (
 // above records where a fingerprint came from. Debian's uscan(1) is the most
 // explicit and it is an instruction, not a procedure: "You must verify the
 // downloaded OpenPGP key using its full fingerprint value which you know is the
-// trusted one." Which you know. That is unauditable, so `zbk sourcepin`
+// trusted one." Which you know. That is unauditable, so `zpkb sourcepin`
 // requires the author to say, and prints it into the recipe's provenance.
 //
 // Fingerprints are printed as uppercase hex with no separators, which is Arch's

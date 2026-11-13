@@ -1,0 +1,323 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/go-zpkg/zpkb/recipefile"
+)
+
+// runLint implements `bk lint`: read every recipe in a pantry checkout and
+// say which ones cannot be read.
+//
+// A pantry recipe is not a build input anyone can retry. A consumer fetches it
+// over HTTP while resolving a closure, so a file that does not parse breaks
+// every install of that project — silently, for everyone, with no build to go
+// red first. That is the failure a pantry repository is uniquely able to
+// cause, and the only one this checks for.
+//
+// It reads them with recipefile.Load, which is the loader the BUILDER uses:
+// the same formats, the same schema, the same refusals. The check this
+// replaces was a script that re-stated parts of the schema in another
+// language, and it could only ever be a second opinion about what a recipe
+// means — it went looking for package.yml and reported "the layout changed"
+// the day the recipes became HCL, which is the mildest way that kind of
+// divergence can present.
+func runLint(args []string, stdout, stderr io.Writer) int {
+	fset := flag.NewFlagSet("lint", flag.ContinueOnError)
+	fset.SetOutput(stderr)
+	dir := fset.String("dir", ".", "the pantry checkout to read")
+	// ⛔⛔ OUR OWN RECIPES DO NOT ALL LIVE UNDER projects/. go-zpkg/packages
+	// keeps the platform-specific ones it authored at `wasip1/recipes/<project>`
+	// and `windows/recipes/<project>` — 14 recipes this command could not be
+	// pointed at, so every question asked of them got the answer a tree with no
+	// recipes gets. A sweep that cannot read a corpus reports the same zero as
+	// a clean one, and the empty-tree refusal below is the only reason this was
+	// a visible failure rather than a silent pass.
+	sub := fset.String("subdir", "projects", "the directory under -dir that holds the project tree")
+	// ⛔⛔ PER TREE, AND THAT IS THE WHOLE DESIGN. Our recipes are written
+	// from each project's own build system, so each must say which files
+	// (go-zpkg/packages#431); an upstream recipe has no reason to carry that
+	// and never will. Making it a schema requirement would refuse every
+	// foreign recipe we still read — which is exactly the mistake that closing
+	// `additionalProperties` made earlier today, when the bootstrap
+	// toolchain's own recipes became unreadable (#427). A requirement about
+	// OUR files belongs to the command that is pointed at our files.
+	requireProv := fset.Bool("require-provenance", false,
+		"fail a recipe that does not record which of the project's own files its build came from")
+	// ⛔⛔ AN OVERLAY ENTRY IS A FRAGMENT, AND A PANTRY CANNOT BE MADE OF
+	// FRAGMENTS. go-zpkg/pantry-overlay#50 reduced all 183 entries to the keys
+	// they CHANGE, which was right for an overlay: bottle merges it over
+	// PantryBase, so an omitted key is inherited from upstream and a small
+	// curated tree can correct a stale constraint without forking 1700 files.
+	//
+	// It is exactly wrong for a pantry. `PantryBase` is still
+	// pkgxdev/pantry compiled in (bottle/pkgx.go:68) and the overlay is merged
+	// OVER it, so a fragment resolves only because somebody else's recipe is
+	// underneath — the recipe we may not copy (go-zpkg/packages#431). Measured
+	// here the day this flag was written: of 213 overlay recipes, 15 state a
+	// `distributable`. The other 198 cannot build anything alone.
+	//
+	// So "we own 213 recipes" and "213 recipes of ours would resolve against an
+	// empty upstream" are different claims, and only the second is what a
+	// sovereign pantry needs. This flag is the difference, and it is per tree
+	// for the same reason --require-provenance is: an overlay is ALLOWED to be
+	// fragments, right up until it is asked to be the base.
+	requireStandalone := fset.Bool("require-standalone", false,
+		"fail a recipe that cannot resolve alone — one that needs another recipe merged underneath it")
+	// ⛔⛔ A GATE THAT STARTS RED IS NOT A GATE, IT IS A LIGHT NOBODY READS, and
+	// pantry-overlay's own ci.yml carries that lesson already: its lint step
+	// invoked a module path that no longer existed, so every pull request after
+	// the rename failed there, on the toolchain rather than on a recipe, and no
+	// recipe was read by the builder's loader for weeks.
+	//
+	// --require-standalone on our overlay reports 197 of 213 today. Turning it
+	// on as a hard zero would be that same red light; leaving it off until the
+	// last recipe is written means nothing protects the 16 that already stand
+	// alone. A RATCHET is the third option: state the number, refuse an
+	// increase, and refuse a stale ceiling too.
+	//
+	// Refusing to be UNDER the ceiling is the part that makes it a ratchet
+	// rather than a budget. A ceiling nobody lowers stops describing the tree
+	// within a week, and then a regression hides inside the slack — which is
+	// the same failure as a coverage gate left at a number the code has passed.
+	// -1 means "not given": zero is a real and much stricter answer.
+	maxFragments := fset.Int("max-fragments", -1,
+		"with --require-standalone: the number of fragments this tree still has. "+
+			"More fails as a regression, FEWER fails as a ceiling to lower")
+	if err := fset.Parse(args); err != nil {
+		return 2
+	}
+
+	// ⛔ A FLAG THAT SILENTLY DOES NOTHING IS WORSE THAN A MISSING ONE: a lane
+	// that spells --max-fragments without --require-standalone would record a
+	// number nobody checks, and read as protected.
+	if *maxFragments >= 0 && !*requireStandalone {
+		fmt.Fprintln(stderr, "lint: --max-fragments is a ceiling on what "+
+			"--require-standalone counts, and does nothing without it")
+		return 2
+	}
+
+	root := filepath.Join(*dir, *sub)
+	projects, err := lintProjects(root)
+	if err != nil {
+		fmt.Fprintf(stderr, "lint: %v\n", err)
+		return 1
+	}
+	// An empty tree is a FAILURE, not a pass. A sweep that could not find its
+	// corpus reports the same "no problems" as one that read it all, and the
+	// one thing that distinguishes them is saying how many were read.
+	if len(projects) == 0 {
+		fmt.Fprintf(stderr, "lint: no recipe under %s — the layout changed\n", root)
+		return 1
+	}
+
+	var bad, unrecorded, fragments, signedSha []string
+	for _, proj := range projects {
+		// The project's DIRECTORY rather than (dir, project): the loader that
+		// takes a pantry and a project joins `projects/` in, which is right for
+		// a pantry and wrong for the two trees of ours that are not laid out
+		// that way. The DOCUMENT comes back from the same read as the recipe,
+		// because --require-standalone asks which keys the file STATES and the
+		// typed recipe cannot answer that.
+		pdir := filepath.Join(root, filepath.FromSlash(proj))
+		r, doc, err := recipefile.LoadWithDoc(pdir)
+		if err != nil {
+			bad = append(bad, fmt.Sprintf("  %s: %v", proj, err))
+			continue
+		}
+		// A recipe with no distributable packages nothing of its own — a set,
+		// or a project whose files come from its dependencies — so there is no
+		// build to have derived from anything.
+		if *requireProv && r.Provenance == nil && r.Distributable != nil {
+			unrecorded = append(unrecorded, "  "+proj)
+		}
+		if miss := missingEssentials(doc); *requireStandalone && len(miss) > 0 {
+			fragments = append(fragments, fmt.Sprintf("  %s: states no %s",
+				proj, strings.Join(miss, ", no ")))
+		}
+		if u := shaNamesASignature(r.Distributable); u != "" {
+			signedSha = append(signedSha, fmt.Sprintf("  %s: sha = %q", proj, u))
+		}
+	}
+	fmt.Fprintf(stdout, "%d recipe(s) read from %s\n", len(projects), root)
+	// ⛔⛔ UNCONDITIONAL, AND THE ONLY CHECK HERE THAT IS. The others ask about
+	// a tree's completeness, which is a campaign; this one asks whether a
+	// recipe states something that CANNOT be true, and a flag for it would be
+	// a flag somebody forgets at exactly the wrong moment.
+	if len(signedSha) > 0 {
+		sort.Strings(signedSha)
+		fmt.Fprintf(stderr, "%d recipe(s) point `sha` at a detached SIGNATURE, and `sha` is "+
+			"where the expected SHA-256 is PUBLISHED — the build fetches it and compares "+
+			"(build/runner.go), so a .sig there fails every build and `zpkb lint` is the only "+
+			"thing that can see it, because linting does not fetch. The signature belongs in "+
+			"`provenance` until go-zpkg/zpkb#282 gives it a field:\n", len(signedSha))
+		fmt.Fprintln(stderr, strings.Join(signedSha, "\n"))
+		return 1
+	}
+	if len(unrecorded) > 0 {
+		sort.Strings(unrecorded)
+		fmt.Fprintf(stderr, "%d of %d recipe(s) record no provenance — each must say which of "+
+			"the project's OWN files its build was written from, because that is the basis on "+
+			"which it may exist at all (go-zpkg/packages#431):\n",
+			len(unrecorded), len(projects))
+		fmt.Fprintln(stderr, strings.Join(unrecorded, "\n"))
+	}
+	// Under the ceiling: the tree improved and the ceiling did not. Reported on
+	// stdout as a success, because nothing is wrong with the recipes — the
+	// number in the lane is what needs the edit, and the message says which.
+	if *maxFragments > len(fragments) {
+		fmt.Fprintf(stderr, "lint: %d fragment(s), and --max-fragments says %d: "+
+			"lower it to %d. A ceiling nobody lowers stops describing the tree, "+
+			"and then a regression hides in the slack\n",
+			len(fragments), *maxFragments, len(fragments))
+		return 1
+	}
+	if len(fragments) > 0 {
+		sort.Strings(fragments)
+		fmt.Fprintf(stderr, "%d of %d recipe(s) cannot resolve alone — each needs another "+
+			"recipe merged underneath it to say where its source comes from or how to build "+
+			"it, and the only tree underneath ours is the upstream we may not copy "+
+			"(go-zpkg/packages#431):\n",
+			len(fragments), len(projects))
+		fmt.Fprintln(stderr, strings.Join(fragments, "\n"))
+		if *maxFragments == len(fragments) {
+			fmt.Fprintf(stderr, "lint: at the stated ceiling of %d; each recipe completed "+
+				"must lower it\n", *maxFragments)
+		}
+	}
+	if len(bad) > 0 {
+		fmt.Fprintln(stderr, strings.Join(bad, "\n"))
+		fmt.Fprintf(stderr, "%d recipe(s) cannot be read\n", len(bad))
+		return 1
+	}
+	// Reported after the unreadable ones, and a failure in its own right: a
+	// run that printed the list and exited 0 is a list nobody acts on.
+	if len(unrecorded) > 0 {
+		return 1
+	}
+	// At or under a STATED ceiling the fragments are tolerated — that is what
+	// stating a number means. Without --max-fragments the tolerance is zero,
+	// which is the stricter reading and stays the default.
+	if len(fragments) > 0 && *maxFragments != len(fragments) {
+		return 1
+	}
+	return 0
+}
+
+// essentials are the keys a recipe must STATE to stand on its own: where its
+// versions come from, where its content comes from, and how to turn that into a
+// package. Miss any one and the recipe is an amendment to another recipe.
+//
+// `build` is in the list on purpose, though a fragment that lacked only `build`
+// would be unusual: these are the three keys the factory reads to produce a
+// bottle, and a list that held two of them would answer a narrower question
+// than the one asked.
+// signatureExts are the names a DETACHED SIGNATURE goes by. `.sig` and `.asc`
+// are OpenPGP's two spellings (binary and armoured) and `.sign` is kernel.org's.
+var signatureExts = []string{".sig", ".asc", ".sign"}
+
+// shaNamesASignature returns a recipe's `distributable.sha` when it points at a
+// detached signature instead of a published checksum.
+//
+// ⛔⛔ THREE RECIPES SHIPPED THIS AND NONE OF THEM COULD HAVE BUILT.
+// `schema/package.schema.json:141` defines `sha` as "where the expected SHA-256
+// of the archive is published, usually ${{url}}.sha256 — the build fetches it
+// and refuses a mismatch", and `build/runner.go:769-781` does exactly that.
+// Measured with this repository's own reader on gnu.org/grep's:
+//
+//	fetch.DeclaredSHA256(".../grep-3.12.tar.xz.sig", "grep-3.12.tar.xz")
+//	→ no line names grep-3.12.tar.xz — the server returned text, not an
+//	  archive: "-----BEGIN PGP SIGNATURE----- …"
+//
+// and a checksum file that cannot be READ is a build failure on purpose
+// (runner.go:746-749). gnu.org/gzip, gnu.org/grep and gnu.org/bash each carried
+// one, bash being a base-toolchain member, and the lane stayed green because
+// linting does not fetch (go-zpkg/pantry-overlay#89).
+//
+// The author's error was not careless: `zpkb sourcepin` PRINTED a `sig = …` line
+// under the `sha256` block it offers for pasting, and `sig` is read by nothing
+// (#282), so the nearest key that existed was `sha`. That output is now a
+// comment; this is the half that catches a recipe whatever suggested it.
+//
+// It matches on the extension and not on fetching anything: a URL ending `.sig`
+// is never a checksum file, whatever it contains, and a check that had to
+// download would be a check the lane cannot run offline.
+func shaNamesASignature(distributable any) string {
+	m, ok := distributable.(map[string]any)
+	if !ok {
+		return ""
+	}
+	s, _ := m["sha"].(string)
+	lower := strings.ToLower(s)
+	for _, ext := range signatureExts {
+		if strings.HasSuffix(lower, ext) {
+			return s
+		}
+	}
+	return ""
+}
+
+var essentials = []string{"versions", "distributable", "build"}
+
+// missingEssentials names the essential keys a recipe document does not state,
+// in the order of `essentials` rather than map order so two runs over one tree
+// print the same line.
+//
+// `members` exempts a recipe entirely: a SET names a tree of packages by
+// constraint and has no source and no build of its own, so judging it by
+// `distributable` would report every set as a fragment.
+func missingEssentials(doc map[string]any) []string {
+	if _, ok := doc["members"]; ok {
+		return nil
+	}
+	var miss []string
+	for _, k := range essentials {
+		if _, ok := doc[k]; !ok {
+			miss = append(miss, k)
+		}
+	}
+	return miss
+}
+
+// lintProjects lists the project directories under root, by the recipe file
+// each one holds. A directory is a project because it has a recipe, not
+// because of where it sits: the pantry nests them (x.org/protocol/xcb), so
+// depth says nothing.
+func lintProjects(root string) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !recipefile.IsRecipe(d.Name()) {
+			return nil
+		}
+		// Sliced rather than made relative: the path came from WalkDir(root),
+		// so it is under root by construction and filepath.Rel could only fail
+		// on inputs this cannot produce — an error arm no test could reach.
+		// A recipe sitting directly in projects/ belongs to no project and is
+		// left alone.
+		dir := filepath.ToSlash(filepath.Dir(p))
+		base := filepath.ToSlash(root)
+		if dir == base {
+			return nil
+		}
+		out = append(out, strings.TrimPrefix(dir, base+"/"))
+		return nil
+	})
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	sort.Strings(out)
+	return out, nil
+}

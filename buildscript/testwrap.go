@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // TestWrapOptions carries what a recipe's test: block needs around it.
@@ -262,11 +262,11 @@ func (o TestWrapOptions) testPlus() string {
 //
 // The build side had solved this years earlier and said why, in
 // buildscript/libexec.go: "a recipe may call `cc` or `gcc` DIRECTLY, ignoring
-// $CC". The same shims go on the test's PATH, pointed at the same $ZBK_CC. The
+// $CC". The same shims go on the test's PATH, pointed at the same $ZPKB_CC. The
 // test still gets the SYSROOT and nothing the recipe chose, so the rule this
 // file is built on is unchanged — it is the delivery that was wrong.
 //
-// `clang` and `clang++` are deliberately NOT shimmed: $ZBK_CC's driver is
+// `clang` and `clang++` are deliberately NOT shimmed: $ZPKB_CC's driver is
 // clang, so a shim of that name would re-exec itself forever. The 13 recipes
 // that call clang directly ask for a specific compiler and get it.
 func sysrootPreamble(shimDir string) []string {
@@ -280,9 +280,9 @@ func sysrootPreamble(shimDir string) []string {
 		out = append(out, "  "+l)
 	}
 	out = append(out,
-		// ZBK_CC/ZBK_CXX are what the shims re-exec, exactly as a build's are.
-		`  export ZBK_CC="clang `+SysrootCC+`"`,
-		`  export ZBK_CXX="clang++ `+SysrootCXX+`"`,
+		// ZPKB_CC/ZPKB_CXX are what the shims re-exec, exactly as a build's are.
+		`  export ZPKB_CC="clang `+SysrootCC+`"`,
+		`  export ZPKB_CXX="clang++ `+SysrootCXX+`"`,
 	)
 	if shimDir != "" {
 		out = append(out,
@@ -305,7 +305,7 @@ func sysrootPreamble(shimDir string) []string {
 		)
 	}
 	out = append(out,
-		`  echo "test sandbox: no system libc, compiling against ${ZBK_GLIBC_PREFIX}" >&2`,
+		`  echo "test sandbox: no system libc, compiling against ${ZPKB_GLIBC_PREFIX}" >&2`,
 		`fi`,
 	)
 	return out

@@ -3,7 +3,7 @@ package build
 import (
 	"testing"
 
-	"github.com/go-zpkg/zbk/pantry"
+	"github.com/go-zpkg/zpkb/pantry"
 )
 
 // TestBuildDeps: build-time dependencies live under the free-form `build:`

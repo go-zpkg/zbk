@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // `provides:` comes in TWO shapes, and a reader that knows one of them

@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/logical"
-	"github.com/go-zpkg/zbk/moustache"
-	"github.com/go-zpkg/zbk/recipefile"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/logical"
+	"github.com/go-zpkg/zpkb/moustache"
+	"github.com/go-zpkg/zpkb/recipefile"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 var (
@@ -636,8 +636,8 @@ func ProvidedCommands(provides any, tgt target.Target) []string {
 // github.com/besser82/libxcrypt build-depends on perl.org, perl.org WAS in the
 // seed registry, and the build still died —
 //
-//	bk: the tool environment failed: pkgx +freedesktop.org/pkg-config~0.29 +perl.org
-//	pkgx: GET …/github.com/besser82/libxcrypt/linux/s390x/versions.txt: Not Found
+//	zpkb: the tool environment failed: zpkgx +freedesktop.org/pkg-config~0.29 +perl.org
+//	zpkgx: GET …/github.com/besser82/libxcrypt/linux/s390x/versions.txt: Not Found
 //
 // because perl's closure needs github.com/besser82/libxcrypt — the project
 // being built. OUR OVERLAY declares that edge for linux (upstream's perl.org

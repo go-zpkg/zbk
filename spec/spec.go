@@ -27,11 +27,11 @@
 // that moved on whitespace would be re-taken until it stopped meaning
 // anything.
 //
-// # WHY IT LIVES HERE AND NOT IN cmd/zbk
+// # WHY IT LIVES HERE AND NOT IN cmd/zpkb
 //
-// It was written for `zbk lock` and sat in `package main`, where the BUILD
+// It was written for `zpkb lock` and sat in `package main`, where the BUILD
 // could not reach it — so the factory shipped 42 756 bottles with no identity
-// at all while a correct one sat two directories away (go-zpkg/zbk#410). A
+// at all while a correct one sat two directories away (go-zpkg/zpkb#410). A
 // hash that only one command can compute is a hash the product does not have.
 package spec
 
@@ -42,8 +42,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 // Domains are the hash's first line, and two different questions must not
@@ -58,12 +58,12 @@ import (
 // would let a value computed for one be compared against the other, and the
 // comparison would be meaningless rather than wrong-looking.
 const (
-	// DomainLock is `zbk lock`'s. ⛔ THE STRING IS FROZEN: every lock file
+	// DomainLock is `zpkb lock`'s. ⛔ THE STRING IS FROZEN: every lock file
 	// ever written contains hashes computed under it, and `lock --check`
 	// compares them. Changing it invalidates every lock in existence.
 	DomainLock = "bk-lock-spec-hash v1"
 	// DomainBuild is the identity a bottle is built and published under.
-	DomainBuild = "zbk-build-spec-hash v1"
+	DomainBuild = "zpkb-build-spec-hash v1"
 )
 
 // Hash is a Merkle hash over a project AS RESOLVED: its platform, its name,

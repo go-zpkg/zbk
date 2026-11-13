@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/zbk/target"
+	"github.com/go-zpkg/zpkb/target"
 )
 
 func linuxHost() target.Target {
@@ -27,7 +27,11 @@ func TestWrapTestRunsThePackageInAnEmptySandbox(t *testing.T) {
 		`export ZPKG_DIR="/opt/pkgx"`,
 		`export TMPDIR="$HOME/tmp"; mkdir -p "$TMPDIR"`,
 		`__bk_deps_env="$(CLICOLOR_FORCE=1 /opt/pkgx/bin/pkgx "+gnu.org/gawk@5.4.1" "+gnu.org/diffutils")" || {`,
-		`bk: the test environment failed`,
+		// ⛔ THIS ASSERTION WAS STALE AND PASSED ANYWAY. It read `bk: …` from
+		// before the bk→zbk rename, and kept matching because "zbk" CONTAINS
+		// "bk" — a substring assertion cannot tell the two apart. Renaming to
+		// zpkb broke the coincidence and exposed it.
+		`zpkb: the test environment failed`,
 		`export ZPKGX="/opt/pkgx/bin/pkgx"`,
 		`cd "/bk/testbed"`,
 		"gawk --version | grep 5.4.1",
@@ -334,9 +338,9 @@ func TestATestThatCallsCcByNameGetsTheShims(t *testing.T) {
 	if !strings.Contains(got, `export PATH="/box.shims":"$PATH"`) {
 		t.Error("the shim dir is appended rather than prepended")
 	}
-	// The flags live in ZBK_CC, which is what the shim re-execs — one place,
+	// The flags live in ZPKB_CC, which is what the shim re-execs — one place,
 	// so no invocation gets the sysroot twice.
-	for _, want := range []string{`export ZBK_CC="clang --sysroot=`, `export ZBK_CXX="clang++ `} {
+	for _, want := range []string{`export ZPKB_CC="clang --sysroot=`, `export ZPKB_CXX="clang++ `} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the shims have nothing to re-exec: %q missing", want)
 		}
@@ -368,13 +372,13 @@ func TestWithoutAShimDirTheFlagsGoBackIntoCC(t *testing.T) {
 	}
 }
 
-// clang and clang++ must NOT be shimmed: $ZBK_CC's driver IS clang, so a shim
+// clang and clang++ must NOT be shimmed: $ZPKB_CC's driver IS clang, so a shim
 // of that name would re-exec itself forever. This is the test that keeps
 // somebody from "completing" the list.
 // clang IS shimmed now, and this test replaces the one that asserted the
 // opposite.
 //
-// The old test said: "$ZBK_CC starts with clang, so a shim of that name is
+// The old test said: "$ZPKB_CC starts with clang, so a shim of that name is
 // an exec loop" — true, and the reason the two names were left out. The
 // cost of leaving them out was then measured: 77 pantry recipes set CC or
 // CXX in an `env:` block, mostly to the bare words, and a recipe's env is

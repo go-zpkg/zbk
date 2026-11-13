@@ -1,6 +1,6 @@
-# zbk — a pure-Go brewkit
+# zpkb — a pure-Go brewkit
 
-`zbk` is a `CGO_ENABLED=0` build tool written from scratch in Go. It reads a
+`zpkb` is a `CGO_ENABLED=0` build tool written from scratch in Go. It reads a
 recipe, builds the package in a zpkgx environment, relocates the install tree,
 and packages a bottle.
 
@@ -19,26 +19,26 @@ still read, tried second, and is on its way out with the rest of the pkgx
 compatibility — see [the pantry question](https://github.com/go-zpkg/packages/issues/431).
 
 A *native* build tool — brewkit among them — pivots on the host it runs on
-being the thing it builds for. `zbk` is **Target ≠ Host by design**: the
+being the thing it builds for. `zpkb` is **Target ≠ Host by design**: the
 build target (platform/arch/triple) is a first-class value, so cross-compilation —
 notably **Windows PE bottles built on a linux/darwin host** — is a supported path
 rather than a retrofit.
 
-## Verifying a downloaded `zbk`
+## Verifying a downloaded `zpkb`
 
 ⛔ **`SHA256SUMS` is a checksum of itself.** It says the binaries on a
-[release](https://github.com/go-zpkg/zbk/releases) match a manifest published
+[release](https://github.com/go-zpkg/zpkb/releases) match a manifest published
 beside them, and whoever replaced the binaries would replace the manifest.
 The half that cannot be forged from the release page is GitHub's **provenance
 attestation** — signed through Sigstore, saying that this repository's release
 workflow built that file from that commit:
 
 ```sh
-gh attestation verify -R go-zpkg/zbk zbk-linux-amd64
+gh attestation verify -R go-zpkg/zpkb zpkb-linux-amd64
 ```
 
 It matters more here than for the other binaries in this organisation:
-`zbk factory` is what signs and publishes every bottle, and a `zbk lock`
+`zpkb factory` is what signs and publishes every bottle, and a `zpkb lock`
 records the version of the binary that wrote it. Every file of a release
 published after 2026-10-20 carries an attestation; earlier ones carry none,
 and `gh attestation verify` answers `HTTP 404` for those rather than failing
@@ -46,7 +46,7 @@ closed, so a 404 on an older binary means *unattested*, not *tampered with*.
 
 ## Status
 
-In production: `zbk factory` is what fills
+In production: `zpkb factory` is what fills
 [`ghcr.io/go-zpkg/packages`](https://github.com/orgs/go-zpkg/packages) —
 **1585 projects, 42 746 signed (project, os, arch, version) bottles** as of
 2026-10-04 17:00 UTC+2 — linux/aarch64 15 136, linux/x86-64 13 255,
@@ -54,7 +54,7 @@ darwin/x86-64 7 113, darwin/aarch64 6 649, windows/x86-64 554, and
 **linux/s390x 39**, an architecture being brought up now.
 
 It is a moving target, and more literally than that phrasing suggests: the
-same `zbk builder --dry-run --platform linux/s390x` reported 25 of 25 toolchain
+same `zpkb builder --dry-run --platform linux/s390x` reported 25 of 25 toolchain
 roots unresolvable at 11:45 and 21 of 25 at 17:03 the same day, because
 another session was publishing while this was measured. A registry count is
 dated to the HOUR. Re-measure it rather than trusting this line: `go run
@@ -66,7 +66,7 @@ The packages, all at 100% statement coverage (`go test ./... -coverprofile` + `g
 
 | package  | what it does |
 |----------|--------------|
-| `target` | the single source of truth for the build **target** vs the **host** (`ZBK_TARGET` / `--platform`), incl. the llvm-mingw Windows cross triples and the `wasip1/wasm` target (`wasm32-wasip1`; no POSIX relocation; `wasm` is an arch of `wasip1` only). C/C++ for wasip1 uses our own toolchain from source — the `llvm.org` bottle's clang/wasm-ld, the `github.com/WebAssembly/wasi-libc` sysroot and the `compiler-rt.llvm.org/wasi` builtins — imposed through `$ZBK_CC`/`$ZBK_CXX` (`clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1`), which the cc/gcc/clang shims re-exec; `AR`/`RANLIB`/`NM`/`STRIP` are the LLVM ones, and recipes pass `--host={{hw.target}}` (= `wasm32-wasip1`) to configure |
+| `target` | the single source of truth for the build **target** vs the **host** (`ZPKB_TARGET` / `--platform`), incl. the llvm-mingw Windows cross triples and the `wasip1/wasm` target (`wasm32-wasip1`; no POSIX relocation; `wasm` is an arch of `wasip1` only). C/C++ for wasip1 uses our own toolchain from source — the `llvm.org` bottle's clang/wasm-ld, the `github.com/WebAssembly/wasi-libc` sysroot and the `compiler-rt.llvm.org/wasi` builtins — imposed through `$ZPKB_CC`/`$ZPKB_CXX` (`clang --target=wasm32-wasip1 --sysroot=… -resource-dir=… -mcpu=lime1`), which the cc/gcc/clang shims re-exec; `AR`/`RANLIB`/`NM`/`STRIP` are the LLVM ones, and recipes pass `--host={{hw.target}}` (= `wasm32-wasip1`) to configure |
 | `config` | the build workspace layout, keyed on the target so a cross build never collides with a native one |
 | `schema` | ⛔ **Being retired with the rest of the pkgx compatibility.** A JSON Schema for `package.yml`, derived from libpkgx's parser and exercised against `pkgxdev/pantry` — 1890 recipes, 0 rejections. That number says the parser accepts what **pkgx** writes; it says nothing about our own recipes, and it is their corpus rather than ours. `package.hcl` has its own schema (`pantry/hcl`), which is the one this project keeps. |
 | `pantry` | parses + schema-validates a `package.yml` into a shared `Recipe` |
@@ -83,12 +83,12 @@ The packages, all at 100% statement coverage (`go test ./... -coverprofile` + `g
 | `httpretry` | which failed HTTP attempts are worth repeating. Measured on one 23-failure batch, **eleven** were transient HTTP and nothing else — a factory that gives a flaky host exactly one chance reports its own bad luck as a broken recipe |
 | `useragent` | the one User-Agent every HTTP path in bk sends. It exists because they differed: `versions` set one and `fetch` did not, so bk could LIST a project's versions and then get 403 downloading the tarball it had just found |
 | `versions` | resolves a project's upstream version from the recipe's `versions:` spec — deliberately distinct from what pkgx's dist advertises, which normalises versions the recipe's own source URL does not have |
-| `cmd/zbk` | forty subcommands. The pipeline: `build`, `test`, `publish`, `factory`, `builder`, `source`, `sourcepin` — the last one prints the `sha256` a recipe should pin, fetched with **the builder's own fetcher** rather than with `curl` and `shasum`, because every other distribution computes that digest with a tool its build does not run and so never meets the host quirk the build will. It was written the day GitHub's release CDN answered 504 and `curl -sSL | shasum` produced a perfectly plausible digest of a 92-byte error page. `--sig <url>|auto --key <file> --key-source <text>` adds the other half: **who** produced those bytes. A digest pins them, it does not say who made them. Measured over `pkgxdev/pantry` at `4eb778f`, with the builder's own loader counting the recipes: **1932 recipes, of which 1 names a `sha:`** (openssl.org), **1 a `sha256:`** (github.com/Virviil/oci2git) **and 3 a `sig:`** (ffmpeg.org, libuv.org, openssl.org — a fourth sits in haskell.org's `package.yml-from-source`, which is not a filename the loader reads). ⛔ go-zpkg/zbk#282 says "1 recipe of 904" and "the one `sig:`"; the denominator was an older pantry and the `sig:` count was wrong, which is why this paragraph names the files rather than repeating a total. The check happens **when the digest is recorded**, not at every build — which is Guix's division, read from its own manual: its `origin` record has no signature field, because `guix refresh` does the checking, and the hash is then the durable pin. Verifying at every build instead would need the signature *and* the key reachable forever, from inside a sandbox, for every consumer. Two deliberate divergences from the four systems that do this at all (Gentoo's `verify-sig`, Arch's `validpgpkeys`, Debian's `Pgp-Mode:`, Guix's `guix refresh`): **no keyserver is ever asked** — Guix's `--key-download` defaults to `auto`, documented as `interactive` on a TTY and *"else `always`"*, so in CI an unknown key is fetched and accepted and the check degrades to "somebody signed it" — and **`--key-source` is mandatory**, because not one of the four records where a fingerprint came from. Debian's `uscan(1)` is the most explicit and it is an instruction rather than a procedure: *"You must verify the downloaded OpenPGP key using its full fingerprint value which you know is the trusted one."* Which you know. `sourcepin` prints a `provenance` block naming the fingerprint, the identity, the signature URL that actually answered, and where the author's trust in that key came from. ⛔ `--fingerprint` is the third divergence, and it came from running the thing: `https://ftp.gnu.org/gnu/gnu-keyring.gpg` is **3 700 423 bytes and holds every GNU maintainer's key**, so `--key` pointed at it alone would answer *"somebody in that file signed it"* — exactly the degradation criticised above. Naming the fingerprint is Arch's `validpgpkeys` semantics, stated in `PKGBUILD(5)`: makepkg "will only accept signatures from the keys listed here and **will ignore the trust values from the keyring**". It is compared on the primary key with spaces and colons ignored, because that is how `gpg --fingerprint` prints one; and the output always says how many keys the file held, so an author can see whether they passed a choice or a set. Two further measurements shaped the code: that keyring **cannot be read whole** by `ProtonMail/go-crypto` (`Cannot have multiple embedded signatures` — one entity in a thirty-year archive, and `ReadKeyRing` returns nothing at all), so naming a fingerprint also *rescues* such a file by reading only that key — 326 primary keys walked to reach gzip's; and `gpg --keyring` is **silently ignored** on a host using `keyboxd`, exiting 0 having exported nothing, which is why the extraction is done in Go rather than shelled out. Whether two builds AGREE: `reproduce` — it compares two bottles entry by entry and classes what differs, because "the digests differ" is the start of an afternoon with two tarballs rather than a finding. It exists because the question was asked once by hand, on 2026-09-29, and found one: zlib.net 1.3.2 built on the s390x seed VM before and after it was replaced had every file byte-identical and its directories 0755 against 0775 — the two hosts' umasks. Whether a second builder VOUCHES: `sign` — it attaches your signature to a bottle somebody else published, after checking your rebuild produced the same bytes, and refuses when it did not. Republishing a bottle VERBATIM, which is what a mirror does: `copy` — it moves published bottles from one OCI namespace to another with their signatures and attestations, digests unchanged. ⛔⛔ **It is NOT how a registry namespace is moved,** and it was written believing it was. GitHub's container packages are org-scoped and did not follow the repository transfer — every repository went from `go-pkgx` to `go-zpkg` and every bottle stayed — so the new namespace has to be *populated*; but it is populated by **building correct recipes into it**, not by transplanting bottles that were built from recipes this project has established it can neither read nor copy (go-zpkg/packages#431 measured 2453 upstream files with no `LICENSE` and no `COPYING`; go-zpkg/packages#440 carries the corrected order). Copying them forward would carry their measured defects by digest, and `.github/workflows/wasip1.yml:201` in the packages repository states the rest: *"Nothing in go-pkgx carries a build identity — it predates them."* What is left for this verb is the case where republishing verbatim is the point — a mirror (`go-zpkg/mirror`; `mirroraudit` opens with "A mirrored bottle is republished verbatim"). It is a copy and not a re-sign because verification is digest-bound: `payloadCommitsTo` checks `critical.image.docker-manifest-digest` against `sha256(tarball)` and nothing about where the bottle lives. ⛔ It **verifies at the destination by default**, because "the bytes arrived" is not the question: a cosign signature is a *referrer* of a platform manifest rather than a child of it, and `oras.ExtendedCopy` from a version tag resolves an INDEX — already a root, so no predecessors are collected and the signature of a child is never seen. `bottle.CopyPublished` was written with exactly that defect and its test caught it: a byte-identical bottle at the destination answering `unsigned (no signature referrer)`. So each platform manifest is copied by digest first, which makes its signature a root; a copy into the namespace it came from is refused outright, since "copied, nothing moved" is how an empty destination passes for a full one. What a recipe set SAYS: `target`, `versions`, `closure`, `lock`, `catalog`, `tools`, `overrides`, `tohcl`, `version`, `buildenv`, `origin`, `vulnid`, `advisories`, `vulnfetch`, `attest`, `eol`. What it gets WRONG: `depgaps`, `depsplit`, `undeclared`, `unlinked`, `unresolved`, `provides`, `lint`, `weather`, `sonames`, `runlog`, `bakedpaths`. ⛔⛔ `bakedpaths` reads a built tree's BYTES and refuses three things, and the reason it reads bytes rather than build inputs is that the previous attempt at this check was a `grep -n AC_PATH_PROG configure.ac` run before writing a recipe — which prints **nothing** on `gnu.org/findutils`, whose `AC_PATH_PROG([SORT],[sort])` is in `m4/nullsort.m4`, reached from `configure.ac` by one word. A check scoped to one file cannot see a macro search path, and a clean result from it reads exactly like an absence; a tree cannot be wrong about its own contents. It refuses **another project's versioned store path** (`<store>/<project>/v<ver>`, go-zpkg/zbk#397 — stale the day that project is rebuilt) and **any reference to a `+brewing` staging tree** (go-zpkg/zbk#152 — a directory that does not exist once the bottle is installed, and the one rule with no `--allow`, since there is no tree in which it is the intent). The third is a **census and not yet a refusal**: absolute paths outside the store, counted per path, in files that run things. ⭐ Every rule came from a bottle that was READ rather than from a prediction, and the first version of the check — which looked only for the store-path shape the two recipes predicted — passed all three measured instances. Run over `~/.pkgx` on 2026-11-09: `gnu.org/findutils` v4.10.0 is **refused** on four staging references, among them `: ${LIBEXECDIR=/opt/gnu.org/findutils/v4.10.0+brewing/libexec}` in `bin/updatedb`, so that script cannot find its own `frcode`; `gnu.org/libtool` v2.5.4 is **refused** on `lib/libltdl.la`, and its census independently rediscovers the `/Users/builder/actions-runner/_work/_actions/pkgxdev/brewkit/v1/libexec/sed` baked into `bin/libtool` 11× — the defect `fix/libtool-baked-tool-paths` was opened for, in the darwin spelling rather than that branch's `/__w/…` one; and `gnu.org/diffutils` v3.12.0 passes both refusals while its census names `/usr/bin/pr` in `bin/diff` once, which is `AC_PATH_PROG([PR_PROGRAM],[pr])`'s value — the build host's `pr`, compiled in beside the string `pagination not supported on this host`. ⛔ That one was invisible at first because the census is **ranked by count** and truncated at ten: the builder's own object-file paths occur 147× and the baked tool path once, so `--census-limit 0` exists because "not shown" had become "not found". The same census is how the leak in go-zpkg/zbk#395 reads from outside: **208 references** to `/Users/builder/actions-runner/_work/pantry/pantry/builds/gnu.org__findutils-4.10.0/…` inside `bin/find`, naming the builder's account in a published binary. Build-time shims a recipe invokes rather than a person: `fixup`, `libtool`, `bkpyvenv`. `bkpyvenv seal` — and the two older `python-venv.{sh,py}` shims beside it — used to finish by writing a **launcher script** into the bottle; all three now install `cmd/venvlaunch` instead, and relativise the venv's interpreter symlink so that nothing has to be repaired at run time. It is looked for **on `PATH` first, then beside the running `zbk`**, and that order is the correctness argument rather than a preference: only `PATH` can hold the *target's* launcher under a cross build, while the one beside `zbk` came out of the same release matrix and so is the *host's* — right for every native build, which is what a venv built by running the packaged python always is. The fallback is what lets this improve every python-venv recipe at once instead of after a campaign to edit each one. That deleted the last three verbatim copies of `pkgxdev/brewkit` in this repository, which matters twice: brewkit declares no licence at all, so a published `zbk` was redistributing somebody else's expression without a grant, and one of the three rewrote the venv's shebangs with `sed` on **every invocation of every packaged tool** — three dependencies (`sh`, `sed`, a writable bottle) that a sealed, signed bottle should not have. `zbk tools` is worth singling out: it reports which external commands a recipe set invokes, parsed rather than grepped, and `--scope build\|test\|all` separates two surfaces that disagree — a build's is what the IMAGE must hold, a test's is what the package's own acceptance check needs, and **260 tests call a compiler where 6 declare one**. `zbk lint` is the other: `--require-provenance` asks whether a recipe of ours records which of the project's OWN files its build was written from, and `--require-standalone` asks the prior question — whether it is a recipe at all, or an amendment that resolves only because another tree is merged underneath it. Over the three trees that hold recipes of ours, **30 of 227 stand alone**; the rest are overlay fragments, correct as overlay entries and unusable as a pantry. `--subdir` exists because 14 of those recipes are not kept under `projects/` and so could not be reached at all. `--max-fragments N` is the ratchet that lets the check be switched on before the work is finished: more than `N` fails as a regression and **fewer than `N` fails too**, because a ceiling nobody lowers stops describing the tree and a regression then hides in the slack. |
+| `cmd/zpkb` | forty subcommands. The pipeline: `build`, `test`, `publish`, `factory`, `builder`, `source`, `sourcepin` — the last one prints the `sha256` a recipe should pin, fetched with **the builder's own fetcher** rather than with `curl` and `shasum`, because every other distribution computes that digest with a tool its build does not run and so never meets the host quirk the build will. It was written the day GitHub's release CDN answered 504 and `curl -sSL | shasum` produced a perfectly plausible digest of a 92-byte error page. `--sig <url>|auto --key <file> --key-source <text>` adds the other half: **who** produced those bytes. A digest pins them, it does not say who made them. Measured over `pkgxdev/pantry` at `4eb778f`, with the builder's own loader counting the recipes: **1932 recipes, of which 1 names a `sha:`** (openssl.org), **1 a `sha256:`** (github.com/Virviil/oci2git) **and 3 a `sig:`** (ffmpeg.org, libuv.org, openssl.org — a fourth sits in haskell.org's `package.yml-from-source`, which is not a filename the loader reads). ⛔ go-zpkg/zpkb#282 says "1 recipe of 904" and "the one `sig:`"; the denominator was an older pantry and the `sig:` count was wrong, which is why this paragraph names the files rather than repeating a total. The check happens **when the digest is recorded**, not at every build — which is Guix's division, read from its own manual: its `origin` record has no signature field, because `guix refresh` does the checking, and the hash is then the durable pin. Verifying at every build instead would need the signature *and* the key reachable forever, from inside a sandbox, for every consumer. Two deliberate divergences from the four systems that do this at all (Gentoo's `verify-sig`, Arch's `validpgpkeys`, Debian's `Pgp-Mode:`, Guix's `guix refresh`): **no keyserver is ever asked** — Guix's `--key-download` defaults to `auto`, documented as `interactive` on a TTY and *"else `always`"*, so in CI an unknown key is fetched and accepted and the check degrades to "somebody signed it" — and **`--key-source` is mandatory**, because not one of the four records where a fingerprint came from. Debian's `uscan(1)` is the most explicit and it is an instruction rather than a procedure: *"You must verify the downloaded OpenPGP key using its full fingerprint value which you know is the trusted one."* Which you know. `sourcepin` prints a `provenance` block naming the fingerprint, the identity, the signature URL that actually answered, and where the author's trust in that key came from. ⛔ `--fingerprint` is the third divergence, and it came from running the thing: `https://ftp.gnu.org/gnu/gnu-keyring.gpg` is **3 700 423 bytes and holds every GNU maintainer's key**, so `--key` pointed at it alone would answer *"somebody in that file signed it"* — exactly the degradation criticised above. Naming the fingerprint is Arch's `validpgpkeys` semantics, stated in `PKGBUILD(5)`: makepkg "will only accept signatures from the keys listed here and **will ignore the trust values from the keyring**". It is compared on the primary key with spaces and colons ignored, because that is how `gpg --fingerprint` prints one; and the output always says how many keys the file held, so an author can see whether they passed a choice or a set. Two further measurements shaped the code: that keyring **cannot be read whole** by `ProtonMail/go-crypto` (`Cannot have multiple embedded signatures` — one entity in a thirty-year archive, and `ReadKeyRing` returns nothing at all), so naming a fingerprint also *rescues* such a file by reading only that key — 326 primary keys walked to reach gzip's; and `gpg --keyring` is **silently ignored** on a host using `keyboxd`, exiting 0 having exported nothing, which is why the extraction is done in Go rather than shelled out. Whether two builds AGREE: `reproduce` — it compares two bottles entry by entry and classes what differs, because "the digests differ" is the start of an afternoon with two tarballs rather than a finding. It exists because the question was asked once by hand, on 2026-09-29, and found one: zlib.net 1.3.2 built on the s390x seed VM before and after it was replaced had every file byte-identical and its directories 0755 against 0775 — the two hosts' umasks. Whether a second builder VOUCHES: `sign` — it attaches your signature to a bottle somebody else published, after checking your rebuild produced the same bytes, and refuses when it did not. Republishing a bottle VERBATIM, which is what a mirror does: `copy` — it moves published bottles from one OCI namespace to another with their signatures and attestations, digests unchanged. ⛔⛔ **It is NOT how a registry namespace is moved,** and it was written believing it was. GitHub's container packages are org-scoped and did not follow the repository transfer — every repository went from `go-pkgx` to `go-zpkg` and every bottle stayed — so the new namespace has to be *populated*; but it is populated by **building correct recipes into it**, not by transplanting bottles that were built from recipes this project has established it can neither read nor copy (go-zpkg/packages#431 measured 2453 upstream files with no `LICENSE` and no `COPYING`; go-zpkg/packages#440 carries the corrected order). Copying them forward would carry their measured defects by digest, and `.github/workflows/wasip1.yml:201` in the packages repository states the rest: *"Nothing in go-pkgx carries a build identity — it predates them."* What is left for this verb is the case where republishing verbatim is the point — a mirror (`go-zpkg/mirror`; `mirroraudit` opens with "A mirrored bottle is republished verbatim"). It is a copy and not a re-sign because verification is digest-bound: `payloadCommitsTo` checks `critical.image.docker-manifest-digest` against `sha256(tarball)` and nothing about where the bottle lives. ⛔ It **verifies at the destination by default**, because "the bytes arrived" is not the question: a cosign signature is a *referrer* of a platform manifest rather than a child of it, and `oras.ExtendedCopy` from a version tag resolves an INDEX — already a root, so no predecessors are collected and the signature of a child is never seen. `bottle.CopyPublished` was written with exactly that defect and its test caught it: a byte-identical bottle at the destination answering `unsigned (no signature referrer)`. So each platform manifest is copied by digest first, which makes its signature a root; a copy into the namespace it came from is refused outright, since "copied, nothing moved" is how an empty destination passes for a full one. What a recipe set SAYS: `target`, `versions`, `closure`, `lock`, `catalog`, `tools`, `overrides`, `tohcl`, `version`, `buildenv`, `origin`, `vulnid`, `advisories`, `vulnfetch`, `attest`, `eol`. What it gets WRONG: `depgaps`, `depsplit`, `undeclared`, `unlinked`, `unresolved`, `provides`, `lint`, `weather`, `sonames`, `runlog`, `bakedpaths`. ⛔⛔ `bakedpaths` reads a built tree's BYTES and refuses three things, and the reason it reads bytes rather than build inputs is that the previous attempt at this check was a `grep -n AC_PATH_PROG configure.ac` run before writing a recipe — which prints **nothing** on `gnu.org/findutils`, whose `AC_PATH_PROG([SORT],[sort])` is in `m4/nullsort.m4`, reached from `configure.ac` by one word. A check scoped to one file cannot see a macro search path, and a clean result from it reads exactly like an absence; a tree cannot be wrong about its own contents. It refuses **another project's versioned store path** (`<store>/<project>/v<ver>`, go-zpkg/zpkb#397 — stale the day that project is rebuilt) and **any reference to a `+brewing` staging tree** (go-zpkg/zpkb#152 — a directory that does not exist once the bottle is installed, and the one rule with no `--allow`, since there is no tree in which it is the intent). The third is a **census and not yet a refusal**: absolute paths outside the store, counted per path, in files that run things. ⭐ Every rule came from a bottle that was READ rather than from a prediction, and the first version of the check — which looked only for the store-path shape the two recipes predicted — passed all three measured instances. Run over `~/.pkgx` on 2026-11-09: `gnu.org/findutils` v4.10.0 is **refused** on four staging references, among them `: ${LIBEXECDIR=/opt/gnu.org/findutils/v4.10.0+brewing/libexec}` in `bin/updatedb`, so that script cannot find its own `frcode`; `gnu.org/libtool` v2.5.4 is **refused** on `lib/libltdl.la`, and its census independently rediscovers the `/Users/builder/actions-runner/_work/_actions/pkgxdev/brewkit/v1/libexec/sed` baked into `bin/libtool` 11× — the defect `fix/libtool-baked-tool-paths` was opened for, in the darwin spelling rather than that branch's `/__w/…` one; and `gnu.org/diffutils` v3.12.0 passes both refusals while its census names `/usr/bin/pr` in `bin/diff` once, which is `AC_PATH_PROG([PR_PROGRAM],[pr])`'s value — the build host's `pr`, compiled in beside the string `pagination not supported on this host`. ⛔ That one was invisible at first because the census is **ranked by count** and truncated at ten: the builder's own object-file paths occur 147× and the baked tool path once, so `--census-limit 0` exists because "not shown" had become "not found". The same census is how the leak in go-zpkg/zpkb#395 reads from outside: **208 references** to `/Users/builder/actions-runner/_work/pantry/pantry/builds/gnu.org__findutils-4.10.0/…` inside `bin/find`, naming the builder's account in a published binary. Build-time shims a recipe invokes rather than a person: `fixup`, `libtool`, `bkpyvenv`. `bkpyvenv seal` — and the two older `python-venv.{sh,py}` shims beside it — used to finish by writing a **launcher script** into the bottle; all three now install `cmd/venvlaunch` instead, and relativise the venv's interpreter symlink so that nothing has to be repaired at run time. It is looked for **on `PATH` first, then beside the running `zpkb`**, and that order is the correctness argument rather than a preference: only `PATH` can hold the *target's* launcher under a cross build, while the one beside `zpkb` came out of the same release matrix and so is the *host's* — right for every native build, which is what a venv built by running the packaged python always is. The fallback is what lets this improve every python-venv recipe at once instead of after a campaign to edit each one. That deleted the last three verbatim copies of `pkgxdev/brewkit` in this repository, which matters twice: brewkit declares no licence at all, so a published `zpkb` was redistributing somebody else's expression without a grant, and one of the three rewrote the venv's shebangs with `sed` on **every invocation of every packaged tool** — three dependencies (`sh`, `sed`, a writable bottle) that a sealed, signed bottle should not have. `zpkb tools` is worth singling out: it reports which external commands a recipe set invokes, parsed rather than grepped, and `--scope build\|test\|all` separates two surfaces that disagree — a build's is what the IMAGE must hold, a test's is what the package's own acceptance check needs, and **260 tests call a compiler where 6 declare one**. `zpkb lint` is the other: `--require-provenance` asks whether a recipe of ours records which of the project's OWN files its build was written from, and `--require-standalone` asks the prior question — whether it is a recipe at all, or an amendment that resolves only because another tree is merged underneath it. Over the three trees that hold recipes of ours, **30 of 227 stand alone**; the rest are overlay fragments, correct as overlay entries and unusable as a pantry. `--subdir` exists because 14 of those recipes are not kept under `projects/` and so could not be reached at all. `--max-fragments N` is the ratchet that lets the check be switched on before the work is finished: more than `N` fails as a regression and **fewer than `N` fails too**, because a ceiling nobody lowers stops describing the tree and a regression then hides in the slack. |
 | `cmd/venvlaunch` | the entry point `bkpyvenv seal` installs as `$PREFIX/bin/<cmd>` for a Python application, and **a binary rather than a script because a script has no `$ORIGIN`**: the kernel resolves a shebang by ordinary path lookup, so a script cannot find anything relative to itself, while `os.Executable` can. It execs the venv's interpreter with the entry point as an *argument*, so the venv's own shebangs are never read — which is what removes the need for `/usr/bin/env`, for `env -S` (absent from busybox, so the old form could not start on Alpine), for a shell, and for rewriting every console script in the tree. `CGO_ENABLED=0` gives it no `PT_INTERP` and no `DT_NEEDED`, measured on linux/amd64, s390x and loong64, so it runs in a literally empty image where **1 513 of 1 870 installed scripts cannot**. **It writes nothing — not "little", nothing.** `seal` makes `venv/bin/python` a *relative* symlink into the store, the same way `@loader_path/../../..` already reaches the store root for an rpath, so a relocated store needs no repair at all: no lock, no temporary file, no `rename`, nothing for NFS to refuse and nothing for two hosts sharing a home to fight over, and every signature stays valid because nothing is rewritten. `pyvenv.cfg` is never touched either — measured: a venv with a stale `home` still resolves to the venv, so only the file's presence is load-bearing. |
 
-`zbk build` runs the whole pipeline — resolve version → fetch source → parse
+`zpkb build` runs the whole pipeline — resolve version → fetch source → parse
 recipe → dependency closure → generate + wrap the build script → run it in a
-sanitized env → fix-up → package a bottle. `zbk factory` drives that over a whole
+sanitized env → fix-up → package a bottle. `zpkb factory` drives that over a whole
 list of projects: it expands them to their topologically-ordered runtime-dependency
 closure, skips any `(project, version, platform)` already published, applies the
 overrides, and publishes each bottle signed with an SBOM and provenance. After
@@ -101,7 +101,7 @@ that does not work, so a gate would stop a run over a missing host config file.
 factory tests what it publishes once, and that is how a bottle which stopped
 working gets noticed afterwards.
 
-`zbk depsplit` finds the recipes that name ONE project in BOTH dependency
+`zpkb depsplit` finds the recipes that name ONE project in BOTH dependency
 lists with constraints that select DIFFERENT versions. The two lists are kept
 apart on purpose — the runtime list is the set a build LINKS against, the
 build list is the set it RUNS — and that is what lets qt build with
@@ -126,7 +126,7 @@ override, and an operator who finds a repaired defect in a defect list stops
 reading the list. A pair it prints is a **candidate**: harmful when the
 doubly-named project is linked, normal when it is a tool.
 
-`zbk test` runs a recipe's own `test:` block against the INSTALLED package, in an
+`zpkb test` runs a recipe's own `test:` block against the INSTALLED package, in an
 emptied sandbox holding that package, its `test.dependencies` and the recipe's
 own files (recipes name fixtures by bare relative name: `cc test.c -lz`) — and a
 compiler when the test's own script calls one, which 260 of them do. What it does
@@ -142,7 +142,7 @@ package, and a sweep that cannot tell the two apart files bugs for an outage.
 `--libc=zpkgx` retargets the compiler at the pkgx `gnu.org/glibc` bottle — its crt
 objects, its libc, its dynamic linker — instead of the build container's, so the
 output runs `FROM scratch`. `--glibc <version>` pins that sysroot to an exact
-glibc line, and `zbk builder` stages the sovereign rootfs itself: static Go
+glibc line, and `zpkb builder` stages the sovereign rootfs itself: static Go
 binaries plus toolchain bottles from the signed registry, nothing else.
 
 [`docs/from-scratch-toolchain.md`](docs/from-scratch-toolchain.md) is the design
@@ -150,7 +150,7 @@ note behind it, kept because its hazard list is still the one that bites.
 
 ⛔ **A tool that does not go through the compiler driver sees none of this.**
 The sysroot, the `-isystem` dirs and the runtime choice reach a build through
-`cc` — the shim that re-execs `$ZBK_CC` — or through `$CC`. **bindgen** drives
+`cc` — the shim that re-execs `$ZPKB_CC` — or through `$CC`. **bindgen** drives
 libclang in-process instead, so a Rust crate that generates bindings got the
 container's idea of a libc, or none:
 
@@ -167,7 +167,7 @@ only, appended to whatever the recipe set. It is **not** exported outside
 sovereign mode, where an empty `--sysroot` would hide the host headers a
 build is entitled to use.
 
-A scratch tree has nothing underneath it, so `zbk builder` answers three
+A scratch tree has nothing underneath it, so `zpkb builder` answers three
 questions a build would otherwise answer hours later and attributed to the
 wrong thing:
 
@@ -194,7 +194,7 @@ The `package.yml` schema (`schema/package.schema.json`) doubles as editor
 autocompletion — add to a recipe:
 
 ```yaml
-# yaml-language-server: $schema=https://go-zpkg.github.io/zbk/package.schema.json
+# yaml-language-server: $schema=https://go-zpkg.github.io/zpkb/package.schema.json
 ```
 
 The same recipe in HCL2 (`package.hcl`) decodes to the identical `Recipe`:
@@ -239,7 +239,7 @@ members = {
 }
 ```
 
-`zbk closure go-zpkg/base-toolchain` resolves it. So does `zbk factory
+`zpkb closure go-zpkg/base-toolchain` resolves it. So does `zpkb factory
 --recipes go-zpkg/base-toolchain`, and so would anything else that takes a
 project name — a set is expanded **at the root**, before the dependency walk
 looks at it, so nothing downstream learns the word.
@@ -261,16 +261,16 @@ things for a package — rather than a second kind of artefact to keep in step.
 ### A set is UNORDERED, and that is the point
 
 All three of those manifests are. The order comes out of resolution, not out
-of the file, and `zbk closure` produces it from the dependency graph.
+of the file, and `zpkb closure` produces it from the dependency graph.
 
 Which is why **`seed/order.txt` is not a set and must not become one**. That
 file is a *build order*: inside a dependency cycle the topological order is a
-guess, and `order.txt` is the hand-tuned guess that works — `zbk closure
+guess, and `order.txt` is the hand-tuned guess that works — `zpkb closure
 --check-order` exists to judge it. `builder/toolchain.txt` is a different
 thing, an *install* list, where order carries nothing; that is the one that
 moved.
 
-### `zbk sign` — a second builder's word
+### `zpkb sign` — a second builder's word
 
 `reproduce` answers *are these two bottles the same bottle?* locally. `sign`
 is the half that makes the answer travel.
@@ -283,9 +283,9 @@ client counts how many distinct trusted keys it can verify
 (`ZPKG_TRUST_THRESHOLD`).
 
 ```
-$ zbk build …                                   # your own build
-$ zbk reproduce yours.tar.gz theirs.tar.gz      # do they agree?
-$ zbk sign -key you.sec -project fftw.org \
+$ zpkb build …                                   # your own build
+$ zpkb reproduce yours.tar.gz theirs.tar.gz      # do they agree?
+$ zpkb sign -key you.sec -project fftw.org \
     -version 3.3.11-h27o3ysxva6swayci yours.tar.gz
 signed fftw.org 3.3.11-h27o3ysxva6swayci (linux/x86-64) sha256:… with key 9f2c…
 add it to a client's trust set with:
@@ -308,7 +308,7 @@ written by whoever pushed it, and the line it would appear in — `signed by: �
 — is the one a reader uses to decide whether to trust the artefact. The name
 a user sees comes from their own trust set.
 
-### `zbk lock` — the concrete half
+### `zpkb lock` — the concrete half
 
 Guix's manual puts it plainly: *"to reproduce a profile bit-for-bit,
 manifests alone might not be enough"* — the same names resolve differently
@@ -317,17 +317,17 @@ beside it. Spack names the two halves: an environment from `spack.yaml` has
 *"the same root specs... may concretize differently"*, one from `spack.lock`
 has *"the same concrete specs"*.
 
-`members` is the abstract half. `zbk lock` is the concrete one:
+`members` is the abstract half. `zpkb lock` is the concrete one:
 
 ```
-$ zbk lock --platform linux/x86-64 -o base-toolchain.lock.hcl go-zpkg/base-toolchain
+$ zpkb lock --platform linux/x86-64 -o base-toolchain.lock.hcl go-zpkg/base-toolchain
 set: go-zpkg/base-toolchain names 25 member(s)
 lock: 41 project(s) pinned → base-toolchain.lock.hcl
 ```
 
 ```hcl
 lockfile_version = 1
-zbk               = "v0.7.0"
+zpkb               = "v0.7.0"
 platform         = "linux/x86-64"
 generated        = "2026-10-05T09:10:39Z"
 pantry           = "fd646990024e22f5752578cfdcfe2518b20c0797"
@@ -362,9 +362,9 @@ Two deliberate shapes:
 
 ### `-runnable` — build locks and run locks are different files
 
-`zbk lock` resolves each version from the recipe's `versions:` block, so it
+`zpkb lock` resolves each version from the recipe's `versions:` block, so it
 pins **what the recipes can build**. That is exactly right for
-`zbk factory --lock`, which is about to build them, and wrong for
+`zpkb factory --lock`, which is about to build them, and wrong for
 `zpkgx --lock`, which can only install what the factory has already
 **published**. The two run ahead of each other by construction.
 
@@ -372,11 +372,11 @@ Measured 2026-10-09, by generating a lock and running it in a `FROM scratch`
 container rather than by reading the code:
 
 ```
-$ zbk lock -platform linux/aarch64 -o curl.lock.hcl curl.se
-lock: 1 of 5 pin(s) NOT published for linux/aarch64 — `zbk factory --lock` can
+$ zpkb lock -platform linux/aarch64 -o curl.lock.hcl curl.se
+lock: 1 of 5 pin(s) NOT published for linux/aarch64 — `zpkb factory --lock` can
       build this file, `zpkgx --lock` cannot run it:
     curl.se/ca-certs             2026.09.25     (published here: 2026.8.13)
-    `zbk lock -runnable` pins what is published instead.
+    `zpkb lock -runnable` pins what is published instead.
 lock: 5 project(s) pinned → curl.lock.hcl
 ```
 
@@ -392,12 +392,12 @@ of this flag asked for `*`, pinned openssl 4.0.2 where `curl.se` demands
 could.
 
 The mode is written into the file as `pinned = "recipes" | "published"`,
-because `zbk lock --check` re-resolves — and re-resolving by the other
+because `zpkb lock --check` re-resolves — and re-resolving by the other
 question reports every pin as having moved.
 
 The verdict is printed **every time**, including when everything is fine:
 the defect being fixed was a silence, and a message that appears only on
-failure leaves the clean case looking exactly like a `zbk` that does not
+failure leaves the clean case looking exactly like a `zpkb` that does not
 check at all. It also refuses to endorse a lock with a **hole** in it: a
 project that could not be pinned at all leaves the remaining pins all
 installable and the file still not a closure.
@@ -472,7 +472,7 @@ io.github.go-zpkg.spec = {"v":1,"platform":"linux/x86-64","deps":[…],"recipe":
 `bottle.VerifySpec` recomputes the first from the second. That is what makes
 the identity checkable rather than merely asserted: a reader does not have to
 trust that the hash describes this build, it can recompute it. An identity
-hashed over inputs the bottle does not carry — which is what `zbk` briefly
+hashed over inputs the bottle does not carry — which is what `zpkb` briefly
 did — cannot be checked at all.
 
 It also settles a question Nix leaves open. A store path says *which* build
@@ -481,11 +481,11 @@ keeps the spec queryable (`spack find libdwarf +debug`) and conda writes its
 hash inputs to `info/hash_input.json`. Readability here is a tooling property,
 not a naming one.
 
-A bottle `zbk publish` only mirrored gets **neither**: no hash in the tag and no
+A bottle `zpkb publish` only mirrored gets **neither**: no hash in the tag and no
 annotation. We do not know how it was built, and a tag claiming an address
 would say we do.
 
-Because the tag is an address, `zbk factory`'s "already published?" check asks
+Because the tag is an address, `zpkb factory`'s "already published?" check asks
 about the **build**: it plans first — resolving the version and the closure,
 which is what the identity is a function of — and only then consults the
 registry. Asking about the bare version, which is what it did while a version
@@ -503,14 +503,14 @@ A default version is **not** a property of the store: it lives in a view
 builds while each user, environment or container rootfs computes its own links
 from it.
 
-### `zbk lock --check` — a lock nobody reads is a wish too
+### `zpkb lock --check` — a lock nobody reads is a wish too
 
 Cargo's `--locked` and npm's `ci` exist because a lock nobody verifies is a
 lock nobody can rely on: both refuse to run when the lock and a fresh
 resolution disagree.
 
 ```
-$ zbk lock --check base-toolchain.lock.hcl
+$ zpkb lock --check base-toolchain.lock.hcl
 lock: linux/x86-64 · 2026-10-05T09:10:39Z · 41 pinned, 2 hour(s) old · pinned from the recipes
 lock: pantry revision differs: fd64699… → 9ab12cd…
   gnu.org/binutils                   2.47 → 2.48
@@ -547,23 +547,23 @@ a `lockfile-version` and records which spack wrote it, and the compatibility
 rule that comes with it (new readers read old locks; old readers refuse new
 ones) is worth copying before it is needed rather than after.
 
-### `zbk version` — because a lock names a zbk you have to be able to find
+### `zpkb version` — because a lock names a zpkb you have to be able to find
 
-Every lock records which zbk wrote it:
+Every lock records which zpkb wrote it:
 
 ```hcl
-zbk = "v0.15.0"
+zpkb = "v0.15.0"
 ```
 
 Until now there was no way to ask a binary whether it was that one.
-`zbk --version` answered `flag provided but not defined: -version` and
-`zbk version` answered `unknown command: version`, so the question could only
+`zpkb --version` answered `flag provided but not defined: -version` and
+`zpkb version` answered `unknown command: version`, so the question could only
 be settled with `go version -m`, and only if you still had the binary rather
-than a `zbk` on your `PATH`.
+than a `zpkb` on your `PATH`.
 
 ```console
-$ zbk version
-zbk v0.15.0
+$ zpkb version
+zpkb v0.15.0
 ```
 
 Both spellings exist and are asserted to give the same answer, because two
@@ -581,7 +581,7 @@ with a tag they were not built from. This reads `debug.ReadBuildInfo`, so it
 cannot disagree with the binary it is in, and the release workflow checks it
 against the tag by equality alongside the build info of every binary it ships.
 
-### `zbk buildenv` — what a published bottle says it was built with
+### `zpkb buildenv` — what a published bottle says it was built with
 
 A rebuild for a toolchain vulnerability needs a **before**. When a Go patch
 release fixes a standard-library defect, nothing about the recipe or the
@@ -593,7 +593,7 @@ Until v0.17.0 it recorded nothing. Measured on the published
 `stedolan.github.io/jq`, whose **signed** SLSA statement carried:
 
 ```json
-"builder": { "id": "https://github.com/go-zpkg/zbk" },
+"builder": { "id": "https://github.com/go-zpkg/zpkb" },
 "buildDefinition": { "externalParameters": {}, "internalParameters": {} }
 ```
 
@@ -604,7 +604,7 @@ away.
 Now the provenance carries it, and this reads it back:
 
 ```console
-$ zbk buildenv --platform linux/aarch64 stedolan.github.io/jq 1.8.2
+$ zpkb buildenv --platform linux/aarch64 stedolan.github.io/jq 1.8.2
 github.com/kkos/oniguruma 6.9.10
 go.dev 1.27.2
 …
@@ -636,7 +636,7 @@ The operator's real question after a Go patch release is not "what was this
 built with" but **"which of these need rebuilding"**:
 
 ```console
-$ zbk buildenv --platform linux/aarch64 --needs go.dev@1.27.2 --list recipes.txt
+$ zpkb buildenv --platform linux/aarch64 --needs go.dev@1.27.2 --list recipes.txt
 STALE   acme.org/tool 1.2.3: go.dev 1.27.1, want >=1.27.2
 n/a     zlib.net 1.3.2: does not use go.dev
 ok      other.org 2.0.0: go.dev 1.27.2
@@ -679,7 +679,7 @@ registry said so, and anyone holding the old one kept it.
 `--rebuild` publishes such a build as the next **`_N`** instead:
 
 ```console
-$ zbk factory --platform darwin/aarch64 --recipes fftw.org --force --rebuild
+$ zpkb factory --platform darwin/aarch64 --recipes fftw.org --force --rebuild
 rebuild: fftw.org 3.3.11 is already published for darwin/aarch64 — publishing as 3.3.11_1
 ```
 
@@ -710,7 +710,7 @@ project carries a rebuild. That was weighed and accepted: it throws rather
 than resolving the wrong bottle, which is the better of the two failures. The
 alternatives are in bottle's README, with why each was rejected.
 
-### `zbk origin` — may this bottle be promoted?
+### `zpkb origin` — may this bottle be promoted?
 
 Bringing up an architecture from nothing needs two registries. The first
 generation takes its compiler and shell from the host distribution, because on
@@ -722,7 +722,7 @@ host's toolchain involved?*
 Measured 2026-11-01, the registry could not answer it:
 
 ```console
-$ zbk buildenv --platform linux/s390x lz4.org 1.10.0
+$ zpkb buildenv --platform linux/s390x lz4.org 1.10.0
 buildenv: lz4.org 1.10.0 (linux/s390x): the provenance records no build environment
 ```
 
@@ -734,7 +734,7 @@ situations, one silence, and a gate cannot read a silence.
 So the factory now states it, and this reads it back:
 
 ```console
-$ zbk origin --platform linux/s390x lz4.org 1.10.0
+$ zpkb origin --platform linux/s390x lz4.org 1.10.0
 lz4.org 1.10.0 linux/s390x
   host toolchain used: no — built from bottles
   inputs resolved from: oci://ghcr.io/go-zpkg/packages
@@ -744,7 +744,7 @@ lz4.org 1.10.0 linux/s390x
 provenance **proves** the host toolchain was not used.
 
 ```console
-$ zbk origin --platform linux/s390x --promotable lz4.org 1.10.0
+$ zpkb origin --platform linux/s390x --promotable lz4.org 1.10.0
 origin: lz4.org 1.10.0 (linux/s390x) is NOT promotable: its provenance does
 not say whether the host toolchain was used, and an unstated answer is not a "no"
 ```
@@ -764,13 +764,13 @@ answering the question.
 
 #### `--require-origin` — promoting, as opposed to copying
 
-`zbk factory --mirror-from` already copies a bottle from one dist and
+`zpkb factory --mirror-from` already copies a bottle from one dist and
 republishes it signed and attested. Adding `--require-origin` turns that into
 a **promotion**: every bottle is refused unless its *source* provenance proves
 the host toolchain was unused.
 
 ```console
-$ zbk factory --platform linux/s390x --mirror-from oci://127.0.0.1:5000/seed \
+$ zpkb factory --platform linux/s390x --mirror-from oci://127.0.0.1:5000/seed \
     --to oci://ghcr.io/go-zpkg/packages --require-origin --recipes "lz4.org"
 ❌ FAIL lz4.org 1.10.0: origin: not promotable: it was built with --bootstrap,
    so its compiler and shell came from the host distribution rather than from
@@ -805,7 +805,7 @@ can *verify* a digest but has no exported way to be *asked* for one, and a lock
 taken before anything is built has no output to name. The header of every lock
 says so, rather than letting a reader assume a guarantee that is not there.
 
-## `zbk unresolved` — can what we published actually load?
+## `zpkb unresolved` — can what we published actually load?
 
 It installs a project's closure into a store of its own and reports every
 reference the store cannot answer: an ELF names a **soname** and the
@@ -816,7 +816,7 @@ reference by accident — `gpgme`'s undeclared `libgpg-error` resolved for
 months because something else in the same closure happened to bring it.
 
 ```console
-zbk unresolved -platform linux/aarch64 gnu.org/bash curl.se
+zpkb unresolved -platform linux/aarch64 gnu.org/bash curl.se
 ```
 
 ⛔ **`-platform` exists because an audit that can only ask about its own
@@ -832,7 +832,7 @@ A half-parsed platform is refused before anything is fetched: resolved
 against an empty arch, every bottle is absent, every closure is empty, and
 the audit would report a flawless platform it never installed.
 
-## `zbk vulnid` — under what name does a CVE database know this package?
+## `zpkb vulnid` — under what name does a CVE database know this package?
 
 Rebuilding a bottle to fix a vulnerability needs a vulnerability to point at,
 and pointing at one needs a name both sides agree on. `pkg:pkgx/openssl.org@4.0.2`
@@ -843,10 +843,10 @@ NVD's CPE route answers for anything and answers badly — measured on
 upper bound at all.
 
 A recipe usually already names something better, in its `versions:` block.
-`zbk vulnid` reads it:
+`zpkb vulnid` reads it:
 
 ```
-$ zbk vulnid -dir ~/Library/Caches/pkgx/pantry
+$ zpkb vulnid -dir ~/Library/Caches/pkgx/pantry
 1563 recipe(s) read from …/pantry/projects
   declared  0
   derived   1241
@@ -863,7 +863,7 @@ Three sources, and they rank. **derived** costs nothing: it is read off the
 recipe's `versions:` block and off the project's own name. **declared** is an
 entry a person wrote in an identity table, and wins, because it exists only
 where the derivation was judged wrong or absent. **none** is the honest answer
-for the rest — `zbk vulnid -list none` names them, and they cluster on a handful
+for the rest — `zpkb vulnid -list none` names them, and they cluster on a handful
 of upstream hosts (`ftp.gnu.org`, `www.x.org`, `sourceforge`), so the table that
 fixes them is short.
 
@@ -929,32 +929,32 @@ Note also what is **not** in OSV's ecosystem list: `zpkgx`. It has `Homebrew`,
 `Alpine`, `Wolfi`, `Chainguard` and `vcpkg`. The long-term answer for this fleet
 is to become one of those rather than to keep translating into someone else's.
 
-### `zbk attest` — what a published bottle actually carries
+### `zpkb attest` — what a published bottle actually carries
 
 Four kinds of thing are attached to a bottle as OCI referrers. Nothing could be
 asked **which of them a given bottle has**.
 
 ```
-$ zbk attest --platform linux/x86-64 bitwarden.com 1.22.1
+$ zpkb attest --platform linux/x86-64 bitwarden.com 1.22.1
 bitwarden.com 1.22.1 linux/x86-64: 4 referrer(s)
   application/vnd.cyclonedx+json       3412 bytes  pkg:pkgx/bitwarden.com@1.22.1
-  application/vnd.in-toto+json         1890 bytes  https://github.com/go-zpkg/zbk@v0.26.0
+  application/vnd.in-toto+json         1890 bytes  https://github.com/go-zpkg/zpkb@v0.26.0
   application/vnd.openvex+json         1204 bytes  1 statement(s): MAL-2026-3020=not_affected
   application/vnd.dev.cosign…          …           signed
 ```
 
-That gap was not academic. `zbk publish --advisories` attaches the VEX document
+That gap was not academic. `zpkb publish --advisories` attaches the VEX document
 only when the tree holds a record for the project, and the factory passes the
 tree through six lanes — one of which **mounts it into a chroot**. Every one of
 those is a place the document can silently fail to appear, and a bottle with no
 document looks exactly like a bottle nobody had anything to say about.
-`zbk source` and `zbk buildenv` both *read* the provenance; neither **enumerates**.
+`zpkb source` and `zpkb buildenv` both *read* the provenance; neither **enumerates**.
 
 **`--require` turns the report into a gate**, which is the point: a report is
 what you read after something went wrong, a gate is what tells you.
 
 ```sh
-zbk attest --require application/vnd.openvex+json bitwarden.com 1.22.1
+zpkb attest --require application/vnd.openvex+json bitwarden.com 1.22.1
 ```
 
 Two details that are not decoration. The summary **reads the blob**, not the
@@ -964,7 +964,7 @@ cannot see, because the type *is* present. And the output is ordered by
 artifactType: a registry promises no order, and a report whose lines move
 between runs cannot be diffed.
 
-## `zbk advisories` — what the answer was, and what we decided
+## `zpkb advisories` — what the answer was, and what we decided
 
 Identity is half of it. The other half is the finding itself, and the record
 that **justifies a rebuild**: one file per project, at
@@ -1099,13 +1099,13 @@ for every product is only correct while every product is the same version.
 
 ### The path and the file must agree
 
-`zbk advisories` refuses a file whose `project:` disagrees with its directory. A
+`zpkb advisories` refuses a file whose `project:` disagrees with its directory. A
 file copied from a neighbouring project and edited in part would otherwise
 attach its findings to the wrong package, and nothing else in the record says
 which project it is about.
 
 ```
-$ zbk advisories -dir advisories
+$ zpkb advisories -dir advisories
 2 project(s) read from advisories, 3 advisory(ies)
   detection                    2
   true-positive-determination  0
@@ -1149,12 +1149,12 @@ bottle.
 ### The bottle carries its own justification
 
 ```
-zbk publish --to oci://ghcr.io/go-pkgx/packages --project openssl.org \
+zpkb publish --to oci://ghcr.io/go-pkgx/packages --project openssl.org \
            --version 3.5.8_1 --platform linux/x86-64 \
            --advisories ./advisories  openssl.org-3.5.8_1.tar.xz
 ```
 
-`zbk factory --advisories` takes the same flag and passes it to **every** publish
+`zpkb factory --advisories` takes the same flag and passes it to **every** publish
 it makes — the bottles it builds and the ones it mirrors, because what is known
 about a package is not a property of who compiled it.
 
@@ -1171,7 +1171,7 @@ advisories: 1 project(s) with records, from advisories
 
 The count is there because a run that loaded the tree and one pointed at the
 wrong path otherwise print the same thing — and an **empty** tree is an error,
-for the same reason `zbk advisories` makes it one.
+for the same reason `zpkb advisories` makes it one.
 
 With `--advisories`, the bottle gets a third referrer beside its CycloneDX SBOM
 and its in-toto SLSA provenance:
@@ -1179,7 +1179,7 @@ and its in-toto SLSA provenance:
 | referrer | says |
 |---|---|
 | `application/vnd.cyclonedx+json` | what is inside |
-| `application/vnd.in-toto+json` | how it was built, and by which `zbk` |
+| `application/vnd.in-toto+json` | how it was built, and by which `zpkb` |
 | `application/vnd.openvex+json` | which vulnerabilities were considered, and what was decided |
 
 This is what makes a rebuild **self-justifying**. Until now a bottle rebuilt
@@ -1204,10 +1204,10 @@ Three details earn their keep:
   is simply *absent* is fine and attaches nothing, because most projects have
   never been triaged.
 
-## `zbk vulnfetch` — asking a database, once
+## `zpkb vulnfetch` — asking a database, once
 
 ```
-$ zbk vulnfetch -dir ~/Library/Caches/pkgx/pantry
+$ zpkb vulnfetch -dir ~/Library/Caches/pkgx/pantry
 1563 recipe(s) read from …/pantry/projects
 129 identity(ies) asked, 1207 not answerable by OSV (repository- or CPE-keyed)
 55 finding(s) across 14 project(s)
@@ -1236,11 +1236,11 @@ before the version we ship. The two questions over the same pantry, the same
 run, on **2026-10-17**:
 
 ```
-$ zbk vulnfetch -dir pantry
+$ zpkb vulnfetch -dir pantry
 171 identity(ies) asked, 1500 not answerable by OSV (repository- or CPE-keyed)
 748 finding(s) across 21 project(s)
 
-$ zbk vulnfetch -dir pantry -catalog catalog/darwin-aarch64.json
+$ zpkb vulnfetch -dir pantry -catalog catalog/darwin-aarch64.json
 137 of them asked AT the version the catalogue publishes; the rest as a whole package
 171 identity(ies) asked, 1500 not answerable by OSV (repository- or CPE-keyed)
 90 finding(s) across 5 project(s)
@@ -1352,18 +1352,18 @@ hand-written record from being doubled on the next run.
 
 ## Where the source came from, and whether it changed
 
-`zbk` extracts tarballs from **233 distinct upstream hosts**, and in the
+`zpkb` extracts tarballs from **233 distinct upstream hosts**, and in the
 sovereign lane the build that consumes them runs as root inside a chroot. What
 checks that?
 
-Almost nothing, before this. `zbk` does verify a source checksum when a recipe
+Almost nothing, before this. `zpkb` does verify a source checksum when a recipe
 declares one — but measured over a fresh `pkgxdev/pantry`, exactly **one recipe
 of 904** declares one, and that one (`openssl.org`) points at a `.sha256`
 served by the *same host* as the tarball: it detects corruption, not
 substitution. ⛔ That is a measurement of **their** corpus, and it is cited
 here because it is what this project resolved from when the feature was
 written — not as a standard ours is held to. Ours is the opposite rule:
-`zbk lint --require-provenance` refuses a recipe of ours that records no
+`zpkb lint --require-provenance` refuses a recipe of ours that records no
 provenance, and `sourcepin` will not record a digest without naming who signed
 it. The same recipe declares `sig: ${{url}}.asc`, and nothing in bk
 reads that field at all.
@@ -1442,7 +1442,7 @@ architecture cannot stand in for a run that never happened. The same job holds
 the 100% statement-coverage gate: below it, CI prints the uncovered blocks and
 fails.
 
-## `zbk catalog`
+## `zpkb catalog`
 
 Builds the catalogue a browser (`zpkgx ls`, `<TAB>`) reads: every project named
 by the pantry and the overlay, with its runtime dependencies, and — with
@@ -1471,10 +1471,10 @@ set (the packages workflow does so for `wasip1/` alone). A tree that is not
 would now override the pantry for every project it shares; there is no merge
 mode, by design.
 
-## `zbk provides` — does the bottle say what the catalogue says?
+## `zpkb provides` — does the bottle say what the catalogue says?
 
 ```
-zbk provides --catalog catalog.json --platform wasip1/wasm [--fail] [project...]
+zpkb provides --catalog catalog.json --platform wasip1/wasm [--fail] [project...]
 ```
 
 Installs each project for `--platform` (every published project of the
@@ -1490,9 +1490,9 @@ because they are different failures:
 
 `--catalog` takes `catalog.json` or the catalogue bottle's `.tar.gz`. `--fail`
 exits 1 on any finding or on a project that could not be checked. It lives in
-`zbk` because it needs the catalogue types, the platform-explicit closure
-install and the same `provides` reduction `zbk catalog` applies; a workflow runs
-it right after `zbk catalog`. Found by running every published wasm module, not
+`zpkb` because it needs the catalogue types, the platform-explicit closure
+install and the same `provides` reduction `zpkb catalog` applies; a workflow runs
+it right after `zpkb catalog`. Found by running every published wasm module, not
 by comparing the two (go-zpkg/bk#376).
 
 ## License

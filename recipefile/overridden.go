@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/go-zpkg/bottle"
-	"github.com/go-zpkg/zbk/logical"
-	"github.com/go-zpkg/zbk/pantry"
+	"github.com/go-zpkg/zpkb/logical"
+	"github.com/go-zpkg/zpkb/pantry"
 	"gopkg.in/yaml.v3"
 )
 

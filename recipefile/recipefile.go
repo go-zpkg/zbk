@@ -20,8 +20,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/go-zpkg/zbk/pantry"
-	"github.com/go-zpkg/zbk/pantry/hcl"
+	"github.com/go-zpkg/zpkb/pantry"
+	"github.com/go-zpkg/zpkb/pantry/hcl"
 )
 
 // ErrNoRecipe is "this project has no recipe file here", which is not the same

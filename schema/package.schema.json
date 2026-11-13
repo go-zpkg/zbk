@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://go-zpkg.github.io/bk/package.schema.json",
   "title": "pkgx pantry package.yml",
-  "description": "Schema for a pantry package.yml recipe, derived from libpkgx's parser. Reused by go-zpkg/zbk to validate recipes (YAML and its HCL2 front-end). CLOSED at the root and in build, test, distributable and versions: an unknown key there is refused rather than ignored, because a key nothing implements used to validate and be dropped, which reads to anyone opening the recipe as a feature they have. Those five containers are closed because they were surveyed (schema/corpuskeys_test.go, ZBK_PANTRY_CORPUS); scriptStep, fixture, runtime and interprets are deliberately still open, not because they should be but because nobody has measured them yet. The object form of `provides` and the dep/env maps stay open by nature: their keys are project and platform names, not a fixed set.",
+  "description": "Schema for a pantry package.yml recipe, derived from libpkgx's parser. Reused by go-zpkg/zpkb to validate recipes (YAML and its HCL2 front-end). CLOSED at the root and in build, test, distributable and versions: an unknown key there is refused rather than ignored, because a key nothing implements used to validate and be dropped, which reads to anyone opening the recipe as a feature they have. Those five containers are closed because they were surveyed (schema/corpuskeys_test.go, ZPKB_PANTRY_CORPUS); scriptStep, fixture, runtime and interprets are deliberately still open, not because they should be but because nobody has measured them yet. The object form of `provides` and the dep/env maps stay open by nature: their keys are project and platform names, not a fixed set.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -97,7 +97,7 @@
     "description": { "type": "string" },
     "license": { "$ref": "#/$defs/stringOrArray" },
     "provenance": {
-      "description": "where this recipe's build came from: the files of the PROJECT ITSELF that were read to write it. No other packaging system records this, and ours must, because the recipes are written rather than converted — pkgxdev/pantry carries no licence, so it cannot seed ours (go-zpkg/packages#431). This is what makes \"ours\" checkable instead of asserted: `read` names the project's own configure, CMakeLists.txt, Makefile, INSTALL or README, and `note` says in one line what they said to do. It is enumerated here so it is no longer accepted and silently dropped; `zbk lint --require-provenance` is what makes it mandatory, per tree, because an upstream recipe has no reason to carry it.",
+      "description": "where this recipe's build came from: the files of the PROJECT ITSELF that were read to write it. No other packaging system records this, and ours must, because the recipes are written rather than converted — pkgxdev/pantry carries no licence, so it cannot seed ours (go-zpkg/packages#431). This is what makes \"ours\" checkable instead of asserted: `read` names the project's own configure, CMakeLists.txt, Makefile, INSTALL or README, and `note` says in one line what they said to do. It is enumerated here so it is no longer accepted and silently dropped; `zpkb lint --require-provenance` is what makes it mandatory, per tree, because an upstream recipe has no reason to carry it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["read"],
