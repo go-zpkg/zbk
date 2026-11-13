@@ -11,7 +11,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/go-regexp/engine v0.3.2
 	github.com/go-versions/semver v0.3.0
-	github.com/go-zpkg/artifact v0.87.0
+	github.com/go-zpkg/artifact v0.88.0
 	github.com/klauspost/compress v1.20.3
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
