@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
-// checkAdvisories is what turns a run lost on its fortieth bottle into a usage
+// checkAdvisories is what turns a run lost on its fortieth artifact into a usage
 // error, so each refusal is tested at the shape a factory would meet it in.
 func TestCheckAdvisories(t *testing.T) {
 	t.Run("a tree that is usable", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCheckAdvisories(t *testing.T) {
 
 	t.Run("an empty tree", func(t *testing.T) {
 		// ⛔ AN ERROR. A run that was TOLD where the records are and found
-		// none would publish every bottle with no document and look correct.
+		// none would publish every artifact with no document and look correct.
 		_, err := checkAdvisories(t.TempDir())
 		if err == nil || !strings.Contains(err.Error(), "the tree moved") {
 			t.Errorf("err = %v", err)
@@ -87,7 +87,7 @@ func TestCheckAdvisories(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
 		// NOT folded into "absent": a record we cannot open must stop the run
-		// rather than let every bottle publish with no document.
+		// rather than let every artifact publish with no document.
 		_, err := checkAdvisories(dir)
 		if err == nil || !strings.Contains(err.Error(), "advisories:") {
 			t.Errorf("err = %v", err)
@@ -149,9 +149,9 @@ func TestFactoryRefusesABrokenAdvisoryTreeUpFront(t *testing.T) {
 }
 
 // ⛔ THE TREE REACHES THE PUBLISH. This is the feature, and a mutation that
-// replaced `f.advisories` with "" on the way to publishBottle survived the
+// replaced `f.advisories` with "" on the way to publishArtifact survived the
 // whole suite before this existed: every other test asserted what was built
-// and where it went, and none asserted what the bottle would CARRY.
+// and where it went, and none asserted what the artifact would CARRY.
 func TestFactoryHandsTheAdvisoryTreeToEveryPublish(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "app.org", "dependencies:\n  lib.org: '*'\nversions:\n  github: a/app/tags\nbuild: make\n")
@@ -173,7 +173,7 @@ func TestFactoryHandsTheAdvisoryTreeToEveryPublish(t *testing.T) {
 	}
 }
 
-// And a MIRRORED bottle too. We did not build it, but we are the one
+// And a MIRRORED artifact too. We did not build it, but we are the one
 // republishing it signed, and what is known about a package is not a property
 // of who compiled it.
 func TestFactoryHandsTheAdvisoryTreeToAMirroredPublish(t *testing.T) {
@@ -181,11 +181,11 @@ func TestFactoryHandsTheAdvisoryTreeToAMirroredPublish(t *testing.T) {
 	tree := advisoryTree(t, map[string]string{"lib.org": file("lib.org", detected)})
 	prevDown, prevVers := factoryDownload, factoryUpstreamVersions
 	t.Cleanup(func() { factoryDownload, factoryUpstreamVersions = prevDown, prevVers })
-	factoryUpstreamVersions = func(string, string, string) ([]bottle.Ver, error) {
-		return []bottle.Ver{bottle.ParseVer("1.0")}, nil
+	factoryUpstreamVersions = func(string, string, string) ([]artifact.Ver, error) {
+		return []artifact.Ver{artifact.ParseVer("1.0")}, nil
 	}
 	factoryDownload = func(string, string, string, string) ([]byte, string, error) {
-		return []byte("bottle"), bottle.ExtTarXz, nil
+		return []byte("artifact"), artifact.ExtTarXz, nil
 	}
 
 	code := h.run(t, "--recipes", "lib.org", "--to", "oci://example.test/pkgs",
@@ -207,10 +207,10 @@ func TestFactoryHandsTheAdvisoryTreeToAMirroredPublish(t *testing.T) {
 //
 // Four of the factory's flags default to a path relative to the CURRENT
 // directory, which under `go test` is cmd/bk. Three of them had been given
-// temporary paths in the harness and `--bottles` had not, so a mirror test
+// temporary paths in the harness and `--artifacts` had not, so a mirror test
 // staged `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` and `git add -A`
 // committed it. This is the positive control: it runs the path that stages a
-// bottle and then asserts the repository is still clean.
+// artifact and then asserts the repository is still clean.
 func TestTheFactorySuiteCannotWriteIntoTheRepository(t *testing.T) {
 	for _, p := range []string{"dist", "tests.txt", "failures.txt", "failures-detail.txt"} {
 		if _, err := os.Stat(p); err == nil {
@@ -220,11 +220,11 @@ func TestTheFactorySuiteCannotWriteIntoTheRepository(t *testing.T) {
 	h := newFactoryHarness(t)
 	prevDown, prevVers := factoryDownload, factoryUpstreamVersions
 	t.Cleanup(func() { factoryDownload, factoryUpstreamVersions = prevDown, prevVers })
-	factoryUpstreamVersions = func(string, string, string) ([]bottle.Ver, error) {
-		return []bottle.Ver{bottle.ParseVer("1.0")}, nil
+	factoryUpstreamVersions = func(string, string, string) ([]artifact.Ver, error) {
+		return []artifact.Ver{artifact.ParseVer("1.0")}, nil
 	}
 	factoryDownload = func(string, string, string, string) ([]byte, string, error) {
-		return []byte("bottle"), bottle.ExtTarXz, nil
+		return []byte("artifact"), artifact.ExtTarXz, nil
 	}
 	if code := h.run(t, "--recipes", "lib.org", "--to", "oci://example.test/pkgs",
 		"--mirror-from", "https://dist.example.test"); code != 0 {

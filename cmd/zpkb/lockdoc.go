@@ -8,30 +8,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
 	"github.com/go-zpkg/zpkb/target"
 	"github.com/go-zpkg/zpkb/versions"
 )
 
-// lockedPin and lockDoc are bottle's types under the names this file has
+// lockedPin and lockDoc are artifact's types under the names this file has
 // always used.
 //
-// The FORMAT moved to bottle so that pkgx could read a lock at all: the
+// The FORMAT moved to artifact so that pkgx could read a lock at all: the
 // reader lived in this `package main`, which is importable by nothing, and
 // a lock only means something once something ELSE acts on it. The
 // RESOLUTION stays here, because deciding what a set means today needs a
 // pantry, an overrides set and a version resolver, none of which belong in
-// a bottle client.
+// an artifact client.
 //
 // Aliases rather than a rename, so this diff is the move and nothing else.
-type lockedPin = bottle.LockPin
-type lockDoc = bottle.Lock
+type lockedPin = artifact.LockPin
+type lockDoc = artifact.Lock
 
-// lockfileVersion is bottle's, so a bump cannot be made in one repository
+// lockfileVersion is artifact's, so a bump cannot be made in one repository
 // and missed in the other.
-const lockfileVersion = bottle.LockfileVersion
+const lockfileVersion = artifact.LockfileVersion
 
 // bkVersion is the module version of the running bk, which is what Spack
 // records for the same reason: a lock is evidence about a resolution, and the
@@ -114,17 +114,17 @@ func resolveLock(set *logical.Set, overlayDir, pantryDir string, tgt target.Targ
 	return pins, unresolved
 }
 
-// renderLock writes the lock, through bottle's one copy of the format.
-func renderLock(d lockDoc) string { return bottle.RenderLock(d) }
+// renderLock writes the lock, through artifact's one copy of the format.
+func renderLock(d lockDoc) string { return artifact.RenderLock(d) }
 
-// readLock parses a lock back, through BOTTLE's parser and through bk's own
+// readLock parses a lock back, through ARTIFACT's parser and through bk's own
 // file seam, so a test that stubs osReadFile still drives this path.
 func readLock(path string) (lockDoc, error) {
 	src, err := osReadFile(path)
 	if err != nil {
 		return lockDoc{}, err
 	}
-	return bottle.ParseLock(src, path)
+	return artifact.ParseLock(src, path)
 }
 
 // lockDrift is one disagreement between a lock and today.
@@ -171,8 +171,8 @@ func compareLock(was, now []lockedPin) []lockDrift {
 	return out
 }
 
-// lockAge says how old a lock is, in bottle's words.
-func lockAge(generated string, now time.Time) string { return bottle.LockAge(generated, now) }
+// lockAge says how old a lock is, in artifact's words.
+func lockAge(generated string, now time.Time) string { return artifact.LockAge(generated, now) }
 
 // checkLock re-resolves a lock's own roots and says what moved.
 //
@@ -224,11 +224,11 @@ func checkLock(want lockDoc, roots []string, pantryDir, overlayDir, overridesDir
 	// a report of movement that never happened. `--check` refuses re-stated
 	// roots and platform for the same reason, and takes the mode from the
 	// file just as it takes those.
-	mode := bottle.LockPinned(want)
+	mode := artifact.LockPinned(want)
 	for proj, c := range rootPins {
 		demands[proj] = append(demands[proj], c)
 	}
-	now, unresolved := resolveLock(lset, overlayDir, pantryDir, tgt, order, demands, read, mode == bottle.PinsPublished, rootPins)
+	now, unresolved := resolveLock(lset, overlayDir, pantryDir, tgt, order, demands, read, mode == artifact.PinsPublished, rootPins)
 
 	fmt.Fprintf(stdout, "lock: %s · %s · %d pinned, %s · pinned from the %s\n",
 		platform, want.Generated, len(want.Pins), lockAge(want.Generated, lockNow()), mode)

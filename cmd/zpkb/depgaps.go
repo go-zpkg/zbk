@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/overrides"
 	"github.com/go-zpkg/zpkb/pantry"
@@ -34,7 +34,7 @@ import (
 //     the factory builds is the pantry plus our patches, 134 of which exist
 //     solely to move openssl.org off the 1.x line. Skipping them puts a class
 //     we already fixed at the top of the ranking, with 95 recipes behind it.
-//   - Satisfiability is bottle's, not a local re-reading of semver. `>=1.1`
+//   - Satisfiability is artifact's, not a local re-reading of semver. `>=1.1`
 //     looks as stale as `^1.1` and is not: it is unbounded above, so openssl
 //     3.x meets it and the recipe already resolves.
 func runDepgaps(args []string, stdout, stderr io.Writer) int {
@@ -234,10 +234,10 @@ func unsatisfiableCounted(pantryDir string, tgt target.Target, have map[string][
 }
 
 // anySatisfies reports whether any published version meets the constraint,
-// using bottle's semver so this agrees with what pkgx will decide at install.
+// using artifact's semver so this agrees with what pkgx will decide at install.
 func anySatisfies(vers []string, constraint string) bool {
 	for _, v := range vers {
-		if bottle.ParseVer(v).Satisfies(constraint) {
+		if artifact.ParseVer(v).Satisfies(constraint) {
 			return true
 		}
 	}

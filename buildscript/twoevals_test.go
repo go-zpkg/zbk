@@ -108,8 +108,8 @@ func TestHasCompilerAndBootstrapAreSeparateReasons(t *testing.T) {
 // TestBootstrapTellsZpkgxTheHostHasALibc.
 //
 // The last of the implicit injections, and the one that stops everything
-// rather than one thing: bottle adds gnu.org/glibc to EVERY linux closure, so
-// with no glibc bottle `pkgx +anything` fails -- including a bottle the
+// rather than one thing: artifact adds gnu.org/glibc to EVERY linux closure, so
+// with no glibc artifact `pkgx +anything` fails -- including an artifact the
 // factory has just built and published.
 //
 // The export goes in the SCRIPT, not the process environment, so the reason a

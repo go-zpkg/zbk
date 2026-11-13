@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
-// runSign implements `zpkb sign`: a SECOND builder's word on a bottle somebody
+// runSign implements `zpkb sign`: a SECOND builder's word on an artifact somebody
 // else published.
 //
 // ⛔⛔ THE WHOLE POINT IS THAT IT DOES NOT PUBLISH ANYTHING. Two people who
 // build the same inputs get the same identity — deliberately, because an
 // identity that varied with the builder could never be compared. So the
 // artefact stays one artefact, and what differs is the ATTESTATION: each
-// builder attaches their own signature referrer to the one bottle, and a
+// builder attaches their own signature referrer to the one artifact, and a
 // client counts how many distinct trusted keys it can verify
 // (ZPKG_TRUST_THRESHOLD).
 //
@@ -32,7 +32,7 @@ import (
 // Guix's `guix challenge` exists to report exactly that, and the report is
 // the finding: a divergence means the recipe is not reproducible, or one of
 // the two machines is not what it claims. Signing anyway would convert a
-// finding into a second signature on a bottle this build did NOT produce,
+// finding into a second signature on an artifact this build did NOT produce,
 // which is the one thing the threshold must never be able to say.
 func runSign(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("sign", flag.ContinueOnError)
@@ -40,23 +40,23 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 	key := fs.String("key", "", "secret key file to sign with (go-attest/sign format)")
 	project := fs.String("project", "", "pkgx project slug, e.g. fftw.org")
 	version := fs.String("version", "", "published version TAG, including any -h<hash> suffix")
-	osn := fs.String("os", "", "pkgx-form OS of the published bottle (default: this host's)")
+	osn := fs.String("os", "", "pkgx-form OS of the published artifact (default: this host's)")
 	arch := fs.String("arch", "", "pkgx-form architecture (default: this host's)")
-	to := fs.String("to", bottle.DistBase, "oci:// registry holding the bottle")
+	to := fs.String("to", artifact.DistBase, "oci:// registry holding the artifact")
 	force := fs.Bool("force", false,
 		"sign even though the rebuild's digest differs from the published one. ⛔ THIS SIGNS BYTES YOU DID NOT PRODUCE: a divergence is a FINDING about reproducibility, and this flag converts it into a claim that two builders agree when they do not")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 1 || *key == "" || *project == "" || *version == "" {
-		fmt.Fprintln(stderr, "usage: zpkb sign -key <secret> -project <slug> -version <tag> [-os o -arch a] [-to oci://…] <rebuilt-bottle>")
-		fmt.Fprintln(stderr, "  Attaches YOUR signature to an already-published bottle, after checking that")
-		fmt.Fprintln(stderr, "  your rebuild produced the same bytes. It never pushes a bottle.")
+		fmt.Fprintln(stderr, "usage: zpkb sign -key <secret> -project <slug> -version <tag> [-os o -arch a] [-to oci://…] <rebuilt-artifact>")
+		fmt.Fprintln(stderr, "  Attaches YOUR signature to an already-published artifact, after checking that")
+		fmt.Fprintln(stderr, "  your rebuild produced the same bytes. It never pushes an artifact.")
 		return 2
 	}
 	o, a := *osn, *arch
 	if o == "" || a == "" {
-		ho, ha := bottle.HostSlug()
+		ho, ha := artifact.HostSlug()
 		if o == "" {
 			o = ho
 		}
@@ -78,7 +78,7 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 	sum := sha256.Sum256(rebuilt)
 	mine := "sha256:" + hex.EncodeToString(sum[:])
 
-	published, err := ociBottleDigest(*to, *project, *version, o, a)
+	published, err := ociArtifactDigest(*to, *project, *version, o, a)
 	if err != nil {
 		fmt.Fprintln(stderr, "zpkb sign:", err)
 		return 1
@@ -87,7 +87,7 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 		// ⛔ BOTH DIGESTS, ALWAYS. "They differ" is not a finding anybody can
 		// act on; the two values are what a report carries, and what the
 		// next person compares against their own.
-		fmt.Fprintf(stderr, "zpkb sign: your rebuild is NOT the published bottle\n")
+		fmt.Fprintf(stderr, "zpkb sign: your rebuild is NOT the published artifact\n")
 		fmt.Fprintf(stderr, "  published: %s\n", published)
 		fmt.Fprintf(stderr, "  yours:     %s\n", mine)
 		fmt.Fprintf(stderr, "  `zpkb reproduce` says what differs. Signing anyway needs -force, and\n")
@@ -99,9 +99,9 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// ⛔ THE PURL IS NOT WHAT A VERIFIER COMPARES, which is why this can move
-	// without re-signing the corpus. bottle's payloadCommitsTo (verify.go:185)
+	// without re-signing the corpus. artifact's payloadCommitsTo (verify.go:185)
 	// reads ONLY `critical.image.docker-manifest-digest`; the identity is
-	// never looked at. A bottle signed with the retired `pkg:pkgx/` purl still
+	// never looked at. An artifact signed with the retired `pkg:pkgx/` purl still
 	// verifies, because the digest it commits to has not changed.
 	payload, err := simpleSigning(purlFor(*project, *version), published)
 	if err != nil {
@@ -120,15 +120,15 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 
 // Seams, like ociPush, so tests drive the command without a registry.
 var (
-	ociBottleDigest = func(distBase, project, ver, osn, arch string) (string, error) {
-		c, err := bottle.NewOCIClient(distBase)
+	ociArtifactDigest = func(distBase, project, ver, osn, arch string) (string, error) {
+		c, err := artifact.NewOCIClient(distBase)
 		if err != nil {
 			return "", err
 		}
-		return c.BottleDigest(project, ver, osn, arch)
+		return c.ArtifactDigest(project, ver, osn, arch)
 	}
-	ociAttach = func(distBase, project, ver, osn, arch string, rf bottle.Referrer) error {
-		c, err := bottle.NewOCIClient(distBase)
+	ociAttach = func(distBase, project, ver, osn, arch string, rf artifact.Referrer) error {
+		c, err := artifact.NewOCIClient(distBase)
 		if err != nil {
 			return err
 		}

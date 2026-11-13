@@ -6,7 +6,7 @@ import (
 )
 
 // ⛔⛔ THE ONE IRREVERSIBLE STEP, AND ONLY THAT ONE. `--no-publish` exists so
-// a recipe can be built TWICE and the two bottles compared (`zpkb reproduce`)
+// a recipe can be built TWICE and the two artifacts compared (`zpkb reproduce`)
 // without pushing a second copy of something already published. If it skipped
 // the build it would be useless for the question it exists for; if it pushed
 // anyway it would be a lie.
@@ -41,16 +41,16 @@ func TestNoPublishBuildsAndPushesNothing(t *testing.T) {
 		t.Error("--no-publish built nothing; it suppresses the PUSH, not the build")
 	}
 	if len(h2.published) != 0 {
-		t.Errorf("--no-publish published %d bottle(s): %v", len(h2.published), h2.published)
+		t.Errorf("--no-publish published %d artifact(s): %v", len(h2.published), h2.published)
 	}
 	out := h2.out.String()
 	if !strings.Contains(out, "BUILT") || !strings.Contains(out, "not published") {
-		t.Errorf("the run does not say the bottle was built and not published:\n%s", out)
+		t.Errorf("the run does not say the artifact was built and not published:\n%s", out)
 	}
-	// And it must name where the bottle actually is, since that is the whole
+	// And it must name where the artifact actually is, since that is the whole
 	// point: something has to be left to compare.
-	if !strings.Contains(out, h2.bottles) {
-		t.Errorf("the run does not say where the bottle was staged:\n%s", out)
+	if !strings.Contains(out, h2.artifacts) {
+		t.Errorf("the run does not say where the artifact was staged:\n%s", out)
 	}
 }
 
@@ -64,7 +64,7 @@ func TestNoPublishRefusesTheCombinationsThatMakeNoSense(t *testing.T) {
 	}{
 		{
 			// Mirroring IS publishing: a mirror that publishes nothing
-			// downloads each bottle and discards it.
+			// downloads each artifact and discards it.
 			name:  "with --mirror-from",
 			args:  []string{"factory", "--no-publish", "--mirror-from", "https://dist.pkgx.dev", "--platform", "linux/x86-64"},
 			wants: []string{"Mirroring IS publishing", "discard"},

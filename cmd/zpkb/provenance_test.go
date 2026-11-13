@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/moustache"
 )
 
 // decodeProv pulls the in-toto statement out of the referrers and reads it as
 // the wire shape a consumer sees, not as the struct we happened to build.
-func decodeProv(t *testing.T, refs []bottle.Referrer) map[string]any {
+func decodeProv(t *testing.T, refs []artifact.Referrer) map[string]any {
 	t.Helper()
 	for _, r := range refs {
 		if r.ArtifactType != artifactInToto {
@@ -38,7 +38,7 @@ func decodeProv(t *testing.T, refs []bottle.Referrer) map[string]any {
 //	"builder": { "id": "https://github.com/go-zpkg/zpkb" }
 //	"buildDefinition": { "externalParameters": {}, "internalParameters": {} }
 //
-// — the same two constants every bottle in the registry carries. So "which bk
+// — the same two constants every artifact in the registry carries. So "which bk
 // built this, and for what?" had no answer in the artefact, and a rebuild for
 // a toolchain security fix was indistinguishable from the build before it.
 func TestTheProvenanceSaysWhichBkAndWhatItWasAsked(t *testing.T) {
@@ -117,7 +117,7 @@ func TestTwoBuildersProduceDifferentProvenance(t *testing.T) {
 	}
 }
 
-func provBlob(t *testing.T, refs []bottle.Referrer) []byte {
+func provBlob(t *testing.T, refs []artifact.Referrer) []byte {
 	t.Helper()
 	for _, r := range refs {
 		if r.ArtifactType == artifactInToto {
@@ -130,9 +130,9 @@ func provBlob(t *testing.T, refs []bottle.Referrer) []byte {
 
 // ⛔⛔ THE AXIS A VULNERABILITY REBUILD MOVES ALONG. When a Go patch release
 // fixes a standard-library defect, nothing about the recipe or the upstream
-// version changes — only the compiler in the build environment does. A bottle
+// version changes — only the compiler in the build environment does. An artifact
 // that does not record it cannot be asked "were you built with the fixed
-// compiler?", and a rebuild counter over such bottles would be a number
+// compiler?", and a rebuild counter over such artifacts would be a number
 // nobody could derive or check.
 //
 // DepTokens computed this list on every build and threw it away.
@@ -154,12 +154,12 @@ func TestTheProvenanceRecordsTheBuildEnvironment(t *testing.T) {
 	}
 	// ⛔ AND THE RETIRED NAMESPACE IS NOT MINTED. `pkgx` is not a registered
 	// purl type and is not ours; writing it into a new attestation is the
-	// defect go-zpkg/bottle#221 exists for. It is still READ, which
-	// TestABottleSignedWithTheRetiredPurlIsStillUnderstood covers.
+	// defect go-zpkg/artifact#221 exists for. It is still READ, which
+	// TestAArtifactSignedWithTheRetiredPurlIsStillUnderstood covers.
 	if strings.Contains(got, "pkg:pkgx/") {
 		t.Errorf("a new attestation mints the retired purl namespace:\n%s", got)
 	}
-	// ⛔ THE PATH IS NOT RECORDED. It is where THIS MACHINE put the bottle,
+	// ⛔ THE PATH IS NOT RECORDED. It is where THIS MACHINE put the artifact,
 	// which is not a fact about the artefact — and two builds that differ
 	// only by $ZPKG_DIR would otherwise produce different attestations.
 	if strings.Contains(got, "/pkgx/go.dev") {
@@ -191,7 +191,7 @@ func TestADifferentToolchainProducesDifferentProvenance(t *testing.T) {
 }
 
 // A BUILD WITH NO ENVIRONMENT SAYS NOTHING RATHER THAN SOMETHING EMPTY.
-// `bk publish` on a bottle this process did not build, and the mirror path,
+// `bk publish` on an artifact this process did not build, and the mirror path,
 // genuinely do not know — and an empty material would assert a dependency on
 // nothing.
 func TestNoEnvironmentProducesNoMaterials(t *testing.T) {

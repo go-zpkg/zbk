@@ -35,7 +35,7 @@ func TestEditingTheRecipeMovesTheHash(t *testing.T) {
 
 // ⛔ EVERY FIELD IS IN IT, and a test that only checked the recipe would miss
 // the one that matters most in practice: the platform. A darwin build and a
-// linux build of one version are different bottles.
+// linux build of one version are different artifacts.
 func TestEveryFieldMovesTheHash(t *testing.T) {
 	base, err := Hash(DomainBuild, []*pantry.Recipe{rec("a/b/tags")}, "p", "1.0", tgt, []string{"d 1"})
 	if err != nil {

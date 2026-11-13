@@ -152,9 +152,9 @@ func TestWrapLibcZpkgxLinuxX86(t *testing.T) {
 		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
 	})
 	wants := []string{
-		// glibc + kernel-headers + binutils + libcxx bottles join the eval.
+		// glibc + kernel-headers + binutils + libcxx artifacts join the eval.
 		`"+zlib.net" "+llvm.org" "+gnu.org/glibc" "+kernel.org/linux-headers" "+gnu.org/binutils" "+libcxx.llvm.org"`,
-		// Build-time resolution of each bottle prefix. bkresolve DROPS an
+		// Build-time resolution of each artifact prefix. bkresolve DROPS an
 		// unmatched pattern instead of letting the shell pass it through literally:
 		// a literal `v[0-9]*` in the flags reaches the linker and breaks the very
 		// first configure probe.
@@ -171,7 +171,7 @@ func TestWrapLibcZpkgxLinuxX86(t *testing.T) {
 		`export CC="${CC:-clang --sysroot="$ZPKB_GLIBC_PREFIX"`,
 		`export CXX="${CXX:-clang++ ${ZPKB_LIBCXX_PREFIX:+-stdlib=libc++`,
 		`--rtlib=compiler-rt -fuse-ld=lld -Wno-unused-command-line-argument --unwindlib=none}"`,
-		// PT_INTERP = the bottle's x86-64 loader; libc + libc++/libunwind lib search paths; DT_RPATH.
+		// PT_INTERP = the artifact's x86-64 loader; libc + libc++/libunwind lib search paths; DT_RPATH.
 		`-Wl,--dynamic-linker="${ZPKB_GLIBC_LIB}ld-linux-x86-64.so.2" -Wl,-rpath,"$ZPKB_GLIBC_LIB" ${ZPKB_LIBCXX_PREFIX:+-L"${ZPKB_LIBCXX_PREFIX}lib" -Wl,-rpath,"${ZPKB_LIBCXX_PREFIX}lib"} -Wl,--disable-new-dtags -Wl,--undefined-version`,
 	}
 	for _, w := range wants {
@@ -421,11 +421,11 @@ func TestSovereignCarriesLibgccInTheDriver(t *testing.T) {
 	sovereign.LibcZpkgx = true
 	got := Wrap(sovereign)
 	// Resolved from the tree, never spelled out: both the triple and the
-	// version in lib/gcc/<triple>/<version> move with the bottle.
+	// version in lib/gcc/<triple>/<version> move with the artifact.
 	if !strings.Contains(got, `ZPKB_LIBGCC="$(bkresolve`) {
 		t.Error("the libgcc path must be resolved, not spelled out")
 	}
-	// Guarded, so an absent gcc bottle contributes nothing rather than a glob.
+	// Guarded, so an absent gcc artifact contributes nothing rather than a glob.
 	if !strings.Contains(got, `${ZPKB_LIBGCC:+ -L"$ZPKB_LIBGCC"}`) {
 		t.Error("the libgcc search path must be guarded")
 	}
@@ -477,7 +477,7 @@ func TestDarwinGivesRustcTheRpath(t *testing.T) {
 	// The SAME list LDFLAGS gets, relative entries included. With only the
 	// absolute one, a Rust package installs with no rpath reaching $ZPKG_DIR,
 	// and fixup then correctly refuses to rewrite its install names into
-	// @rpath/… — leaving the bottle exactly as unrelocatable as before, while
+	// @rpath/… — leaving the artifact exactly as unrelocatable as before, while
 	// building, publishing and running perfectly on the machine that made it.
 	want := `export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-Wl,-rpath,@loader_path/../../../.. -C link-arg=-Wl,-rpath,@loader_path/../../../../.. -C link-arg=-Wl,-rpath,@loader_path/../../../../../.. -C link-arg=-Wl,-rpath,@loader_path/../../../../../../.. -C link-arg=-Wl,-rpath,@loader_path/../../../../../../../.. -C link-arg=-Wl,-rpath,/opt/pkgx -C link-arg=-Wl,-headerpad_max_install_names"`
 	if !strings.Contains(darwin, want) {

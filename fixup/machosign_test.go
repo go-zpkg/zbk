@@ -242,7 +242,7 @@ func TestRewriteResignsWhatItChanged(t *testing.T) {
 }
 
 // A file we do NOT change must not be re-signed either — re-signing rewrites
-// the file, and a bottle whose mtimes churn for nothing is a bottle whose
+// the file, and an artifact whose mtimes churn for nothing is an artifact whose
 // caching cannot be trusted.
 func TestUnchangedFileIsNotResigned(t *testing.T) {
 	img := buildSignedMachO(t, "/opt/x/v1/lib", sigOpts{})
@@ -469,7 +469,7 @@ func TestMalformedLoadCommandStopsTheSearch(t *testing.T) {
 }
 
 // MachoSignatureStale must answer the question `codesign -v` answers, on
-// machines that do not have codesign and about bottles built for a platform
+// machines that do not have codesign and about artifacts built for a platform
 // the asking machine is not — which is what makes a fleet-wide sweep possible.
 func TestMachoSignatureStale(t *testing.T) {
 	t.Run("a signature that describes the bytes", func(t *testing.T) {
@@ -493,7 +493,7 @@ func TestMachoSignatureStale(t *testing.T) {
 		}
 	})
 	t.Run("edited in place, unrepaired", func(t *testing.T) {
-		// The exact state every darwin bottle built before re-signing is in:
+		// The exact state every darwin artifact built before re-signing is in:
 		// the load command was rewritten and the hashes were left behind.
 		img := buildSignedMachO(t, "/opt/x/v1+brewing/lib", sigOpts{})
 		p := writeImage(t, img)

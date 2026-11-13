@@ -86,8 +86,8 @@ func placePad(t *testing.T, path string, pad int, cmds ...machoCmd) {
 //
 //	dyld: Library not loaded: @rpath/libzstd.1.dylib
 //
-// Measured on our published facebook.com/zstd bottle, which aborted llvm.org's
-// darwin build at dyld time (#125); upstream pkgx's bottle for the same version
+// Measured on our published facebook.com/zstd artifact, which aborted llvm.org's
+// darwin build at dyld time (#125); upstream pkgx's artifact for the same version
 // carries the qualified form.
 //
 // The soname LEAF is kept, because the symlink carrying it ships beside the

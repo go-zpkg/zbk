@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/target"
 )
@@ -104,7 +104,7 @@ func TestDepsplitAsksWhetherTheVersionIsPublishedHere(t *testing.T) {
 	}
 }
 
-// ⛔ NOT LEXICOGRAPHIC, and not re-derived here. bottle.VersionsFromTags
+// ⛔ NOT LEXICOGRAPHIC, and not re-derived here. artifact.VersionsFromTags
 // applies the ordering, the glibc flavour filter and the 1.0/1.0.0/v1.0.0
 // folding; re-deriving any of it locally is how pkgx's `request` reported
 // nodejs 26.8.1 an hour after 26.12.1 shipped.
@@ -564,7 +564,7 @@ func TestReportSplitsOrdersByRecipeThenProject(t *testing.T) {
 // The seam's own body: constructing a client is local, so this costs no
 // network and keeps the default path from being the one line nobody runs.
 func TestNewDepsplitRegistryBuildsAClient(t *testing.T) {
-	c, err := newDepsplitRegistry(bottle.DistBase)
+	c, err := newDepsplitRegistry(artifact.DistBase)
 	if err != nil {
 		t.Fatalf("constructing a client for the default dist: %v", err)
 	}

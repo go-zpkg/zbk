@@ -22,7 +22,7 @@ func TestBareSiblingIsAnsweredWithLoaderPath(t *testing.T) {
 	// The sibling it names, really there.
 	place(t, filepath.Join(lib, "libmpdec.3.dylib"))
 	exe := filepath.Join(lib, "libmpdec++.2.5.1.dylib")
-	// Padded, as the real bottle is: @loader_path/ is six bytes longer than
+	// Padded, as the real artifact is: @loader_path/ is six bytes longer than
 	// @rpath/, and a load-command string cannot grow past the header padding.
 	// Measured on the published libmpdec++.2.5.1.dylib: 16376 bytes spare.
 	placePad(t, exe, 64, machoCmd{lcLoadDylib, "@rpath/libmpdec.3.dylib"}) // and no lcRpath

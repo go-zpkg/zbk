@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/fetch"
 )
 
@@ -32,7 +32,7 @@ func (f *fakeStore) PinnedDigest(_, uri string) (string, error) {
 	if d, ok := f.pins[uri]; ok {
 		return d, nil
 	}
-	return "", fmt.Errorf("%w: %s", bottle.ErrSourceAbsent, uri)
+	return "", fmt.Errorf("%w: %s", artifact.ErrSourceAbsent, uri)
 }
 
 func (f *fakeStore) HasSource(_, sha string) (bool, error) {

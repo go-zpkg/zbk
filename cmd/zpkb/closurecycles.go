@@ -33,7 +33,7 @@ import (
 // build-dependency analysis) computes the strongly connected components of the
 // build graph and REPORTS them, because breaking one needs a staged build that
 // only a person can decide on — a `<!stage1>` profile there, a pinned
-// bootstrap bottle here. Naming them is the whole contribution; choosing for
+// bootstrap artifact here. Naming them is the whole contribution; choosing for
 // the user would be guessing with more confidence.
 func (g *closureGraph) cycles() [][]string {
 	// Tarjan, iterative in spirit but written recursively like the walk above:

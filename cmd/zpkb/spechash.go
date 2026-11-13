@@ -52,7 +52,7 @@ import (
 // field order and the recipe hashing are the ones every existing lock file
 // was written with, so `lock --check` still compares like with like. The
 // reason it moved is that it sat in `package main`, where the BUILD could not
-// reach it — so the factory published 42 756 bottles with no identity while a
+// reach it — so the factory published 42 756 artifacts with no identity while a
 // correct one sat two directories away (go-zpkg/zpkb#410).
 func specHash(recs []*pantry.Recipe, proj, version string, tgt target.Target, depHashes map[string]string, deps []string) (string, error) {
 	ids := make([]string, 0, len(deps))

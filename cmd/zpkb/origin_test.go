@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 )
 
 // originRefs builds a real provenance referrer through the production path, so
 // these tests read what `bk publish` actually writes rather than a fixture
 // somebody has to remember to update.
-func originRefs(t *testing.T, o provOrigin) []bottle.Referrer {
+func originRefs(t *testing.T, o provOrigin) []artifact.Referrer {
 	t.Helper()
 	refs, err := buildReferrers("acme.org/tool", "1.2.3", "linux", "s390x",
 		[]byte("tarball"), build.SourceRef{}, nil, time.Unix(0, 0).UTC(), nil, o)
@@ -27,9 +27,9 @@ func originRefs(t *testing.T, o provOrigin) []bottle.Referrer {
 
 // ⛔ TestAnUnstatedOriginIsNotPromotable is the whole point of the tri-state.
 // A `bool` would have made this case indistinguishable from "not a
-// bootstrap", so every bottle published before the field existed would have
+// bootstrap", so every artifact published before the field existed would have
 // claimed to be promotable — and the failure directions are not symmetric:
-// refusing a good bottle costs a rebuild, promoting a host-built one puts an
+// refusing a good artifact costs a rebuild, promoting a host-built one puts an
 // unpinned Ubuntu compiler's output in the production registry under our
 // signature.
 func TestAnUnstatedOriginIsNotPromotable(t *testing.T) {
@@ -42,7 +42,7 @@ func TestAnUnstatedOriginIsNotPromotable(t *testing.T) {
 	}
 }
 
-// ⛔ TestABootstrapBuildSaysSoAndIsRefused: this is the bottle that must never
+// ⛔ TestABootstrapBuildSaysSoAndIsRefused: this is the artifact that must never
 // be promoted, and the recording is what makes refusing it possible at all.
 func TestABootstrapBuildSaysSoAndIsRefused(t *testing.T) {
 	o, err := originAttestedBy(originRefs(t, provOrigin{Bootstrap: "1", Dist: "oci://127.0.0.1:5000/seed"}))
@@ -74,7 +74,7 @@ func TestASovereignBuildIsPromotable(t *testing.T) {
 	}
 }
 
-// ⛔ TestTheDistAloneIsNotAVerdict. A mirrored bottle records where it was PUT
+// ⛔ TestTheDistAloneIsNotAVerdict. A mirrored artifact records where it was PUT
 // and nothing about who compiled it, so `Dist` is readable while `Bootstrap`
 // stays empty — and that must NOT pass the gate. Recording a field is not the
 // same as answering the question the gate asks.
@@ -84,7 +84,7 @@ func TestTheDistAloneIsNotAVerdict(t *testing.T) {
 		t.Fatalf("a recorded dist should still parse: %v", err)
 	}
 	if o.Bootstrap == "0" {
-		t.Fatal("an unrecorded bootstrap read as 0, which would promote a mirrored bottle")
+		t.Fatal("an unrecorded bootstrap read as 0, which would promote a mirrored artifact")
 	}
 	if why := o.why(); !strings.Contains(why, "not say") {
 		t.Errorf("why() = %q, want it to say the provenance is silent", why)
@@ -137,7 +137,7 @@ func TestBoolParamIsTheTwoKnownStates(t *testing.T) {
 
 // externalParamsOf digs the externalParameters block out of an in-toto
 // referrer.
-func externalParamsOf(t *testing.T, refs []bottle.Referrer) map[string]string {
+func externalParamsOf(t *testing.T, refs []artifact.Referrer) map[string]string {
 	t.Helper()
 	var raw []byte
 	for _, r := range refs {
@@ -163,7 +163,7 @@ func externalParamsOf(t *testing.T, refs []bottle.Referrer) map[string]string {
 }
 
 // TestOriginRefusesWithoutBothArguments: a project with no version would
-// otherwise read the newest, and "the newest" is not the bottle somebody is
+// otherwise read the newest, and "the newest" is not the artifact somebody is
 // deciding whether to promote.
 func TestOriginRefusesWithoutBothArguments(t *testing.T) {
 	var out, errOut bytes.Buffer
@@ -176,11 +176,11 @@ func TestOriginRefusesWithoutBothArguments(t *testing.T) {
 }
 
 // stubAttestations points the registry read at a fixed answer for one test.
-func stubAttestations(t *testing.T, refs []bottle.Referrer, err error) {
+func stubAttestations(t *testing.T, refs []artifact.Referrer, err error) {
 	t.Helper()
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
-	sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) { return refs, err }
+	sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) { return refs, err }
 }
 
 // ⛔ originArgs NAMES THE PLATFORM, and that is not decoration. Without
@@ -206,7 +206,7 @@ func TestOriginReportsEachOfTheThreeStates(t *testing.T) {
 		{
 			name:   "sovereign",
 			origin: provOrigin{Bootstrap: "0", Dist: "oci://ghcr.io/go-zpkg/packages"},
-			want:   []string{"no — built from bottles", "oci://ghcr.io/go-zpkg/packages"},
+			want:   []string{"no — built from artifacts", "oci://ghcr.io/go-zpkg/packages"},
 		},
 		{
 			name:   "bootstrap",
@@ -235,7 +235,7 @@ func TestOriginReportsEachOfTheThreeStates(t *testing.T) {
 			// different claims and only one of them is being made.
 			name:   "verdict only",
 			origin: provOrigin{Bootstrap: "0"},
-			want:   []string{"no — built from bottles", "inputs resolved from: not recorded"},
+			want:   []string{"no — built from artifacts", "inputs resolved from: not recorded"},
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestPromotableIsSilentOnYesAndLoudOnNo(t *testing.T) {
 		stubAttestations(t, originRefs(t, provOrigin{Bootstrap: "0", Dist: "oci://ghcr.io/go-zpkg/packages"}), nil)
 		var out, errOut bytes.Buffer
 		if code := runOrigin(originArgs("--promotable"), &out, &errOut); code != 0 {
-			t.Fatalf("a sovereign bottle was refused: %d %q", code, errOut.String())
+			t.Fatalf("a sovereign artifact was refused: %d %q", code, errOut.String())
 		}
 		if out.Len() != 0 || errOut.Len() != 0 {
 			t.Errorf("the gate printed something on success: out=%q err=%q", out.String(), errOut.String())
@@ -312,11 +312,11 @@ func TestOriginRefusesABadPlatformAndABadFlag(t *testing.T) {
 	}
 }
 
-// TestOriginReportsAProvenancelessBottle: a bottle with no in-toto referrer at
+// TestOriginReportsAProvenancelessArtifact: an artifact with no in-toto referrer at
 // all, which is a different silence from one whose provenance omits the
 // origin, and is reported as its own error.
-func TestOriginReportsAProvenancelessBottle(t *testing.T) {
-	stubAttestations(t, []bottle.Referrer{{ArtifactType: artifactCycloneDX, Blob: []byte("{}")}}, nil)
+func TestOriginReportsAProvenancelessArtifact(t *testing.T) {
+	stubAttestations(t, []artifact.Referrer{{ArtifactType: artifactCycloneDX, Blob: []byte("{}")}}, nil)
 	var out, errOut bytes.Buffer
 	if code := runOrigin(originArgs(), &out, &errOut); code != 1 {
 		t.Fatalf("runOrigin = %d, want 1", code)
@@ -336,7 +336,7 @@ func TestOriginIsReachableFromTheCommandLine(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("bk origin = %d, stderr %q", code, errb)
 	}
-	if !strings.Contains(out, "built from bottles") {
+	if !strings.Contains(out, "built from artifacts") {
 		t.Errorf("bk origin printed nothing recognisable:\n%s", out)
 	}
 }
@@ -344,7 +344,7 @@ func TestOriginIsReachableFromTheCommandLine(t *testing.T) {
 // TestOriginRejectsAnUnparsableProvenance: a referrer that is present and is
 // not JSON is a broken document, not an absent field.
 func TestOriginRejectsAnUnparsableProvenance(t *testing.T) {
-	if _, err := originAttestedBy([]bottle.Referrer{{ArtifactType: artifactInToto, Blob: []byte("not json")}}); err == nil {
+	if _, err := originAttestedBy([]artifact.Referrer{{ArtifactType: artifactInToto, Blob: []byte("not json")}}); err == nil {
 		t.Error("an unparsable provenance read as an answer")
 	} else if !strings.Contains(err.Error(), "provenance") {
 		t.Errorf("the error does not name the document: %v", err)

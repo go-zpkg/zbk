@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/recipefile"
 	"github.com/go-zpkg/zpkb/vuln"
 	"gopkg.in/yaml.v3"
@@ -90,7 +90,7 @@ func runVulnFetch(args []string, stdout, stderr io.Writer) int {
 	// A project the catalogue gives no version for is not published on this
 	// platform, and a vulnerability in it is not a finding about us — the
 	// first run with -catalog reported "90 finding(s) across 5 project(s)"
-	// and every one of the five answered `no bottle here`. Right figures,
+	// and every one of the five answered `no artifact here`. Right figures,
 	// different meaning.
 	//
 	// But narrowing a scan is only honest if the count says by how much.
@@ -146,7 +146,7 @@ func runVulnFetch(args []string, stdout, stderr io.Writer) int {
 	// landing site was red for eight days running for exactly that reason.
 	//
 	// Red on something NEW is a question with an answer: rebuild, or record
-	// why the bottle is not affected. Both make it green again.
+	// why the artifact is not affected. Both make it green again.
 	if *failOnNew && unrecorded > 0 {
 		fmt.Fprintf(stderr, "vulnfetch: %d finding(s) with no decision in %s — rebuild, or record why the published version is not affected\n",
 			unrecorded, *out)
@@ -326,7 +326,7 @@ func pinIdentities(path string, ids []vuln.Identity, byIdentity map[vuln.Identit
 		fmt.Fprintf(stderr, "vulnfetch: -catalog: %v\n", err)
 		return nil, 0, 0, 2
 	}
-	cat, err := bottle.UnmarshalCatalog(raw)
+	cat, err := artifact.UnmarshalCatalog(raw)
 	if err != nil {
 		fmt.Fprintf(stderr, "vulnfetch: -catalog %s: %v\n", path, err)
 		return nil, 0, 0, 2

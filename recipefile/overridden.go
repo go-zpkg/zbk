@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
 	"gopkg.in/yaml.v3"
@@ -65,10 +65,10 @@ func LoadOverriddenReporting(set *logical.Set, pantryDir, project string) (*pant
 func overridden(set *logical.Set, project string, b []byte, name string) (*pantry.Recipe, []logical.Result, error) {
 	y := b
 	if filepath.Ext(name) == ".hcl" {
-		// Through bottle, the same converter the client uses: a second reading
+		// Through artifact, the same converter the client uses: a second reading
 		// of one format is two opinions about what a recipe means.
 		var err error
-		if y, err = bottle.HCLToYAML(b, name); err != nil {
+		if y, err = artifact.HCLToYAML(b, name); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -130,17 +130,17 @@ func LoadBuildRecipe(set *logical.Set, overlayDir, pantryDir, project string) (*
 
 // LoadMerged reads the overlay MERGED over the pantry recipe as WE build it —
 // upstream's, with the logical overrides applied. With a nil set it is
-// bottle.recipeDoc exactly, which is what a consumer resolves.
+// artifact.recipeDoc exactly, which is what a consumer resolves.
 //
 // Not the overlay preferred whole. That was right while every overlay entry
 // was a full copy of an upstream recipe, and it broke the day they stopped
 // being: go-zpkg/pantry-overlay reduced its 183 entries to the keys they
-// change (go-zpkg/bottle#103), so reading one on its own gives a fragment.
+// change (go-zpkg/artifact#103), so reading one on its own gives a fragment.
 // Measured before this existed — `bk closure --build curl.se` went from 54
 // projects to 8, because the entry says `dependencies` and nothing else, and
 // the walk never saw upstream's build dependencies at all.
 //
-// bottle merges and bk did not, which is the two-halves defect one more time:
+// artifact merges and bk did not, which is the two-halves defect one more time:
 // a change landed in the half a consumer reads and the builder's own reader
 // kept the old rule.
 //
@@ -183,8 +183,8 @@ func LoadMerged(set *logical.Set, overlayDir, pantryDir, project string) (*pantr
 // parse is never silently skipped: the walk would plan a build around
 // something it could not read.
 //
-// ⛔ IT CONVERTS HCL WITH bottle's CONVERTER, NOT OURS, AND THAT IS DELIBERATE.
-// What this document is for is the merge below, and mergeRecipe is bottle's
+// ⛔ IT CONVERTS HCL WITH artifact's CONVERTER, NOT OURS, AND THAT IS DELIBERATE.
+// What this document is for is the merge below, and mergeRecipe is artifact's
 // rule because two readers of one overlay that merged differently would
 // describe two different recipes. The reader has to match for the same reason
 // the rule does. LoadWithDoc answers a different question and reads with the
@@ -200,7 +200,7 @@ func sideDoc(dir, project string) (map[string]any, bool, error) {
 		}
 		y := b
 		if filepath.Ext(n) == ".hcl" {
-			if y, err = bottle.HCLToYAML(b, n); err != nil {
+			if y, err = artifact.HCLToYAML(b, n); err != nil {
 				return nil, false, fmt.Errorf("%s/%s: %w", project, n, err)
 			}
 		}
@@ -213,7 +213,7 @@ func sideDoc(dir, project string) (map[string]any, bool, error) {
 	return nil, false, nil
 }
 
-// mergeRecipe is bottle's rule, and it has to be: two readers of one overlay
+// mergeRecipe is artifact's rule, and it has to be: two readers of one overlay
 // that merged differently would describe two different recipes. A key the
 // overlay states replaces that key, a key it omits is inherited, and a list
 // replaces rather than merges.

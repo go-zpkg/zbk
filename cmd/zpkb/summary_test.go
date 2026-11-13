@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/pantry"
 )
 
@@ -75,7 +75,7 @@ func TestCatalogSaysHowMuchItKnows(t *testing.T) {
 	if !strings.Contains(errb.String(), "1 of 3 project(s) name their commands, 1 describe themselves") {
 		t.Errorf("the counts are wrong or missing: %q", errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}

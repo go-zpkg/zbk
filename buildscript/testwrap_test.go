@@ -263,7 +263,7 @@ func TestATestThatCompilesGetsALibcOnLinux(t *testing.T) {
 
 // What the test wrapper must still NOT have. The file's own contract: a test
 // gets a compiler, not the flags that made the artefact link — otherwise a
-// bottle whose headers or rpath are wrong would pass.
+// artifact whose headers or rpath are wrong would pass.
 func TestTheSysrootCarriesNoRecipeFlags(t *testing.T) {
 	got := WrapTest(TestWrapOptions{
 		UserScript: "cc t.c",
@@ -273,7 +273,7 @@ func TestTheSysrootCarriesNoRecipeFlags(t *testing.T) {
 	})
 	for _, forbidden := range []string{"CMAKE_PREFIX_PATH", "-Wl,-rpath", "$SRCROOT"} {
 		if strings.Contains(got, forbidden) {
-			t.Errorf("the test wrapper leaked %s, which would mask a broken bottle", forbidden)
+			t.Errorf("the test wrapper leaked %s, which would mask a broken artifact", forbidden)
 		}
 	}
 }
@@ -333,7 +333,7 @@ func TestATestThatCallsCcByNameGetsTheShims(t *testing.T) {
 	if path < guard || path > closeAt {
 		t.Errorf("PATH is set outside the no-system-libc guard (guard %d, close %d, PATH %d)", guard, closeAt, path)
 	}
-	// FIRST on PATH: the llvm.org bottle ships its own cc, and a test picking
+	// FIRST on PATH: the llvm.org artifact ships its own cc, and a test picking
 	// that one is the failure this exists to end.
 	if !strings.Contains(got, `export PATH="/box.shims":"$PATH"`) {
 		t.Error("the shim dir is appended rather than prepended")

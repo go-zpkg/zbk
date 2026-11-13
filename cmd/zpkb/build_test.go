@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/fixup"
 	"mvdan.cc/sh/v3/interp"
@@ -47,7 +47,7 @@ func stubFactory() func(string) *build.Runner {
 			FetchGit:       func(string, string, string) (string, error) { return "", nil },
 			Touch:          func(string) error { return nil },
 			FixUp:          func(fixup.Options) error { return nil },
-			WriteBottle:    func(_, _, _, _, _, out string) (string, error) { return filepath.Join(out, "b.tgz"), nil },
+			WriteArtifact:  func(_, _, _, _, _, out string) (string, error) { return filepath.Join(out, "b.tgz"), nil },
 		}
 		r.Run = func(string, []string) error { return os.MkdirAll(r.BuildInstall, 0o755) }
 		return r
@@ -72,7 +72,7 @@ func TestBuildCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("build: code=%d err=%q", code, errs)
 	}
-	if !strings.Contains(out, "built test.org/x 1.0.0") || !strings.Contains(out, "bottle:") {
+	if !strings.Contains(out, "built test.org/x 1.0.0") || !strings.Contains(out, "artifact:") {
 		t.Errorf("build output = %q", out)
 	}
 	// What it was built FROM, on the same screen as what came out: a digest
@@ -252,9 +252,9 @@ func TestPickVersion(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
-	sd := bottle.DistBase
-	bottle.DistBase = srv.URL
-	defer func() { bottle.DistBase = sd }()
+	sd := artifact.DistBase
+	artifact.DistBase = srv.URL
+	defer func() { artifact.DistBase = sd }()
 
 	v, err := pickVersion("acme.org/tool", "*")
 	if err != nil || v != "2.3.4" {
@@ -265,7 +265,7 @@ func TestPickVersion(t *testing.T) {
 func TestRealBuildRunner(t *testing.T) {
 	r := realBuildRunner("/opt/pkgx/bin/pkgx")
 	if r.PickVersion == nil || r.ResolveVersion == nil || r.Fetch == nil || r.FetchGit == nil || r.Touch == nil ||
-		r.Run == nil || r.FixUp == nil || r.WriteBottle == nil || r.ResolveDep == nil ||
+		r.Run == nil || r.FixUp == nil || r.WriteArtifact == nil || r.ResolveDep == nil ||
 		// Unwired, this field silently disables the whole closure question
 		// and bootstrap goes back to asking the weaker one.
 		r.ToolInstallable == nil || r.ZpkgxBin == "" || r.BashPath == "" {
@@ -282,7 +282,7 @@ func TestToolInstallableAsksAboutTheClosure(t *testing.T) {
 	var recipes map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/versions.txt") {
-			// Every project this serves a recipe for has a bottle; anything
+			// Every project this serves a recipe for has an artifact; anything
 			// else does not, which is how a closure comes up short.
 			for p := range recipes {
 				if strings.Contains(r.URL.Path, "/"+p+"/") {
@@ -302,9 +302,9 @@ func TestToolInstallableAsksAboutTheClosure(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
-	sd, so, sp := bottle.DistBase, bottle.PantryOverlay, bottle.PantryBase
-	defer func() { bottle.DistBase, bottle.PantryOverlay, bottle.PantryBase = sd, so, sp }()
-	bottle.DistBase, bottle.PantryOverlay, bottle.PantryBase = srv.URL, "", srv.URL
+	sd, so, sp := artifact.DistBase, artifact.PantryOverlay, artifact.PantryBase
+	defer func() { artifact.DistBase, artifact.PantryOverlay, artifact.PantryBase = sd, so, sp }()
+	artifact.DistBase, artifact.PantryOverlay, artifact.PantryBase = srv.URL, "", srv.URL
 
 	// A tool whose closure is satisfiable.
 	recipes = map[string]string{"acme.org": "dependencies:\n  zlib.net: '*'\n", "zlib.net": "{}\n"}
@@ -312,7 +312,7 @@ func TestToolInstallableAsksAboutTheClosure(t *testing.T) {
 		t.Errorf("a satisfiable closure must resolve: %q %v", v, err)
 	}
 
-	// The same tool, with a dependency no bottle satisfies. A version check
+	// The same tool, with a dependency no artifact satisfies. A version check
 	// alone still says yes — which is the bug this replaces.
 	recipes = map[string]string{"acme.org": "dependencies:\n  absent.org: '*'\n"}
 	if v, err := pickVersion("acme.org", "*"); err != nil || v != "1.0.0" {
@@ -328,7 +328,7 @@ func TestToolInstallableAsksAboutTheClosure(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 
-	// And a tool with no bottle at all fails on the version, before any
+	// And a tool with no artifact at all fails on the version, before any
 	// closure walk — the message then names that, not a closure.
 	recipes = map[string]string{}
 	if _, err := toolInstallable("nowhere.org", "*"); err == nil {

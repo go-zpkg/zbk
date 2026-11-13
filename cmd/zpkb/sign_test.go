@@ -10,37 +10,37 @@ import (
 	"testing"
 
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // signHarness points the registry seams at memory and returns what was
 // attached.
 type signHarness struct {
 	published string
-	attached  []bottle.Referrer
+	attached  []artifact.Referrer
 	digestErr error
 	attachErr error
 }
 
 func (h *signHarness) install(t *testing.T) {
 	t.Helper()
-	oldD, oldA := ociBottleDigest, ociAttach
-	ociBottleDigest = func(_, _, _, _, _ string) (string, error) {
+	oldD, oldA := ociArtifactDigest, ociAttach
+	ociArtifactDigest = func(_, _, _, _, _ string) (string, error) {
 		return h.published, h.digestErr
 	}
-	ociAttach = func(_, _, _, _, _ string, rf bottle.Referrer) error {
+	ociAttach = func(_, _, _, _, _ string, rf artifact.Referrer) error {
 		if h.attachErr != nil {
 			return h.attachErr
 		}
 		h.attached = append(h.attached, rf)
 		return nil
 	}
-	t.Cleanup(func() { ociBottleDigest, ociAttach = oldD, oldA })
+	t.Cleanup(func() { ociArtifactDigest, ociAttach = oldD, oldA })
 }
 
-// writeKeyAndBottle lays down a secret key file and a bottle, and returns the
-// two paths plus the bottle's digest.
-func writeKeyAndBottle(t *testing.T, body string) (keyPath, bottlePath, digest string, kp *sign.Keypair) {
+// writeKeyAndArtifact lays down a secret key file and an artifact, and returns the
+// two paths plus the artifact's digest.
+func writeKeyAndArtifact(t *testing.T, body string) (keyPath, artifactPath, digest string, kp *sign.Keypair) {
 	t.Helper()
 	kp, err := sign.Generate()
 	if err != nil {
@@ -51,16 +51,16 @@ func writeKeyAndBottle(t *testing.T, body string) (keyPath, bottlePath, digest s
 	if err := os.WriteFile(keyPath, []byte(kp.SecretKeyFile("test")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	bottlePath = filepath.Join(dir, "b.tar.gz")
-	if err := os.WriteFile(bottlePath, []byte(body), 0o644); err != nil {
+	artifactPath = filepath.Join(dir, "b.tar.gz")
+	if err := os.WriteFile(artifactPath, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(body))
-	return keyPath, bottlePath, "sha256:" + hex.EncodeToString(sum[:]), kp
+	return keyPath, artifactPath, "sha256:" + hex.EncodeToString(sum[:]), kp
 }
 
-func TestSignAttachesToAPublishedBottle(t *testing.T) {
-	key, bot, digest, kp := writeKeyAndBottle(t, "identical-bytes")
+func TestSignAttachesToAPublishedArtifact(t *testing.T) {
+	key, bot, digest, kp := writeKeyAndArtifact(t, "identical-bytes")
 	h := &signHarness{published: digest}
 	h.install(t)
 
@@ -76,17 +76,17 @@ func TestSignAttachesToAPublishedBottle(t *testing.T) {
 		t.Fatalf("attached %d referrers", len(h.attached))
 	}
 	rf := h.attached[0]
-	if rf.ArtifactType != bottle.ArtifactTypeSignature {
+	if rf.ArtifactType != artifact.ArtifactTypeSignature {
 		t.Errorf("artifact type %q", rf.ArtifactType)
 	}
 	// ⛔ THE SIGNATURE MUST VERIFY AGAINST THE SIGNER'S OWN KEY AND COMMIT TO
 	// THE PUBLISHED DIGEST. Checking only that "something was attached" would
 	// pass for a referrer that says nothing.
-	ts := bottle.TrustSet{Signers: []bottle.Signer{{Name: "alice", Key: kp.PublicKeyString()}}, Threshold: 1}
-	names, untrusted, err := ts.Count(digest, []bottle.Attestation{{
+	ts := artifact.TrustSet{Signers: []artifact.Signer{{Name: "alice", Key: kp.PublicKeyString()}}, Threshold: 1}
+	names, untrusted, err := ts.Count(digest, []artifact.Attestation{{
 		Payload: rf.Blob,
-		Sig:     rf.Annotations[bottle.CosignSignatureAnnotation],
-		KeyID:   rf.Annotations[bottle.SignerKeyIDAnnotation],
+		Sig:     rf.Annotations[artifact.CosignSignatureAnnotation],
+		KeyID:   rf.Annotations[artifact.SignerKeyIDAnnotation],
 	}})
 	if err != nil || untrusted != 0 || strings.Join(names, ",") != "alice" {
 		t.Fatalf("the attached signature does not verify: names=%v untrusted=%d err=%v", names, untrusted, err)
@@ -96,7 +96,7 @@ func TestSignAttachesToAPublishedBottle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := rf.Annotations[bottle.SignerKeyIDAnnotation]; got != hex.EncodeToString(id[:]) {
+	if got := rf.Annotations[artifact.SignerKeyIDAnnotation]; got != hex.EncodeToString(id[:]) {
 		t.Errorf("key id annotation = %q", got)
 	}
 	// No name on the artefact: the reader's trust set names the signer.
@@ -110,12 +110,12 @@ func TestSignAttachesToAPublishedBottle(t *testing.T) {
 	}
 }
 
-// ⛔⛔ A DIVERGENCE IS THE FINDING, NOT A HICCUP. Signing a bottle this build
+// ⛔⛔ A DIVERGENCE IS THE FINDING, NOT A HICCUP. Signing an artifact this build
 // did not produce is the one claim the threshold must never be able to make,
 // so the refusal is the default and both digests are printed — "they differ"
 // is not something anybody can act on.
 func TestSignRefusesADifferentBuild(t *testing.T) {
-	key, bot, mine, _ := writeKeyAndBottle(t, "my-bytes")
+	key, bot, mine, _ := writeKeyAndArtifact(t, "my-bytes")
 	const theirs = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 	h := &signHarness{published: theirs}
 	h.install(t)
@@ -175,7 +175,7 @@ func TestSignIsWiredIntoTheDispatch(t *testing.T) {
 // With no -os/-arch the host's platform is used — the common case, since a
 // rebuilder is checking their own machine's output.
 func TestSignDefaultsToThisHost(t *testing.T) {
-	key, bot, digest, _ := writeKeyAndBottle(t, "host-default")
+	key, bot, digest, _ := writeKeyAndArtifact(t, "host-default")
 	h := &signHarness{published: digest}
 	h.install(t)
 
@@ -184,7 +184,7 @@ func TestSignDefaultsToThisHost(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	wantOS, wantArch := bottle.HostSlug()
+	wantOS, wantArch := artifact.HostSlug()
 	if !strings.Contains(out.String(), "("+wantOS+"/"+wantArch+")") {
 		t.Errorf("output does not name the host platform %s/%s:\n%s", wantOS, wantArch, out.String())
 	}
@@ -193,7 +193,7 @@ func TestSignDefaultsToThisHost(t *testing.T) {
 // A payload that cannot be built is exit 1 with a message, never a silent
 // success — the signature would otherwise be over nothing.
 func TestSignReportsAPayloadFailure(t *testing.T) {
-	key, bot, digest, _ := writeKeyAndBottle(t, "payload-fail")
+	key, bot, digest, _ := writeKeyAndArtifact(t, "payload-fail")
 	h := &signHarness{published: digest}
 	h.install(t)
 	old := simpleSigning
@@ -215,26 +215,26 @@ func TestSignReportsAPayloadFailure(t *testing.T) {
 // test double is code nobody has executed — and these two are the ones that
 // talk to the registry, so a typo in them fails only in production.
 func TestSignSeamsRejectABadDist(t *testing.T) {
-	if _, err := ociBottleDigest("https://not-oci", "p", "1", "linux", "x86-64"); err == nil {
-		t.Error("ociBottleDigest accepted a non-oci dist")
+	if _, err := ociArtifactDigest("https://not-oci", "p", "1", "linux", "x86-64"); err == nil {
+		t.Error("ociArtifactDigest accepted a non-oci dist")
 	}
-	if err := ociAttach("https://not-oci", "p", "1", "linux", "x86-64", bottle.Referrer{}); err == nil {
+	if err := ociAttach("https://not-oci", "p", "1", "linux", "x86-64", artifact.Referrer{}); err == nil {
 		t.Error("ociAttach accepted a non-oci dist")
 	}
 	// And a WELL-FORMED oci:// dist, so the call each seam exists to make is
 	// actually made. A blackhole: the client builds, the request is refused
 	// at once, and no test waits on DNS or reaches a real registry.
 	const blackhole = "oci://127.0.0.1:1/nothing"
-	if _, err := ociBottleDigest(blackhole, "p", "1", "linux", "x86-64"); err == nil {
-		t.Error("ociBottleDigest reported success against a dead registry")
+	if _, err := ociArtifactDigest(blackhole, "p", "1", "linux", "x86-64"); err == nil {
+		t.Error("ociArtifactDigest reported success against a dead registry")
 	}
-	if err := ociAttach(blackhole, "p", "1", "linux", "x86-64", bottle.Referrer{}); err == nil {
+	if err := ociAttach(blackhole, "p", "1", "linux", "x86-64", artifact.Referrer{}); err == nil {
 		t.Error("ociAttach reported success against a dead registry")
 	}
 }
 
 func TestSignUsageAndFailures(t *testing.T) {
-	key, bot, digest, _ := writeKeyAndBottle(t, "x")
+	key, bot, digest, _ := writeKeyAndArtifact(t, "x")
 
 	// Missing required flags, and an unknown one, → usage, exit 2.
 	for _, args := range [][]string{
@@ -252,7 +252,7 @@ func TestSignUsageAndFailures(t *testing.T) {
 
 	base := []string{"-key", key, "-project", "p", "-version", "1", "-os", "linux", "-arch", "x86-64"}
 
-	// A missing key file, a missing bottle, a registry that will not answer,
+	// A missing key file, a missing artifact, a registry that will not answer,
 	// and an attach that fails are all exit 1 with a message — never a
 	// silent success.
 	h := &signHarness{published: digest}
@@ -264,7 +264,7 @@ func TestSignUsageAndFailures(t *testing.T) {
 	}
 	errb.Reset()
 	if code := runSign(append(append([]string{}, base...), filepath.Join(t.TempDir(), "absent.tar.gz")), &out, &errb); code != 1 {
-		t.Errorf("missing bottle = %d, want 1", code)
+		t.Errorf("missing artifact = %d, want 1", code)
 	}
 
 	h.digestErr = os.ErrNotExist

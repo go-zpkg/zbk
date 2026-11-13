@@ -71,7 +71,7 @@ func TestAProductWithNoReleaseLinesIsAnError(t *testing.T) {
 
 // ⛔ THE FIELD THAT WOULD HAVE INVERTED THE VERDICT. openssl 1.1.1 and 3.0 are
 // both end-of-life and both carry `isMaintained: true`, because openssl sells
-// extended support for them. This fleet publishes 32 bottles linking 1.1.1; a
+// extended support for them. This fleet publishes 32 artifacts linking 1.1.1; a
 // check reading that field would have called every one of them healthy.
 func TestAnEOLLineIsNotRescuedByIsMaintained(t *testing.T) {
 	p := openssl(t)

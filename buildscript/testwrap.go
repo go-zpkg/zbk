@@ -18,7 +18,7 @@ import (
 //
 //	CFLAGS/LDFLAGS/rpath  a test may COMPILE — 260 recipes' do — but against
 //	                      the package as shipped. A flag set that made the
-//	                      artefact link would mask a bottle whose own headers
+//	                      artefact link would mask an artifact whose own headers
 //	                      or rpath are wrong, which is the thing worth
 //	                      catching. The compiler itself is supplied; the
 //	                      build's flags are not.
@@ -86,7 +86,7 @@ type TestWrapOptions struct {
 // block. invisible-island.net/ncurses wants github.com/tmux/tmux ^3 as a
 // test dependency and no s390x tmux exists anywhere; gnu.org/readline's
 // closure needs libCNS.so, which pkgx's soname map does not name. Neither is
-// a bottle that does not work, and calling them failures would file bugs
+// an artifact that does not work, and calling them failures would file bugs
 // against packages for an incomplete registry.
 //
 // 69 is sysexits' EX_UNAVAILABLE, which is what happened. A test that exits
@@ -166,7 +166,7 @@ func WrapTest(o TestWrapOptions) string {
 		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.ZpkgxBin)
 	}
 
-	// After the eval, so the bottles are on disk and $ZPKG_DIR is set; before
+	// After the eval, so the artifacts are on disk and $ZPKG_DIR is set; before
 	// the sandbox, so a test that compiles finds CC already pointing at a
 	// libc it can use.
 	if o.Compiler && o.Host.Platform == "linux" {
@@ -214,7 +214,7 @@ func (o TestWrapOptions) testPlus() string {
 		//	C compiler cannot create executables
 		//
 		// which is nineteen of the twenty-seven gen1 test failures: the
-		// environment, not the package. On a distribution these bottles are
+		// environment, not the package. On a distribution these artifacts are
 		// installed and then UNUSED, because the sysroot flags below are
 		// emitted only when the host has no libc of its own.
 		if o.Host.Platform == "linux" {
@@ -228,7 +228,7 @@ func (o TestWrapOptions) testPlus() string {
 // sysrootPreamble gives the test's compiler a libc WHEN THE HOST HAS NONE.
 //
 // The file comment above says a test gets the compiler and not the build's
-// flags, because a flag set that made the artefact link would mask a bottle
+// flags, because a flag set that made the artefact link would mask an artifact
 // whose own headers or rpath are wrong. That is still true, and this does not
 // weaken it: what is emitted here is the sysroot — where libc's headers and
 // crt files are — and nothing the recipe chose. No recipe CFLAGS, no rpath,
@@ -273,7 +273,7 @@ func sysrootPreamble(shimDir string) []string {
 	out := []string{
 		`# A compiler with no libc is not a compiler. On a distribution the`,
 		`# system supplies one and this is skipped entirely; in a scratch`,
-		`# rootfs the bottles installed above are the only libc there is.`,
+		`# rootfs the artifacts installed above are the only libc there is.`,
 		`if [ ! -e /usr/include/stdlib.h ]; then`,
 	}
 	for _, l := range sysrootResolve {
@@ -286,7 +286,7 @@ func sysrootPreamble(shimDir string) []string {
 	)
 	if shimDir != "" {
 		out = append(out,
-			// FIRST on PATH: the llvm.org bottle puts its own cc there, and a
+			// FIRST on PATH: the llvm.org artifact puts its own cc there, and a
 			// test picking that one is the failure this is here to end.
 			fmt.Sprintf(`  export PATH=%q:"$PATH"`, shimDir),
 			// $CC too, for the handful of tests that read it. It names the

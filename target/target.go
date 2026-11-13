@@ -3,14 +3,14 @@
 //
 // brewkit is historically a *native* build tool: everything pivots on the host
 // == the machine it runs on == the thing it builds for. To cross-compile
-// (notably Windows PE bottles built on a linux/darwin host) we split "where am
+// (notably Windows PE artifacts built on a linux/darwin host) we split "where am
 // I running" (Host) from "what am I building for" (Target). Only OUTPUT/target
 // decisions consult Target:
 //
 //   - the `if:` guards in a recipe's build/test script
 //   - platform-keyed env selection
 //   - fix-up (POSIX relocation) selection
-//   - the bottle slug (platform-key)
+//   - the artifact slug (platform-key)
 //
 // Shell-environment decisions ("which TMPDIR does *this* host use") keep using
 // Host. The target is taken from (first match wins):
@@ -64,7 +64,7 @@ func (t Target) Cross() bool {
 	return t.Platform != h.Platform || t.Arch != h.Arch
 }
 
-// Slug is the pkgx bottle platform key, eg. "linux/x86-64".
+// Slug is the pkgx artifact platform key, eg. "linux/x86-64".
 func (t Target) Slug() string { return t.Platform + "/" + t.Arch }
 
 var (
@@ -99,9 +99,9 @@ var (
 		// a machine, exactly as s390x did — adding it now would put a guess in
 		// the one place that must not hold one.
 		//
-		// `bottle` has known these three since before any bottle existed for
+		// `artifact` has known these three since before any artifact existed for
 		// them (host.go, pkgx.go's platform slugs), and says so on purpose:
-		// "no bottle for <project> (freebsd/aarch64)". So the consumer side
+		// "no artifact for <project> (freebsd/aarch64)". So the consumer side
 		// was ready and the FACTORY was the gap.
 		"freebsd": {"x86-64": true},
 		"openbsd": {"x86-64": true},
@@ -121,7 +121,7 @@ var (
 const wasip1Triple = "wasm32-wasip1"
 
 // zpkgArch maps a Go GOARCH to the arch naming this project's catalogue and
-// bottles use ("x86-64", "aarch64").
+// artifacts use ("x86-64", "aarch64").
 //
 // ⛔ IT WAS CALLED pkgxArch, AND THE COMMENT SAID "pkgx's arch naming". That
 // was true while the fork tracked upstream and is not any more: the direct

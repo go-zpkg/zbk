@@ -63,7 +63,7 @@ func okRunner(project string, tgt target.Target) *Runner {
 		FetchGit:       func(string, string, string) (string, error) { return "", nil },
 		Touch:          func(string) error { return nil },
 		FixUp:          func(fixup.Options) error { return nil },
-		WriteBottle:    func(_, _, _, _, _, out string) (string, error) { return filepath.Join(out, "b.tar.gz"), nil },
+		WriteArtifact:  func(_, _, _, _, _, out string) (string, error) { return filepath.Join(out, "b.tar.gz"), nil },
 		ZpkgxBin:       "/pkgx/bin/pkgx", BashPath: "/bin/bash",
 	}
 	r.Run = func(string, []string) error { return os.MkdirAll(r.BuildInstall, 0o755) }
@@ -100,7 +100,7 @@ func TestBuildHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Version != "1.2.3" || res.BottlePath == "" || res.ScriptPath == "" {
+	if res.Version != "1.2.3" || res.ArtifactPath == "" || res.ScriptPath == "" {
 		t.Errorf("result = %+v", res)
 	}
 	b, _ := os.ReadFile(res.ScriptPath)
@@ -109,10 +109,10 @@ func TestBuildHappyPath(t *testing.T) {
 	if !strings.Contains(s, `"+openssl.org^1.1"`) || !strings.Contains(s, `"+gnu.org/autoconf"`) || !strings.Contains(s, "make install") {
 		t.Errorf("script missing pieces:\n%s", s)
 	}
-	// no dist → no bottle
+	// no dist → no artifact
 	r2 := okRunner("acme.org/tool", tgt)
 	res2, err := r2.Build(okRecipe(), "acme.org/tool", "*", tgt, tgt, "")
-	if err != nil || res2.BottlePath != "" {
+	if err != nil || res2.ArtifactPath != "" {
 		t.Errorf("no-dist: %+v %v", res2, err)
 	}
 }
@@ -230,8 +230,10 @@ func TestBuildErrorBranches(t *testing.T) {
 		"run":          func(r *Runner) { r.Run = func(string, []string) error { return errBoom } },
 		"rename":       func(r *Runner) { osRename = func(string, string) error { return errBoom } },
 		"fixup":        func(r *Runner) { r.FixUp = func(fixup.Options) error { return errBoom } },
-		"writebottle":  func(r *Runner) { r.WriteBottle = func(_, _, _, _, _, _ string) (string, error) { return "", errBoom } },
-		"resolvedep":   func(r *Runner) { r.ResolveDep = func(string, string) (string, error) { return "", errBoom } },
+		"writeartifact": func(r *Runner) {
+			r.WriteArtifact = func(_, _, _, _, _, _ string) (string, error) { return "", errBoom }
+		},
+		"resolvedep": func(r *Runner) { r.ResolveDep = func(string, string) (string, error) { return "", errBoom } },
 	}
 	for name, mut := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -792,7 +794,7 @@ func TestBuildBootstrapOmitsTheToolchainFromTheScript(t *testing.T) {
 		t.Errorf("bootstrap must not inject the base toolchain:\n%s", boot)
 	}
 	// What the recipe declares for itself is NOT the toolchain and must stay:
-	// the seed still links against real bottles, only the tools driving the
+	// the seed still links against real artifacts, only the tools driving the
 	// build come from the host.
 	if !strings.Contains(boot, `"+freedesktop.org/pkg-config^0.29"`) {
 		t.Errorf("bootstrap dropped the recipe's OWN build dependency:\n%s", boot)
@@ -834,7 +836,7 @@ func TestBuildBootstrapDropsTheSelfEdge(t *testing.T) {
 	b, _ := os.ReadFile(res.ScriptPath)
 	s := string(b)
 	if strings.Contains(s, `"+acme.org/tool`) {
-		t.Errorf("a build must not be handed a bottle of itself here:\n%s", s)
+		t.Errorf("a build must not be handed an artifact of itself here:\n%s", s)
 	}
 	if !strings.Contains(s, `"+gnu.org/make"`) {
 		t.Errorf("the other build dependency must survive:\n%s", s)
@@ -864,7 +866,7 @@ func TestBuildBootstrapRefusesAnUnresolvedDepToken(t *testing.T) {
 	if !strings.Contains(err.Error(), "acme.org/tool") || !strings.Contains(err.Error(), "bootstrap") {
 		t.Errorf("err = %v; want it to name the project and the mode", err)
 	}
-	// And the same recipe builds fine in the ORDINARY mode, where the bottle of
+	// And the same recipe builds fine in the ORDINARY mode, where the artifact of
 	// its dependency is expected to exist.
 	r2 := okRunner("acme.org/tool", tgt)
 	if _, err := r2.Build(rec, "acme.org/tool", "*", tgt, tgt, filepath.Join(t.TempDir(), "dist")); err != nil {
@@ -874,7 +876,7 @@ func TestBuildBootstrapRefusesAnUnresolvedDepToken(t *testing.T) {
 
 // TestBuildBootstrapLeavesAnUnresolvableToolToTheHost, end to end and both
 // ways: the tool must be absent from the script a seed build runs, and an
-// ORDINARY build must still fail on it, because there the missing bottle is a
+// ORDINARY build must still fail on it, because there the missing artifact is a
 // real gap rather than something the machine can cover.
 func TestBuildBootstrapLeavesAnUnresolvableToolToTheHost(t *testing.T) {
 	tgt := target.Target{Platform: "linux", Arch: "s390x"}
@@ -889,7 +891,7 @@ func TestBuildBootstrapLeavesAnUnresolvableToolToTheHost(t *testing.T) {
 		r.Bootstrap = boot
 		r.ResolveDep = func(p, _ string) (string, error) {
 			if p == "curl.se" {
-				return "", errors.New("no bottle for linux/s390x")
+				return "", errors.New("no artifact for linux/s390x")
 			}
 			return "1.0.0", nil
 		}
@@ -907,12 +909,12 @@ func TestBuildBootstrapLeavesAnUnresolvableToolToTheHost(t *testing.T) {
 		t.Errorf("an unresolvable tool must be left to the host:\n%s", s)
 	}
 	if !strings.Contains(s, `"+gnu.org/make"`) {
-		t.Errorf("a tool the registry HAS must stay a bottle:\n%s", s)
+		t.Errorf("a tool the registry HAS must stay an artifact:\n%s", s)
 	}
 
 	tenv(t)
 	if _, err := mk(false).Build(rec, "acme.org/tool", "*", tgt, tgt, filepath.Join(t.TempDir(), "dist")); err == nil {
-		t.Error("an ordinary build must still fail on a tool with no bottle")
+		t.Error("an ordinary build must still fail on a tool with no artifact")
 	}
 }
 
@@ -940,7 +942,7 @@ func TestBuildBootstrapFailureNamesWhatCameFromTheHost(t *testing.T) {
 	// failed it too would make this test pass for the wrong reason.
 	r.ResolveDep = func(p, _ string) (string, error) {
 		if p == "cmake.org" || p == "ninja-build.org" {
-			return "", errors.New("no bottle for linux/s390x")
+			return "", errors.New("no artifact for linux/s390x")
 		}
 		return "1.0.0", nil
 	}
@@ -979,7 +981,7 @@ func TestBuildOrdinaryFailureIsUnchanged(t *testing.T) {
 //
 // The other half of the refusal above. gnu.org/sed build-depends on itself for
 // one line — it puts a known-good sed in front of whatever the system has —
-// and on an architecture with no sed bottle the system's IS the only sed. The
+// and on an architecture with no sed artifact the system's IS the only sed. The
 // recipe says it provides bin/sed and the host says sed is at /usr/bin/sed, so
 // /usr is the prefix that makes both statements true.
 //
@@ -1025,7 +1027,7 @@ func TestBuildBootstrapTakesItsOwnPrefixFromTheHost(t *testing.T) {
 		t.Error("with nothing on the host to confirm it, the build must still refuse")
 	}
 
-	// And NOT in the ordinary mode: there the bottle exists, nothing was
+	// And NOT in the ordinary mode: there the artifact exists, nothing was
 	// dropped, and the recipe's own prefix must come from the registry rather
 	// than from whatever the build machine happens to have installed.
 	r3 := okRunner("acme.org/tool", tgt)

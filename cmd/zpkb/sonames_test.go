@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // fakeRegistry replaces the two seams a registry sweep needs: resolving a
-// project to a version, and unpacking that bottle into a directory of its own.
+// project to a version, and unpacking that artifact into a directory of its own.
 // Each project lays down the files it is given, so the union across separate
 // directories is what the test is about.
 func fakeRegistry(t *testing.T, files map[string]map[string][]string) {
@@ -20,13 +20,13 @@ func fakeRegistry(t *testing.T, files map[string]map[string][]string) {
 	oldR, oldI := resolveOne, installFor
 	t.Cleanup(func() { resolveOne, installFor = oldR, oldI })
 
-	resolveOne = func(proj, _, _, _ string) (bottle.Resolved, error) {
+	resolveOne = func(proj, _, _, _ string) (artifact.Resolved, error) {
 		if _, ok := files[proj]; !ok {
-			return bottle.Resolved{}, errors.New("no such project here")
+			return artifact.Resolved{}, errors.New("no such project here")
 		}
-		return bottle.Resolved{Project: proj, Version: bottle.ParseVer("1.0.0")}, nil
+		return artifact.Resolved{Project: proj, Version: artifact.ParseVer("1.0.0")}, nil
 	}
-	installFor = func(r bottle.Resolved, dir, _, _ string) (bool, error) {
+	installFor = func(r artifact.Resolved, dir, _, _ string) (bool, error) {
 		for name, needed := range files[r.Project] {
 			p := filepath.Join(dir, r.Project, "v1.0.0", "bin", name)
 			if strings.Contains(name, ".so") {
@@ -38,7 +38,7 @@ func fakeRegistry(t *testing.T, files map[string]map[string][]string) {
 	}
 }
 
-// The shape this exists for: a bottle links a library that NO bottle in the
+// The shape this exists for: an artifact links a library that NO artifact in the
 // set provides, and each is unpacked on its own because a build ORDER is not
 // a coexisting set.
 func TestSonamesNamesWhatNobodyProvides(t *testing.T) {
@@ -57,7 +57,7 @@ func TestSonamesNamesWhatNobodyProvides(t *testing.T) {
 			t.Errorf("missing %q in:\n%s", w, got)
 		}
 	}
-	// libc.so.6 is provided by another bottle ENTIRELY — the union across
+	// libc.so.6 is provided by another artifact ENTIRELY — the union across
 	// separate directories is the whole point.
 	if strings.Contains(got, "libc.so.6 <-") {
 		t.Errorf("a soname provided by a sibling was reported missing:\n%s", got)
@@ -110,7 +110,7 @@ func TestSonamesSaysWhichProjectsItCouldNotRead(t *testing.T) {
 func TestSonamesSaysWhenAnInstallFails(t *testing.T) {
 	fakeRegistry(t, map[string]map[string][]string{"gnu.org/glibc": {"libc.so.6": nil}})
 	old := installFor
-	installFor = func(bottle.Resolved, string, string, string) (bool, error) {
+	installFor = func(artifact.Resolved, string, string, string) (bool, error) {
 		return false, errors.New("blob truncated")
 	}
 	t.Cleanup(func() { installFor = old })
@@ -181,10 +181,10 @@ func TestSonamesRefusals(t *testing.T) {
 func TestResolveOnePicksTheProjectItWasAsked(t *testing.T) {
 	old := resolveClosureFor
 	t.Cleanup(func() { resolveClosureFor = old })
-	resolveClosureFor = func(map[string]string, string, string) ([]bottle.Resolved, error) {
-		return []bottle.Resolved{
-			{Project: "gnu.org/glibc", Version: bottle.ParseVer("2.44.0")},
-			{Project: "gnu.org/sed", Version: bottle.ParseVer("4.10")},
+	resolveClosureFor = func(map[string]string, string, string) ([]artifact.Resolved, error) {
+		return []artifact.Resolved{
+			{Project: "gnu.org/glibc", Version: artifact.ParseVer("2.44.0")},
+			{Project: "gnu.org/sed", Version: artifact.ParseVer("4.10")},
 		}, nil
 	}
 	r, err := resolveOne("gnu.org/sed", "", "linux", "x86-64")
@@ -196,7 +196,7 @@ func TestResolveOnePicksTheProjectItWasAsked(t *testing.T) {
 	if _, err := resolveOne("ghost.org", "", "linux", "x86-64"); err == nil {
 		t.Error("a closure without the project resolved anyway")
 	}
-	resolveClosureFor = func(map[string]string, string, string) ([]bottle.Resolved, error) {
+	resolveClosureFor = func(map[string]string, string, string) ([]artifact.Resolved, error) {
 		return nil, errors.New("not published here")
 	}
 	if _, err := resolveOne("gnu.org/sed", "", "linux", "x86-64"); err == nil {
@@ -209,8 +209,8 @@ func TestResolveOnePicksTheProjectItWasAsked(t *testing.T) {
 // another registry is the reason it takes the flag.
 func TestSonamesThroughTheCommandAndWithADist(t *testing.T) {
 	fakeRegistry(t, map[string]map[string][]string{"gnu.org/glibc": {"libc.so.6": nil}})
-	old := bottle.DistBase
-	t.Cleanup(func() { bottle.DistBase = old })
+	old := artifact.DistBase
+	t.Cleanup(func() { artifact.DistBase = old })
 
 	code, out, errb := run2(t, "sonames", "--dist", "oci://example.invalid/x/", "gnu.org/glibc")
 	if code != 0 {
@@ -221,7 +221,7 @@ func TestSonamesThroughTheCommandAndWithADist(t *testing.T) {
 	}
 	// The trailing slash comes off, like every other --dist in this command
 	// set, or two callers spell the same registry two ways.
-	if bottle.DistBase != "oci://example.invalid/x" {
-		t.Errorf("DistBase = %q", bottle.DistBase)
+	if artifact.DistBase != "oci://example.invalid/x" {
+		t.Errorf("DistBase = %q", artifact.DistBase)
 	}
 }

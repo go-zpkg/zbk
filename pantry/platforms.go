@@ -13,7 +13,7 @@ import "strings"
 // a darwin/aarch64 ranking.
 //
 // Honouring it removes only work that cannot succeed. Measured against the
-// published registry: of those 81, seven do have a darwin bottle
+// published registry: of those 81, seven do have a darwin artifact
 // (freedesktop.org/libbsd, github.com/containerd/nerdctl,
 // github.com/containers/buildah, github.com/rui314/mold, gnupg.org/v2.5,
 // google.com/fullycapable, mercure.rocks) and all seven are MIRRORS —

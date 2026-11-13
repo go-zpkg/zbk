@@ -357,7 +357,7 @@ func TestLintStandalonePassesACompleteRecipe(t *testing.T) {
 
 // ⛔⛔ AN OVERLAY ENTRY IS AN AMENDMENT, NOT A RECIPE, AND THE DIFFERENCE IS
 // INVISIBLE UNTIL THE TREE UNDERNEATH IS TAKEN AWAY. pantry-overlay#50 reduced
-// all 183 entries to the keys they change — correct for a tree bottle merges
+// all 183 entries to the keys they change — correct for a tree artifact merges
 // OVER pkgxdev/pantry, and the whole problem for a tree that must BE the base.
 // Measured when this was written: 15 of 213 overlay recipes state a
 // distributable.

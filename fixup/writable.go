@@ -17,7 +17,7 @@ import "io/fs"
 //
 //	build failed: fix-up: open …/lib/libtcl8.6.dylib: permission denied
 //
-// Restoring the mode matters as much as lifting it: the bottle must ship the
+// Restoring the mode matters as much as lifting it: the artifact must ship the
 // permissions the package chose, not the ones we needed for a moment.
 func ensureWritable(path string) (func(), error) {
 	fi, err := osStat(path)

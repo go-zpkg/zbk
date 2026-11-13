@@ -22,7 +22,7 @@ import (
 	"github.com/go-attest/sbom"
 	"github.com/go-attest/sbom/provenance"
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/ulikunitz/xz"
 
@@ -84,7 +84,7 @@ func newMiniOCI() *miniOCI {
 				w.Header().Set("Docker-Content-Digest", dg)
 				w.WriteHeader(201)
 			default: // HEAD/GET — serve the stored manifest so read-modify-write
-				// of the version-tag index (bottle's reconcile) can read it back.
+				// of the version-tag index (artifact's reconcile) can read it back.
 				body, ok := manifests[ref]
 				if !ok {
 					w.WriteHeader(404)
@@ -116,27 +116,27 @@ func newMiniOCI() *miniOCI {
 }
 
 func (m *miniOCI) base() string {
-	return "oci://" + strings.TrimPrefix(m.srv.URL, "http://") + "/go-zpkg/bottles"
+	return "oci://" + strings.TrimPrefix(m.srv.URL, "http://") + "/go-zpkg/artifacts"
 }
 func (m *miniOCI) close() { m.srv.Close() }
 
 var errBoom = errors.New("boom")
 
-func writeBottle(t *testing.T, name string) string {
+func writeArtifact(t *testing.T, name string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(p, []byte("bottle-bytes"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("artifact-bytes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return p
 }
 
 // TestPublishEndToEnd drives the real ociPush closure against the mini registry,
-// proving the bk→bottle→referrer chain.
+// proving the bk→artifact→referrer chain.
 func TestPublishEndToEnd(t *testing.T) {
 	m := newMiniOCI()
 	defer m.close()
-	b := writeBottle(t, "sqlite.tar.gz")
+	b := writeArtifact(t, "sqlite.tar.gz")
 	// Identified on purpose — the end-to-end path is the one a factory takes,
 	// and a tag with no hash is not it. Unsigned is TestPublishSigned's
 	// subject, so this one says so rather than carrying a key it is not
@@ -150,8 +150,8 @@ func TestPublishEndToEnd(t *testing.T) {
 	if !strings.Contains(out, "published sqlite.org 3.46.0 darwin/x86-64") || !strings.Contains(out, "+SBOM +provenance") {
 		t.Errorf("output = %q", out)
 	}
-	// a .tar.xz bottle exercises the xz layer-media branch
-	bx := writeBottle(t, "x.tar.xz")
+	// a .tar.xz artifact exercises the xz layer-media branch
+	bx := writeArtifact(t, "x.tar.xz")
 	if c, _, e := run2(t, "publish", "--to", m.base(), "--project", "z.org",
 		"--version", "1", "--platform", "linux/aarch64",
 		"--spec-recipe", "sha256:def", "--allow-unsigned", bx); c != 0 {
@@ -161,7 +161,7 @@ func TestPublishEndToEnd(t *testing.T) {
 
 // ⛔⛔ EVERYTHING THIS FACTORY PUBLISHES IS SIGNED AND IDENTIFIED, OR IT IS
 // NOT PUBLISHED. Both halves failed silently on 2026-11-05: the wasip1 lane
-// pushed 30 bottles that were unsigned (the signing secret had not followed
+// pushed 30 artifacts that were unsigned (the signing secret had not followed
 // an organisation transfer) and unidentified (it builds with a plain
 // `go build`, so there is no plan and no spec). Both paths did exactly what
 // they were written to do, and produced thirty artefacts a fail-closed client
@@ -169,7 +169,7 @@ func TestPublishEndToEnd(t *testing.T) {
 func TestPublishRefusesUnsignedOrUnidentified(t *testing.T) {
 	m := newMiniOCI()
 	defer m.close()
-	b := writeBottle(t, "g.tar.gz")
+	b := writeArtifact(t, "g.tar.gz")
 	base := []string{"publish", "--to", m.base(), "--project", "p", "--version", "1",
 		"--platform", "linux/x86-64"}
 	with := func(extra ...string) []string {
@@ -201,7 +201,7 @@ func TestPublishRefusesUnsignedOrUnidentified(t *testing.T) {
 	}
 
 	// ⛔ THE TWO DEROGATIONS ARE SEPARATE. One flag covering both would let a
-	// lane that only needed to mirror an unidentified bottle quietly start
+	// lane that only needed to mirror an unidentified artifact quietly start
 	// publishing unsigned ones too.
 	if c, _, e := run2(t, with("--allow-unsigned", "--allow-unidentified")...); c != 0 {
 		t.Errorf("both derogations given and still refused: code=%d err=%q", c, e)
@@ -211,7 +211,7 @@ func TestPublishRefusesUnsignedOrUnidentified(t *testing.T) {
 // ⛔⛔ TWO SPELLINGS OF ONE VALUE ARE REFUSED, NOT RECONCILED. A precedence
 // rule between --spec-recipe and --spec-recipe-from would be a second
 // definition of the build's identity, which this project has already paid for
-// once: two definitions of one hash meant a bottle failed its own
+// once: two definitions of one hash meant an artifact failed its own
 // verification with a message that read as tampering.
 func TestSpecRecipeFromFile(t *testing.T) {
 	dir := t.TempDir()
@@ -257,7 +257,7 @@ func TestSpecRecipeFromFile(t *testing.T) {
 
 	// And the command stops on it, with exit 2 — a usage mistake, not a
 	// runtime one, so nothing is pushed and the operator is told which flag.
-	b := writeBottle(t, "rf.tar.gz")
+	b := writeArtifact(t, "rf.tar.gz")
 	c, _, errs := run2(t, "publish", "--to", "oci://x/y", "--project", "p", "--version", "1",
 		"--platform", "linux/x86-64", "--allow-unsigned",
 		"--spec-recipe", "sha256:abc", "--spec-recipe-from", desc, b)
@@ -322,7 +322,7 @@ func TestABadSigningKeySaysWhichMistakeItIs(t *testing.T) {
 }
 
 // A dependency is stated as project=version, with the hash optional — a Go
-// toolchain from the runner's image has a version and no bottle identity, and
+// toolchain from the runner's image has a version and no artifact identity, and
 // that is the truth about it.
 func TestSpecDepFlag(t *testing.T) {
 	var d depFlag
@@ -356,7 +356,7 @@ func TestPublishSigned(t *testing.T) {
 	if err := os.WriteFile(keyFile, []byte(kp.SecretKeyFile("")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	b := writeBottle(t, "s.tar.gz")
+	b := writeArtifact(t, "s.tar.gz")
 	code, out, errs := run2(t, "publish", "--to", m.base(), "--project", "z.org",
 		"--version", "1", "--platform", "linux/x86-64", "--sign", keyFile,
 		"--allow-unidentified", b)
@@ -406,11 +406,11 @@ func TestPublishRuntimeErrors(t *testing.T) {
 		return append(append([]string{"publish", "--to", "oci://x/y", "--project", "p",
 			"--version", "1", "--platform", "linux/x86-64"}, ok...), last)
 	}
-	// unreadable bottle
+	// unreadable artifact
 	if c, _, _ := run2(t, args(filepath.Join(t.TempDir(), "missing"))...); c != 1 {
-		t.Error("missing bottle")
+		t.Error("missing artifact")
 	}
-	b := writeBottle(t, "b.tar.gz")
+	b := writeArtifact(t, "b.tar.gz")
 	// buildReferrers failure via the sbom seam
 	os1 := sbomJSON
 	sbomJSON = func(sbom.Document) ([]byte, error) { return nil, errBoom }
@@ -420,7 +420,7 @@ func TestPublishRuntimeErrors(t *testing.T) {
 	sbomJSON = os1
 	// ociPush failure via the seam
 	op := ociPush
-	ociPush = func(string, string, string, string, string, []byte, string, []bottle.Referrer, map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(string, string, string, string, string, []byte, string, []artifact.Referrer, map[string]string) (ocispec.Descriptor, error) {
 		return ocispec.Descriptor{}, errBoom
 	}
 	if c, _, _ := run2(t, args(b)...); c != 1 {
@@ -455,11 +455,11 @@ func TestBuildReferrers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(sref) != 3 || sref[2].ArtifactType != bottle.ArtifactTypeSignature {
+	if len(sref) != 3 || sref[2].ArtifactType != artifact.ArtifactTypeSignature {
 		t.Fatalf("signed refs = %+v", sref)
 	}
-	sig := sref[2].Annotations[bottle.CosignSignatureAnnotation]
-	if err := bottle.VerifySignature(tarball, sref[2].Blob, sig, kp.PublicKeyString()); err != nil {
+	sig := sref[2].Annotations[artifact.CosignSignatureAnnotation]
+	if err := artifact.VerifySignature(tarball, sref[2].Blob, sig, kp.PublicKeyString()); err != nil {
 		t.Errorf("signature referrer does not verify: %v", err)
 	}
 
@@ -529,7 +529,7 @@ func TestSplitPlatform(t *testing.T) {
 // TestPublishGlibcTag: --glibc flavors ONLY the registry tag (not the SBOM
 // version), so builds of one version against different glibc coexist.
 func TestPublishGlibcTag(t *testing.T) {
-	b := writeBottle(t, "g.tar.gz")
+	b := writeArtifact(t, "g.tar.gz")
 	op := ociPush
 	defer func() { ociPush = op }()
 	for _, tc := range []struct{ flag, wantTag, wantGlibcAnn string }{
@@ -539,7 +539,7 @@ func TestPublishGlibcTag(t *testing.T) {
 	} {
 		var gotTag string
 		var gotAnn map[string]string
-		ociPush = func(_, _, ver, _, _ string, _ []byte, _ string, _ []bottle.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
+		ociPush = func(_, _, ver, _, _ string, _ []byte, _ string, _ []artifact.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
 			gotTag = ver
 			gotAnn = ann
 			return ocispec.Descriptor{}, nil
@@ -557,8 +557,8 @@ func TestPublishGlibcTag(t *testing.T) {
 		if gotTag != tc.wantTag {
 			t.Errorf("glibc=%q: pushed tag = %q, want %q", tc.flag, gotTag, tc.wantTag)
 		}
-		if gotAnn[bottle.GlibcVersionAnnotation] != tc.wantGlibcAnn {
-			t.Errorf("glibc=%q: glibc.version annotation = %q, want %q", tc.flag, gotAnn[bottle.GlibcVersionAnnotation], tc.wantGlibcAnn)
+		if gotAnn[artifact.GlibcVersionAnnotation] != tc.wantGlibcAnn {
+			t.Errorf("glibc=%q: glibc.version annotation = %q, want %q", tc.flag, gotAnn[artifact.GlibcVersionAnnotation], tc.wantGlibcAnn)
 		}
 	}
 }
@@ -655,51 +655,51 @@ func TestGlibcMinKernelFromTarball(t *testing.T) {
 	if mk, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{
 		"gnu.org/glibc/v2.27.0/lib/glibc-2.27/libc.so.6": libc,
 		"gnu.org/glibc/v2.27.0/lib/other.so":             []byte("x"),
-	})), bottle.ExtTarGz); err != nil || mk != "3.2.0" {
+	})), artifact.ExtTarGz); err != nil || mk != "3.2.0" {
 		t.Fatalf("gz = %q, %v (want 3.2.0)", mk, err)
 	}
 	// xz path
-	if mk, err := glibcMinKernelFromTarball(xzBytes(t, tarBytes(map[string][]byte{"a/libc.so.6": libc})), bottle.ExtTarXz); err != nil || mk != "3.2.0" {
+	if mk, err := glibcMinKernelFromTarball(xzBytes(t, tarBytes(map[string][]byte{"a/libc.so.6": libc})), artifact.ExtTarXz); err != nil || mk != "3.2.0" {
 		t.Fatalf("xz = %q, %v", mk, err)
 	}
 	// no libc.so.6
-	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/other": libc})), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/other": libc})), artifact.ExtTarGz); err == nil {
 		t.Error("missing libc.so.6 should error")
 	}
 	// libc.so.6 that is not an ELF
-	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/libc.so.6": []byte("garbage")})), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/libc.so.6": []byte("garbage")})), artifact.ExtTarGz); err == nil {
 		t.Error("non-ELF libc.so.6 should error")
 	}
 	// bad gzip / bad xz
-	if _, err := glibcMinKernelFromTarball([]byte("not gzip"), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball([]byte("not gzip"), artifact.ExtTarGz); err == nil {
 		t.Error("bad gzip should error")
 	}
-	if _, err := glibcMinKernelFromTarball([]byte("not xz"), bottle.ExtTarXz); err == nil {
+	if _, err := glibcMinKernelFromTarball([]byte("not xz"), artifact.ExtTarXz); err == nil {
 		t.Error("bad xz should error")
 	}
 	// corrupt tar header -> tr.Next error (a full 512-byte block of garbage)
-	if _, err := glibcMinKernelFromTarball(gzBytes(bytes.Repeat([]byte{0xff}, 512)), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(bytes.Repeat([]byte{0xff}, 512)), artifact.ExtTarGz); err == nil {
 		t.Error("corrupt tar header should error")
 	}
 	// truncated entry -> io.Copy error: full header (size 2000) but the stream is
 	// cut mid-data, so copying the libc.so.6 body hits an unexpected EOF.
 	full := tarBytes(map[string][]byte{"a/libc.so.6": make([]byte, 2000)})
-	if _, err := glibcMinKernelFromTarball(gzBytes(full[:612]), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(full[:612]), artifact.ExtTarGz); err == nil {
 		t.Error("truncated entry should error on io.Copy")
 	}
 	// osCreateTemp failure via the seam
 	oc := osCreateTemp
 	osCreateTemp = func(string, string) (*os.File, error) { return nil, errBoom }
-	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/libc.so.6": libc})), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(tarBytes(map[string][]byte{"a/libc.so.6": libc})), artifact.ExtTarGz); err == nil {
 		t.Error("osCreateTemp failure should propagate")
 	}
 	osCreateTemp = oc
 }
 
-// TestGlibcMinKernelPre234Layout: before glibc 2.34 a bottle ships the ELF as
+// TestGlibcMinKernelPre234Layout: before glibc 2.34 an artifact ships the ELF as
 // libc-X.Y.so and makes libc.so.6 a SYMLINK to it — tar carries no content for
 // a symlink, so the floor has to come from the link's target. Real case: the
-// upstream glibc 2.17/2.24/2.27 bottles are published exactly like this.
+// upstream glibc 2.17/2.24/2.27 artifacts are published exactly like this.
 func TestGlibcMinKernelPre234Layout(t *testing.T) {
 	libc := abiNoteELF(2, 6, 32)
 	dir := "gnu.org/glibc/v2.17.0/lib/glibc-2.17/"
@@ -708,16 +708,16 @@ func TestGlibcMinKernelPre234Layout(t *testing.T) {
 		reg(dir+"libc.so", []byte("/* GNU ld script */")), // a linker script, NOT an ELF
 		symlinkEntry(dir+"libc.so.6", "libc-2.17.so"),
 	)
-	if mk, err := glibcMinKernelFromTarball(gzBytes(tb), bottle.ExtTarGz); err != nil || mk != "2.6.32" {
+	if mk, err := glibcMinKernelFromTarball(gzBytes(tb), artifact.ExtTarGz); err != nil || mk != "2.6.32" {
 		t.Fatalf("symlinked libc = %q, %v (want 2.6.32)", mk, err)
 	}
 	// a dangling libc.so.6 symlink is still a clean "not found"
-	if _, err := glibcMinKernelFromTarball(gzBytes(tarWith(symlinkEntry(dir+"libc.so.6", "nowhere.so"))), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(tarWith(symlinkEntry(dir+"libc.so.6", "nowhere.so"))), artifact.ExtTarGz); err == nil {
 		t.Error("a dangling libc.so.6 symlink should error")
 	}
 	// a regular libc.so.6 still wins over any versioned image present
 	both := tarWith(reg(dir+"libc-2.17.so", abiNoteELF(9, 9, 9)), reg(dir+"libc.so.6", libc))
-	if mk, err := glibcMinKernelFromTarball(gzBytes(both), bottle.ExtTarGz); err != nil || mk != "2.6.32" {
+	if mk, err := glibcMinKernelFromTarball(gzBytes(both), artifact.ExtTarGz); err != nil || mk != "2.6.32" {
 		t.Fatalf("regular libc.so.6 = %q, %v", mk, err)
 	}
 	// staging the ELF can fail on write (here: an already-closed temp file)
@@ -730,7 +730,7 @@ func TestGlibcMinKernelPre234Layout(t *testing.T) {
 		return f, err
 	}
 	defer func() { osCreateTemp = oc }()
-	if _, err := glibcMinKernelFromTarball(gzBytes(both), bottle.ExtTarGz); err == nil {
+	if _, err := glibcMinKernelFromTarball(gzBytes(both), artifact.ExtTarGz); err == nil {
 		t.Error("a failing write to the staged ELF should propagate")
 	}
 }
@@ -760,9 +760,9 @@ func tarWith(entries ...tarEntry) []byte {
 	return buf.Bytes()
 }
 
-// TestPublishGlibcBottleMinKernel: publishing gnu.org/glibc stamps min-kernel
+// TestPublishGlibcArtifactMinKernel: publishing gnu.org/glibc stamps min-kernel
 // and does NOT flavor the tag.
-func TestPublishGlibcBottleMinKernel(t *testing.T) {
+func TestPublishGlibcArtifactMinKernel(t *testing.T) {
 	dir := t.TempDir()
 	bp := filepath.Join(dir, "v2.27.0.tar.gz")
 	if err := os.WriteFile(bp, gzBytes(tarBytes(map[string][]byte{
@@ -774,11 +774,11 @@ func TestPublishGlibcBottleMinKernel(t *testing.T) {
 	defer func() { ociPush = op }()
 	var gotTag string
 	var gotAnn map[string]string
-	ociPush = func(_, _, ver, _, _ string, _ []byte, _ string, _ []bottle.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, _, ver, _, _ string, _ []byte, _ string, _ []artifact.Referrer, ann map[string]string) (ocispec.Descriptor, error) {
 		gotTag, gotAnn = ver, ann
 		return ocispec.Descriptor{}, nil
 	}
-	if code, _, errs := run2(t, "publish", "--to", "oci://r.example/x", "--project", bottle.GlibcProject,
+	if code, _, errs := run2(t, "publish", "--to", "oci://r.example/x", "--project", artifact.GlibcProject,
 		"--version", "2.27.0", "--platform", "linux/x86-64",
 		"--allow-unsigned", "--allow-unidentified", bp); code != 0 {
 		t.Fatalf("glibc publish code=%d err=%q", code, errs)
@@ -786,38 +786,38 @@ func TestPublishGlibcBottleMinKernel(t *testing.T) {
 	if gotTag != "2.27.0" {
 		t.Errorf("glibc tag = %q, want unflavored 2.27.0", gotTag)
 	}
-	if gotAnn[bottle.GlibcMinKernelAnnotation] != "3.10.0" {
-		t.Errorf("min-kernel annotation = %q, want 3.10.0", gotAnn[bottle.GlibcMinKernelAnnotation])
+	if gotAnn[artifact.GlibcMinKernelAnnotation] != "3.10.0" {
+		t.Errorf("min-kernel annotation = %q, want 3.10.0", gotAnn[artifact.GlibcMinKernelAnnotation])
 	}
 	// a glibc tarball WITHOUT libc.so.6 fails the publish
 	bad := filepath.Join(dir, "v9.tar.gz")
 	os.WriteFile(bad, gzBytes(tarBytes(map[string][]byte{"x/y": []byte("z")})), 0o644)
-	if code, _, _ := run2(t, "publish", "--to", "oci://r.example/x", "--project", bottle.GlibcProject,
+	if code, _, _ := run2(t, "publish", "--to", "oci://r.example/x", "--project", artifact.GlibcProject,
 		"--version", "9", "--platform", "linux/x86-64",
 		"--allow-unsigned", "--allow-unidentified", bad); code != 1 {
-		t.Error("glibc bottle without libc.so.6 should fail")
+		t.Error("glibc artifact without libc.so.6 should fail")
 	}
 }
 
-// TestPublishBottleReadsTheCodecFromTheFile: the media type must follow the
-// FILE, not a flag. A bottle mirrored from an upstream dist arrives in whatever
+// TestPublishArtifactReadsTheCodecFromTheFile: the media type must follow the
+// FILE, not a flag. An artifact mirrored from an upstream dist arrives in whatever
 // codec that dist used, and labelling a zstd tarball as gzip would make every
 // puller reach for the wrong decoder — a failure that looks like corruption.
-func TestPublishBottleReadsTheCodecFromTheFile(t *testing.T) {
+func TestPublishArtifactReadsTheCodecFromTheFile(t *testing.T) {
 	var gotExt string
 	oldPush := ociPush
-	ociPush = func(_, _, _, _, _ string, _ []byte, ext string, _ []bottle.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, _, _, _, _ string, _ []byte, ext string, _ []artifact.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
 		gotExt = ext
 		return ocispec.Descriptor{}, nil
 	}
 	defer func() { ociPush = oldPush }()
 
-	for _, ext := range []string{bottle.ExtTarGz, bottle.ExtTarXz, bottle.ExtTarZst} {
+	for _, ext := range []string{artifact.ExtTarGz, artifact.ExtTarXz, artifact.ExtTarZst} {
 		p := filepath.Join(t.TempDir(), "v1.0.0"+ext)
 		if err := os.WriteFile(p, []byte("payload"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := publishBottle(publishOptions{
+		if _, _, err := publishArtifact(publishOptions{
 			Dist: "oci://example.invalid/x", Project: "acme.org/tool", Version: "1.0.0",
 			OS: "linux", Arch: "aarch64", Path: p,
 		}); err != nil {
@@ -830,9 +830,9 @@ func TestPublishBottleReadsTheCodecFromTheFile(t *testing.T) {
 }
 
 // TestBuildReferrersRecordsTheSource is the point of the whole change: the
-// attestation must name the bytes the bottle was made FROM, not just the bottle.
+// attestation must name the bytes the artifact was made FROM, not just the artifact.
 // Before this, a source tarball that changed upstream produced a different
-// bottle, correctly signed, whose provenance named a URL and nothing else.
+// artifact, correctly signed, whose provenance named a URL and nothing else.
 func TestBuildReferrersRecordsTheSource(t *testing.T) {
 	const digest = "cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333"
 	src := build.SourceRef{URI: "https://example.com/pkg-1.2.3.tar.gz", SHA256: digest}
@@ -857,7 +857,7 @@ func TestBuildReferrersRecordsTheSource(t *testing.T) {
 
 	// And an EMPTY source records nothing rather than a decorative material:
 	// "this URL was involved" is what the recipe already says and what no
-	// verifier can check. `bk publish` on a bottle it did not build is that case.
+	// verifier can check. `bk publish` on an artifact it did not build is that case.
 	empty, err := buildReferrers("p", "1", "linux", "x86-64", []byte("x"), build.SourceRef{}, nil, time.Unix(0, 0).UTC(), nil, provOrigin{})
 	if err != nil {
 		t.Fatal(err)

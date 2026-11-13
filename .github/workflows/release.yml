@@ -58,7 +58,7 @@ jobs:
       # The same targets ci.yml builds, so a release cannot carry a platform
       # the matrix never compiled. Six linux arches because the factory runs
       # on all of them -- s390x, ppc64le, riscv64 and loong64 are not
-      # curiosities here, they are lanes with bottles.
+      # curiosities here, they are lanes with artifacts.
       # ⛔ dist/ MUST NOT LIVE IN THE CHECKOUT. Go stamps the main module
       # from the work tree's VCS state, so the moment the first binary lands
       # in an untracked dist/ the tree is dirty and every LATER build in this
@@ -92,7 +92,7 @@ jobs:
               go build -trimpath -ldflags="-s -w" -o "$DIST/${out}" ./cmd/zpkb
 
             # venvlaunch is the entry point `bkpyvenv seal` installs into a
-            # python-venv bottle (cmd/venvlaunch, go-zpkg/zpkgx#151). It ships
+            # python-venv artifact (cmd/venvlaunch, go-zpkg/zpkgx#151). It ships
             # here, from the same matrix and into the same SHA256SUMS, because
             # a pantry recipe can then pin a STORED asset with an
             # upstream-attested digest — where the generated tag archive 1111
@@ -130,7 +130,7 @@ jobs:
       # the fix is -ldflags "-X", not a shrug.
       #
       # `go version -m` is the same idiom go-zpkg/packages already uses to
-      # record which bk built a bottle.
+      # record which bk built an artifact.
       # ⛔⛔ THE BINARIES. PLURAL. This step was already an EXACT equality,
       # and it passed for thirteen releases while shipping dirty binaries,
       # because of WHICH FILE it read:
@@ -160,14 +160,14 @@ jobs:
           # repeat that in a new shape. It is the same module, so it carries
           # the same stamp, and the dirty-tree check matters for it exactly as
           # much: a launcher built from an unknown tree is one nobody can
-          # trace, and it ends up inside every python-venv bottle.
+          # trace, and it ends up inside every python-venv artifact.
           for bin in "$DIST"/zpkb-* "$DIST"/venvlaunch-*; do
             name=$(basename "$bin")
             info=$(go version -m "$bin")
             stamped=$(printf '%s\n' "$info" | awk '$1=="mod" {print $3; exit}')
             echo "$name: $stamped"
             if [ "$stamped" != "$TAG" ]; then
-              echo "::error::$name stamps $stamped but this is $TAG — a zpkb build would name the wrong version in every lock it writes, and a venvlaunch build would be untraceable inside the bottles it ships in"
+              echo "::error::$name stamps $stamped but this is $TAG — a zpkb build would name the wrong version in every lock it writes, and a venvlaunch build would be untraceable inside the artifacts it ships in"
               bad=1
             fi
             if printf '%s\n' "$info" | grep -q 'vcs\.modified=true'; then
@@ -230,5 +230,5 @@ jobs:
           else
             gh release create "$TAG" "$DIST"/* \
               --title "$TAG" \
-              --notes "Static, dependency-free \`zpkb\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs, and \`venvlaunch\` for the same targets except windows — the entry point \`bkpyvenv seal\` installs into a python-venv bottle, which needs no interpreter of its own to start. Verify downloads against SHA256SUMS; every file here also carries a Sigstore provenance attestation (\`gh attestation verify -R go-zpkg/zpkb <file>\`). Each \`zpkb\` binary reports its own version into every lock it writes."
+              --notes "Static, dependency-free \`zpkb\` binaries (CGO_ENABLED=0) for six linux architectures, darwin, windows and the BSDs, and \`venvlaunch\` for the same targets except windows — the entry point \`bkpyvenv seal\` installs into a python-venv artifact, which needs no interpreter of its own to start. Verify downloads against SHA256SUMS; every file here also carries a Sigstore provenance attestation (\`gh attestation verify -R go-zpkg/zpkb <file>\`). Each \`zpkb\` binary reports its own version into every lock it writes."
           fi

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // A gap is an asymmetry WITHIN an OS. gnu.org/glibc is absent from darwin
@@ -36,16 +36,16 @@ func TestWeatherReportsOnlyWithinOSAsymmetry(t *testing.T) {
 func TestWeatherCatchesThePinnedConstraint(t *testing.T) {
 	old := weatherPick
 	defer func() { weatherPick = old }()
-	weatherPick = func(_ string, cons []string, osn, arch string) (bottle.Ver, error) {
+	weatherPick = func(_ string, cons []string, osn, arch string) (artifact.Ver, error) {
 		// 5.4.1 everywhere; 5.3.2 only on aarch64 — exactly the registry that
 		// let darwin/x86-64 die silently.
 		if len(cons) == 0 {
-			return bottle.ParseVer("5.4.1"), nil
+			return artifact.ParseVer("5.4.1"), nil
 		}
 		if osn == "darwin" && arch == "x86-64" {
-			return bottle.Ver{}, errors.New("not published here")
+			return artifact.Ver{}, errors.New("not published here")
 		}
-		return bottle.ParseVer("5.3.2"), nil
+		return artifact.ParseVer("5.3.2"), nil
 	}
 	var out bytes.Buffer
 	if rc := runWeather([]string{"gnu.org/gawk"}, &out, &out); rc != 0 {
@@ -64,8 +64,8 @@ func TestWeatherCatchesThePinnedConstraint(t *testing.T) {
 func TestWeatherQuiet(t *testing.T) {
 	old := weatherPick
 	defer func() { weatherPick = old }()
-	weatherPick = func(p string, _ []string, _, _ string) (bottle.Ver, error) {
-		return bottle.ParseVer("1.0"), nil
+	weatherPick = func(p string, _ []string, _, _ string) (artifact.Ver, error) {
+		return artifact.ParseVer("1.0"), nil
 	}
 	var out bytes.Buffer
 	runWeather([]string{"--quiet", "a.org"}, &out, &out)
@@ -144,11 +144,11 @@ func TestWeatherWhenTheListCannotBeRead(t *testing.T) {
 func TestWeatherThroughTheDispatch(t *testing.T) {
 	old := weatherPick
 	defer func() { weatherPick = old }()
-	weatherPick = func(_ string, _ []string, osn, arch string) (bottle.Ver, error) {
+	weatherPick = func(_ string, _ []string, osn, arch string) (artifact.Ver, error) {
 		if osn == "darwin" && arch == "x86-64" {
-			return bottle.Ver{}, errors.New("not published here")
+			return artifact.Ver{}, errors.New("not published here")
 		}
-		return bottle.ParseVer("1.0"), nil
+		return artifact.ParseVer("1.0"), nil
 	}
 	code, out, _ := run2(t, "weather", "a.org")
 	if code != 1 {
@@ -191,11 +191,11 @@ func TestSkewedSeesWhatAsymmetricCannot(t *testing.T) {
 func TestWeatherReportsASkewWithoutCallingItAGap(t *testing.T) {
 	old := weatherPick
 	defer func() { weatherPick = old }()
-	weatherPick = func(_ string, _ []string, osn, arch string) (bottle.Ver, error) {
+	weatherPick = func(_ string, _ []string, osn, arch string) (artifact.Ver, error) {
 		if osn == "darwin" && arch == "x86-64" {
-			return bottle.ParseVer("2.1.2"), nil
+			return artifact.ParseVer("2.1.2"), nil
 		}
-		return bottle.ParseVer("2.2.0"), nil
+		return artifact.ParseVer("2.2.0"), nil
 	}
 	var out, errb bytes.Buffer
 	code := runWeather([]string{"--platforms", "darwin/aarch64,darwin/x86-64", "gnupg.org/gpgme"}, &out, &errb)
@@ -221,11 +221,11 @@ func TestWeatherReportsASkewWithoutCallingItAGap(t *testing.T) {
 func TestWeatherPrefersTheStrongerFinding(t *testing.T) {
 	old := weatherPick
 	defer func() { weatherPick = old }()
-	weatherPick = func(_ string, _ []string, osn, arch string) (bottle.Ver, error) {
+	weatherPick = func(_ string, _ []string, osn, arch string) (artifact.Ver, error) {
 		if osn == "darwin" && arch == "x86-64" {
-			return bottle.Ver{}, errors.New("no bottle")
+			return artifact.Ver{}, errors.New("no artifact")
 		}
-		return bottle.ParseVer("2.2.0"), nil
+		return artifact.ParseVer("2.2.0"), nil
 	}
 	var out, errb bytes.Buffer
 	if code := runWeather([]string{"--platforms", "darwin/aarch64,darwin/x86-64", "p"}, &out, &errb); code != 1 {

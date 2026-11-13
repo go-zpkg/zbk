@@ -1,14 +1,14 @@
 // Command bk is the pure-Go brewkit — a from-scratch reimplementation of
 // pkgx's build tool that is Target≠Host by design (first-class cross-compile,
-// notably Windows PE bottles built on a linux/darwin host).
+// notably Windows PE artifacts built on a linux/darwin host).
 //
 // This entrypoint currently exposes the pieces implemented so far:
 //
 //	bk target            print the resolved build target (honours ZPKB_TARGET / --platform)
 //	bk fixup <prefix>    run the post-build relocatability fix-ups on an install prefix
 //	bk versions          list a recipe's candidate versions
-//	bk build             build a recipe into a bottle
-//	bk publish           push a built bottle to an OCI registry
+//	bk build             build a recipe into an artifact
+//	bk publish           push a built artifact to an OCI registry
 //	bk closure           print a project set's transitive runtime closure (topological)
 //	bk catalog           build (and publish, signed) the catalogue pkgx ls
 //	                     and <TAB> read
@@ -16,8 +16,8 @@
 //	                     the parse agrees with bk's own totals
 //	bk lock              resolve a set to the versions it means today, write them down, and --check them later
 //	                     (-runnable pins what is PUBLISHED, so `pkgx --lock` can run the file)
-//	bk factory           build a recipe set's whole closure and publish every bottle
-//	bk source            fetch the source a published bottle attests it was built from
+//	bk factory           build a recipe set's whole closure and publish every artifact
+//	bk source            fetch the source a published artifact attests it was built from
 //	bk vulnid            say, per project, the name a vulnerability database will
 //	                     accept — derived from the recipe, or declared in a table
 //	bk advisories        validate a tree of per-project advisory records and say
@@ -27,7 +27,7 @@
 //	bk eol               whether a version is on an upstream release line that
 //	                     is still supported — the question OSV cannot answer,
 //	                     because an abandoned line has no advisories YET
-//	bk attest            say what a PUBLISHED bottle carries — SBOM, provenance,
+//	bk attest            say what a PUBLISHED artifact carries — SBOM, provenance,
 //	                     signature, OpenVEX — and --require it
 package main
 
@@ -42,14 +42,14 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing/transport/client"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/config"
 	"github.com/go-zpkg/zpkb/fixup"
 	"github.com/go-zpkg/zpkb/target"
 )
 
 // trustEmbeddedCAs makes every HTTPS call bk performs — version listings, source
-// downloads, go-git clones — trust the Mozilla bundle bottle embeds, on top of
+// downloads, go-git clones — trust the Mozilla bundle artifact embeds, on top of
 // the system store. A FROM-scratch builder image has NO system trust store, so
 // without this bk cannot even list a version there:
 //
@@ -64,8 +64,8 @@ func trustEmbeddedCAs() {
 		return
 	}
 	tr = tr.Clone()
-	tr.TLSClientConfig = &tls.Config{RootCAs: bottle.CertPool()}
-	// HTTP/1.1 for the same reason bottle pulls use it: these are long,
+	tr.TLSClientConfig = &tls.Config{RootCAs: artifact.CertPool()}
+	// HTTP/1.1 for the same reason artifact pulls use it: these are long,
 	// single-stream transfers (a source tarball, or github's ref advertisement
 	// for a repo the size of openssl's), and h2 flow control makes them stall —
 	// `ls-remote https://github.com/openssl/openssl: context deadline exceeded`

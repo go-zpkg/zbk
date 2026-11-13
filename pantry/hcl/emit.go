@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/pantry"
 )
 
@@ -13,18 +13,18 @@ import (
 // the renderer is correct — and between them they caught a heredoc terminator
 // colliding with a script's own EOT line. A test reaches them by substituting
 // a conversion that is wrong on purpose.
-var convertFn = bottle.YAMLToHCL
+var convertFn = artifact.YAMLToHCL
 
 // Convert turns a package.yml into package.hcl text, and refuses to return
 // text that does not parse back into the same recipe.
 //
-// The RENDERING is bottle.YAMLToHCL — the same conversion the client runs on
+// The RENDERING is artifact.YAMLToHCL — the same conversion the client runs on
 // upstream recipes as they arrive, which is what makes this command a
 // measurement of the shipping path rather than of a copy of it. A second
 // renderer here would drift, and the two would disagree about a recipe on the
 // day it mattered.
 //
-// What bk adds is the comparison the client cannot make. bottle checks that
+// What bk adds is the comparison the client cannot make. artifact checks that
 // the HCL reads back as the same DOCUMENT; only bk has pantry.Parse, so only
 // bk can check that it reads back as the same RECIPE — which is what a build
 // actually consumes, and where the schema has its say.

@@ -129,7 +129,7 @@ func TestFetchDigestOpenError(t *testing.T) {
 }
 
 // A digest that cannot be computed fails the fetch rather than publishing a
-// bottle with nothing recorded about its source.
+// artifact with nothing recorded about its source.
 func TestFetchDigestReadError(t *testing.T) {
 	restoreSeams(t)
 	s := serve(t, gzWrap(t, sampleTar(t)))

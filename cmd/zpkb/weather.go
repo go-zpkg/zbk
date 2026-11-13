@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // defaultWeatherPlatforms are the ones the factory publishes today. Naming
@@ -17,7 +17,7 @@ var defaultWeatherPlatforms = []string{"darwin/aarch64", "darwin/x86-64", "linux
 
 // weatherPick is a seam: choosing a version needs the registry, and the
 // reporting is the part worth testing.
-var weatherPick = bottle.PickVersionForAll
+var weatherPick = artifact.PickVersionForAll
 
 // runWeather implements `bk weather`: for each project, which platforms have
 // something published, and which do not.
@@ -26,7 +26,7 @@ var weatherPick = bottle.PickVersionForAll
 // of all the packages for which substitutes are available on the server", with
 // a repeatable --system — and which we did not have. That absence cost two
 // silent days: the base toolchain pins gawk ~5.3, only darwin/aarch64 had a
-// bottle for it, and darwin/x86-64 could not assemble a tool environment at
+// artifact for it, and darwin/x86-64 could not assemble a tool environment at
 // all. Every build there failed naming the package being built, never the
 // toolchain, until somebody happened to dispatch one.
 //
@@ -114,7 +114,7 @@ func runWeather(args []string, stdout, stderr io.Writer) int {
 // arches -- 2.2.0 on aarch64, 2.1.2 on x86-64 -- and the report said "0
 // asymmetric". Ask the same pair for `@^2.2` and one of them answers none.
 //
-// So a skew is a bottle that exists for one architecture and not its sibling,
+// So a skew is an artifact that exists for one architecture and not its sibling,
 // seen from the side where the older one still satisfies an open constraint.
 // It is weaker than an asymmetry -- everything installable stays installable
 // -- and it is the state an asymmetry passes through, which is the useful
@@ -188,7 +188,7 @@ func parsePlatforms(s string) ([]platform, error) {
 //
 // "Is anything published" and "is the PINNED constraint satisfiable" are
 // different questions, and the second is the one that killed the x86-64 lane:
-// gawk had a 5.4.1 bottle for both arches while the toolchain pins ~5.3, which
+// gawk had a 5.4.1 artifact for both arches while the toolchain pins ~5.3, which
 // existed for one.
 func splitConstraint(spec string) (string, []string) {
 	if i := strings.Index(spec, "@"); i > 0 {

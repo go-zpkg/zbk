@@ -8,28 +8,28 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/moustache"
 	"github.com/go-zpkg/zpkb/pantry"
 	"github.com/go-zpkg/zpkb/target"
 )
 
-// concreteOf describes what this build IS, in the form the bottle carries and
-// a reader can verify: `bottle.Concrete`.
+// concreteOf describes what this build IS, in the form the artifact carries and
+// a reader can verify: `artifact.Concrete`.
 //
-// ⛔⛔ THERE IS ONE DEFINITION OF A BUILD'S IDENTITY AND IT LIVES IN `bottle`.
+// ⛔⛔ THERE IS ONE DEFINITION OF A BUILD'S IDENTITY AND IT LIVES IN `artifact`.
 // This function used to compute a second one, `spec.Hash(spec.DomainBuild,…)`,
 // and put its short form in the install prefix. That was wrong in a way that
-// would only have surfaced after publishing: `bottle.VerifySpec` checks that
+// would only have surfaced after publishing: `artifact.VerifySpec` checks that
 // the spec on a manifest hashes to the hash in the tag, so a tag carrying our
-// number and an annotation carrying bottle's would have made every bottle we
-// publish fail its own verification — and the message says "the bottle does
+// number and an annotation carrying artifact's would have made every artifact we
+// publish fail its own verification — and the message says "the artifact does
 // not match its own description", which reads as tampering.
 //
 // It was also the weaker of the two. A hash is only worth what a reader can
 // recompute, and nothing published carries the inputs to `spec.Hash`: the
 // annotation holds the platform, the resolved closure and a recipe DIGEST, so
-// `Concrete.Hash()` can be recomputed from the bottle and ours could not.
+// `Concrete.Hash()` can be recomputed from the artifact and ours could not.
 // `spec` remains what it was written for, `zpkb lock`, whose domain string is
 // frozen into every lock file in existence.
 //
@@ -41,17 +41,17 @@ import (
 // empty hash: that edge degrades to version-level precision and no further,
 // and it repairs itself as the registry is rebuilt. Said out loud rather than
 // hidden, because a hash is only as sharp as what it is taken over.
-func concreteOf(recipe *pantry.Recipe, tgt target.Target, deps []moustache.Dep) (bottle.Concrete, error) {
+func concreteOf(recipe *pantry.Recipe, tgt target.Target, deps []moustache.Dep) (artifact.Concrete, error) {
 	dig, err := recipeDigest(recipe)
 	if err != nil {
-		return bottle.Concrete{}, err
+		return artifact.Concrete{}, err
 	}
-	c := bottle.Concrete{
+	c := artifact.Concrete{
 		Platform: tgt.Platform + "/" + tgt.Arch,
 		Recipe:   dig,
 	}
 	for _, d := range deps {
-		c.Deps = append(c.Deps, bottle.Dep{
+		c.Deps = append(c.Deps, artifact.Dep{
 			Project: d.Project,
 			Version: d.Version,
 			Hash:    hashOfPrefix(d.Path),
@@ -77,7 +77,7 @@ func concreteOf(recipe *pantry.Recipe, tgt target.Target, deps []moustache.Dep) 
 // ⛔ OVER THE PARSED VALUE RE-SERIALISED, so reformatting a recipe, reordering
 // its mapping keys or rewriting its comments does not move it, and changing
 // what it says does. Hashing the file instead would make a reflowed comment
-// rebuild the world: every dependent's hash moves, every bottle is
+// rebuild the world: every dependent's hash moves, every artifact is
 // republished, and no binary differs. Spack strips comments and docstrings
 // from package.py before hashing for the same reason, and Nix hashes the
 // instantiated derivation rather than the expression.
@@ -100,7 +100,7 @@ func hashOfPrefix(path string) string {
 	if path == "" {
 		return ""
 	}
-	v, ok := bottle.ParseStoreDirName(filepath.Base(path))
+	v, ok := artifact.ParseStoreDirName(filepath.Base(path))
 	if !ok {
 		return ""
 	}

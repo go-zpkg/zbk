@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // provWith builds an in-toto referrer whose resolvedDependencies hold exactly
 // the given URIs — the wire shape, so the reader is tested against what a
 // registry serves and not against a struct we share with the writer.
-func provWith(uris ...map[string]any) bottle.Referrer {
+func provWith(uris ...map[string]any) artifact.Referrer {
 	deps := make([]map[string]any, 0, len(uris))
 	deps = append(deps, uris...)
 	b, _ := json.Marshal(map[string]any{
@@ -22,24 +22,24 @@ func provWith(uris ...map[string]any) bottle.Referrer {
 			"buildDefinition": map[string]any{"resolvedDependencies": deps},
 		},
 	})
-	return bottle.Referrer{ArtifactType: artifactInToto, Blob: b}
+	return artifact.Referrer{ArtifactType: artifactInToto, Blob: b}
 }
 
 // ⛔⛔ "RECORDS NOTHING" AND "COULD NOT BE READ" ARE DIFFERENT ANSWERS.
-// Every bottle published before bk v0.17.0 records no build environment, so a
+// Every artifact published before bk v0.17.0 records no build environment, so a
 // reader that returned a plain error for both would report the whole registry
 // as broken — and a sweep built on it would be useless for deciding anything.
 func TestEnvAttestedBySeparatesAbsenceFromFailure(t *testing.T) {
 	if _, err := envAttestedBy(nil); !errors.Is(err, errNoProvenance) {
 		t.Errorf("no attestation at all gave %v, want errNoProvenance", err)
 	}
-	_, err := envAttestedBy([]bottle.Referrer{provWith()})
+	_, err := envAttestedBy([]artifact.Referrer{provWith()})
 	if !errors.Is(err, errNoEnvironment) {
 		t.Errorf("an attestation with no environment gave %v, want errNoEnvironment", err)
 	}
 	// Malformed JSON is neither: it is a failure, and must not read as an
 	// absence.
-	bad := []bottle.Referrer{{ArtifactType: artifactInToto, Blob: []byte("{not json")}}
+	bad := []artifact.Referrer{{ArtifactType: artifactInToto, Blob: []byte("{not json")}}
 	_, err = envAttestedBy(bad)
 	if err == nil || errors.Is(err, errNoEnvironment) || errors.Is(err, errNoProvenance) {
 		t.Errorf("malformed provenance gave %v, want a parse failure", err)
@@ -57,7 +57,7 @@ func TestEnvAttestedByReadsOnlyTheEnvironmentEntries(t *testing.T) {
 	// carry one — `https://user@host/...`, a tag named with one — and then
 	// the prefix check is the only thing standing between a source archive
 	// and being counted as a compiler.
-	refs := []bottle.Referrer{provWith(
+	refs := []artifact.Referrer{provWith(
 		map[string]any{"uri": "https://dl@example.com/jq-1.8.2.tar.gz", "digest": map[string]string{"sha256": "abc"}},
 		map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"},
 		map[string]any{"uri": "pkg:pkgx/gnu.org/glibc@2.44.0"},
@@ -69,7 +69,7 @@ func TestEnvAttestedByReadsOnlyTheEnvironmentEntries(t *testing.T) {
 	if len(env) != 2 {
 		t.Fatalf("read %d entries, want 2: %+v", len(env), env)
 	}
-	// Sorted, so two bottles of the same closure compare as text.
+	// Sorted, so two artifacts of the same closure compare as text.
 	if env[0].Project != "gnu.org/glibc" || env[1].Project != "go.dev" {
 		t.Errorf("not sorted by project: %+v", env)
 	}
@@ -89,7 +89,7 @@ func TestEnvAttestedByReadsOnlyTheEnvironmentEntries(t *testing.T) {
 // contains one. Cutting at the first would split pkg:pkgx/x@1@2 in the wrong
 // place.
 func TestEnvAttestedBySplitsAtTheLastAt(t *testing.T) {
-	env, err := envAttestedBy([]bottle.Referrer{provWith(
+	env, err := envAttestedBy([]artifact.Referrer{provWith(
 		map[string]any{"uri": "pkg:pkgx/weird@name@1.2.3"},
 	)})
 	if err != nil {
@@ -101,7 +101,7 @@ func TestEnvAttestedBySplitsAtTheLastAt(t *testing.T) {
 	// And an entry with nothing after the "@", or nothing before it, is not
 	// an entry: it is dropped rather than recorded as half of one.
 	for _, u := range []string{"pkg:pkgx/x@", "pkg:pkgx/@1.2.3"} {
-		if e, _ := envAttestedBy([]bottle.Referrer{provWith(map[string]any{"uri": u})}); len(e) != 0 {
+		if e, _ := envAttestedBy([]artifact.Referrer{provWith(map[string]any{"uri": u})}); len(e) != 0 {
 			t.Errorf("%q produced %+v", u, e)
 		}
 	}
@@ -120,12 +120,12 @@ func TestTheSweepCountsTheThreeOutcomesSeparately(t *testing.T) {
 	t.Cleanup(func() { sourceAttestations = old })
 	// The fakes now answer with what a REGISTRY answers — referrers — so
 	// envAttestedBy runs for real in every case instead of being bypassed.
-	sourceAttestations = func(_, proj, _, _, _ string) ([]bottle.Referrer, error) {
+	sourceAttestations = func(_, proj, _, _, _ string) ([]artifact.Referrer, error) {
 		switch proj {
 		case "a.org":
-			return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
+			return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
 		case "b.org":
-			return []bottle.Referrer{provWith()}, nil // an attestation recording nothing
+			return []artifact.Referrer{provWith()}, nil // an attestation recording nothing
 		default:
 			return nil, errors.New("dial tcp: network is unreachable")
 		}
@@ -184,14 +184,14 @@ func TestAMalformedLineIsNamedRatherThanSkipped(t *testing.T) {
 func TestBuildEnvCommand(t *testing.T) {
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
-	sourceAttestations = func(_, proj, _, _, _ string) ([]bottle.Referrer, error) {
+	sourceAttestations = func(_, proj, _, _, _ string) ([]artifact.Referrer, error) {
 		if proj == "missing.org" {
-			return []bottle.Referrer{provWith()}, nil
+			return []artifact.Referrer{provWith()}, nil
 		}
-		return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
+		return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
 	}
 
-	t.Run("one bottle, environment recorded", func(t *testing.T) {
+	t.Run("one artifact, environment recorded", func(t *testing.T) {
 		code, out, _ := run2(t, "buildenv", "--platform", "linux/aarch64", "a.org", "1.2.3")
 		if code != 0 {
 			t.Fatalf("code = %d", code)
@@ -206,15 +206,15 @@ func TestBuildEnvCommand(t *testing.T) {
 		}
 	})
 
-	// ⛔ AN ABSENCE EXITS NON-ZERO AND SAYS WHICH BOTTLE. A script asking
+	// ⛔ AN ABSENCE EXITS NON-ZERO AND SAYS WHICH ARTIFACT. A script asking
 	// "is this comparable?" reads the status.
-	t.Run("one bottle, nothing recorded", func(t *testing.T) {
+	t.Run("one artifact, nothing recorded", func(t *testing.T) {
 		code, _, errb := run2(t, "buildenv", "--platform", "linux/aarch64", "missing.org", "1")
 		if code != 1 {
 			t.Errorf("code = %d, want 1", code)
 		}
 		if !strings.Contains(errb, "missing.org") || !strings.Contains(errb, "no build environment") {
-			t.Errorf("the refusal names neither the bottle nor the reason:\n%s", errb)
+			t.Errorf("the refusal names neither the artifact nor the reason:\n%s", errb)
 		}
 	})
 
@@ -279,9 +279,9 @@ func TestBuildEnvDefaultsToThisMachine(t *testing.T) {
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
 	var gotOS, gotArch string
-	sourceAttestations = func(_, _, _, osn, arch string) ([]bottle.Referrer, error) {
+	sourceAttestations = func(_, _, _, osn, arch string) ([]artifact.Referrer, error) {
 		gotOS, gotArch = osn, arch
-		return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
+		return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
 	}
 	if code, _, errb := run2(t, "buildenv", "a.org", "1.2.3"); code != 0 {
 		t.Fatalf("code = %d err=%q", code, errb)
@@ -301,7 +301,7 @@ func TestBuildEnvRefusesAnUnsupportedTarget(t *testing.T) {
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
 	reached := false
-	sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) {
+	sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) {
 		reached = true
 		return nil, nil
 	}
@@ -376,16 +376,16 @@ func TestTheSweepSaysWhatItCouldNotJudge(t *testing.T) {
 	}
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
-	sourceAttestations = func(_, proj, _, _, _ string) ([]bottle.Referrer, error) {
+	sourceAttestations = func(_, proj, _, _, _ string) ([]artifact.Referrer, error) {
 		switch proj {
 		case "old.org":
-			return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.1"})}, nil
+			return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.1"})}, nil
 		case "new.org":
-			return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
+			return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.2"})}, nil
 		case "c.org":
-			return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/gnu.org/glibc@2.44.0"})}, nil
+			return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/gnu.org/glibc@2.44.0"})}, nil
 		default:
-			return []bottle.Referrer{provWith()}, nil
+			return []artifact.Referrer{provWith()}, nil
 		}
 	}
 	var out, errb strings.Builder
@@ -401,7 +401,7 @@ func TestTheSweepSaysWhatItCouldNotJudge(t *testing.T) {
 	// ⛔ AND IT SAYS WHAT IT COULD NOT JUDGE. Without this line the reader
 	// takes "1 need rebuilding" for the whole answer.
 	if !strings.Contains(got, "1 record nothing, so this says nothing about them") {
-		t.Errorf("the unjudgeable bottle is not named as such:\n%s", got)
+		t.Errorf("the unjudgeable artifact is not named as such:\n%s", got)
 	}
 	// The stale line carries the version it HAS, not only that it is old.
 	if !strings.Contains(got, "STALE   old.org 1: go.dev 1.27.1, want >=1.27.2") {
@@ -419,8 +419,8 @@ func TestWithoutNeedsThereIsNoJudgement(t *testing.T) {
 	}
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
-	sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) {
-		return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.0.0"})}, nil
+	sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) {
+		return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.0.0"})}, nil
 	}
 	var out, errb strings.Builder
 	if code := sweepBuildEnv(list, "oci://x", "linux", "aarch64", requirement{}, &out, &errb); code != 0 {
@@ -431,7 +431,7 @@ func TestWithoutNeedsThereIsNoJudgement(t *testing.T) {
 	}
 	// ⛔ AND THE PLAIN LINE IS STILL THERE. Asserting only the ABSENCE of a
 	// verdict let a mutation through: routed into the judgement with an empty
-	// requirement, nothing matches the empty project name, so every bottle
+	// requirement, nothing matches the empty project name, so every artifact
 	// prints "n/a" — which contains neither "STALE" nor "need rebuilding"
 	// and passed. A negative assertion needs its positive beside it.
 	if !strings.Contains(out.String(), "env     a.org 1: 1 entry(ies)") {
@@ -450,11 +450,11 @@ func TestNeedsThroughTheCommand(t *testing.T) {
 	}
 	old := sourceAttestations
 	t.Cleanup(func() { sourceAttestations = old })
-	sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) {
-		return []bottle.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.1"})}, nil
+	sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) {
+		return []artifact.Referrer{provWith(map[string]any{"uri": "pkg:pkgx/go.dev@1.27.1"})}, nil
 	}
 
-	t.Run("a stale bottle exits non-zero and says which version it has", func(t *testing.T) {
+	t.Run("a stale artifact exits non-zero and says which version it has", func(t *testing.T) {
 		code, out, _ := run2(t, "buildenv", "--platform", "linux/aarch64",
 			"--needs", "go.dev@1.27.2", "--list", list)
 		if code != 1 {
@@ -469,7 +469,7 @@ func TestNeedsThroughTheCommand(t *testing.T) {
 	// against nonsense would produce a verdict somebody might act on.
 	t.Run("a malformed requirement is refused", func(t *testing.T) {
 		reached := false
-		sourceAttestations = func(_, _, _, _, _ string) ([]bottle.Referrer, error) {
+		sourceAttestations = func(_, _, _, _, _ string) ([]artifact.Referrer, error) {
 			reached = true
 			return nil, nil
 		}

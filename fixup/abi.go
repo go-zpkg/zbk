@@ -16,7 +16,7 @@ import (
 // cannot express. libxml2 states its own ABI line in configure.ac as
 // LIBXML_MINOR_COMPAT=14, and the soname is CURRENT − AGE = MAJOR +
 // MINOR_COMPAT: 2.13.9 ships libxml2.2.dylib and every 2.14+ ships
-// libxml2.16.dylib. Both answer `^2`. A bottle that records what it provides
+// libxml2.16.dylib. Both answer `^2`. An artifact that records what it provides
 // lets a checker decide, from published metadata alone, whether a declared
 // constraint can honour the references its dependents record — which is the
 // question go-zpkg/packages#207 asks and nothing can currently answer.

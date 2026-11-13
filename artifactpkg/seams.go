@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -31,7 +31,7 @@ var (
 		return os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	}
 
-	// Seams for the bottle COMPARISON (compare.go). Three of its error
+	// Seams for the artifact COMPARISON (compare.go). Three of its error
 	// branches cannot be reached with a real file: a freshly opened regular
 	// file does not fail its first Read, does not fail Seek(0), and
 	// zstd.NewReader with no options does not fail at all. They are still

@@ -9,7 +9,7 @@ import (
 // A project whose override did not apply is not built. The recipe on disk is
 // the UNPATCHED one, so a build of it either fails for the reason the patch
 // removes — which is what happened to mozilla.org/nss twice on 2026-09-24 —
-// or succeeds and publishes a bottle missing a correction somebody made on
+// or succeeds and publishes an artifact missing a correction somebody made on
 // purpose. The second is worse, and only this refusal catches it.
 func TestBuildOneRefusesAProjectWithASkippedOverride(t *testing.T) {
 	var out bytes.Buffer

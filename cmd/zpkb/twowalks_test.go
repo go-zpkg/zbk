@@ -13,7 +13,7 @@ import (
 // because teaching one of them something the other does not know makes
 // `bk closure` describe a build the factory would not perform. That defect has
 // been reproduced twice since — the logical overrides reached closureOf and
-// not closureGraph, and the overlay merge landed in bottle and not in bk — and
+// not closureGraph, and the overlay merge landed in artifact and not in bk — and
 // nothing compared the two.
 //
 // They read the overlay by DIFFERENT rules, deliberately:

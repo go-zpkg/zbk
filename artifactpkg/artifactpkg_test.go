@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -82,16 +82,16 @@ type entry struct {
 	body []byte
 }
 
-// readBottle decompresses and parses a bottle, preserving entry order.
-// readBottle decodes a bottle with whatever codec Codec currently names, so the
+// readArtifact decompresses and parses an artifact, preserving entry order.
+// readArtifact decodes an artifact with whatever codec Codec currently names, so the
 // structural assertions below follow the DEFAULT rather than pinning gzip — a
 // default that silently stopped producing a readable tar would go unnoticed
 // otherwise.
-func readBottle(t *testing.T, r io.Reader) ([]string, map[string]entry) {
+func readArtifact(t *testing.T, r io.Reader) ([]string, map[string]entry) {
 	t.Helper()
 	var dec io.Reader
 	switch Codec {
-	case bottle.ExtTarZst:
+	case artifact.ExtTarZst:
 		z, err := zstd.NewReader(r)
 		if err != nil {
 			t.Fatal(err)
@@ -126,13 +126,13 @@ func readBottle(t *testing.T, r io.Reader) ([]string, map[string]entry) {
 	return order, entries
 }
 
-func TestBottleRoundTrip(t *testing.T) {
+func TestArtifactRoundTrip(t *testing.T) {
 	dir := makeTree(t)
 	var buf bytes.Buffer
-	if err := Bottle(dir, project, version, &buf); err != nil {
+	if err := Artifact(dir, project, version, &buf); err != nil {
 		t.Fatal(err)
 	}
-	order, entries := readBottle(t, &buf)
+	order, entries := readArtifact(t, &buf)
 
 	want := []string{
 		prefix + ".hidden",
@@ -182,95 +182,95 @@ func TestBottleRoundTrip(t *testing.T) {
 	}
 }
 
-func TestBottleWalkError(t *testing.T) {
-	err := Bottle(filepath.Join(t.TempDir(), "nope"), project, version, &bytes.Buffer{})
+func TestArtifactWalkError(t *testing.T) {
+	err := Artifact(filepath.Join(t.TempDir(), "nope"), project, version, &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("want error for missing installDir")
 	}
 }
 
-func TestBottleRelError(t *testing.T) {
+func TestArtifactRelError(t *testing.T) {
 	orig := walkDir
 	defer func() { walkDir = orig }()
 	walkDir = func(root string, fn fs.WalkDirFunc) error {
 		return fn("not-absolute", nil, nil)
 	}
-	if err := Bottle(t.TempDir(), project, version, &bytes.Buffer{}); err == nil {
+	if err := Artifact(t.TempDir(), project, version, &bytes.Buffer{}); err == nil {
 		t.Fatal("want filepath.Rel error")
 	}
 }
 
-func TestBottleLstatError(t *testing.T) {
+func TestArtifactLstatError(t *testing.T) {
 	orig := osLstat
 	defer func() { osLstat = orig }()
 	osLstat = func(string) (fs.FileInfo, error) { return nil, errBoom }
-	if err := Bottle(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
+	if err := Artifact(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleReadlinkError(t *testing.T) {
+func TestArtifactReadlinkError(t *testing.T) {
 	orig := osReadlink
 	defer func() { osReadlink = orig }()
 	osReadlink = func(string) (string, error) { return "", errBoom }
-	if err := Bottle(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
+	if err := Artifact(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleFileInfoHeaderError(t *testing.T) {
+func TestArtifactFileInfoHeaderError(t *testing.T) {
 	orig := tarFileInfoHeader
 	defer func() { tarFileInfoHeader = orig }()
 	tarFileInfoHeader = func(fs.FileInfo, string) (*tar.Header, error) { return nil, errBoom }
-	if err := Bottle(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
+	if err := Artifact(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleWriteHeaderError(t *testing.T) {
+func TestArtifactWriteHeaderError(t *testing.T) {
 	// Pinned to gzip: it writes its header EAGERLY on the first tar header
 	// write, so a failing destination surfaces right there. zstd buffers, so it
 	// is simply the wrong instrument for this assertion — the error would show
 	// up somewhere else, or not until Close.
-	withCodec(t, bottle.ExtTarGz)
-	if err := Bottle(makeTree(t), project, version, errWriter{}); !errors.Is(err, errBoom) {
+	withCodec(t, artifact.ExtTarGz)
+	if err := Artifact(makeTree(t), project, version, errWriter{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleOpenError(t *testing.T) {
+func TestArtifactOpenError(t *testing.T) {
 	orig := osOpen
 	defer func() { osOpen = orig }()
 	osOpen = func(string) (*os.File, error) { return nil, errBoom }
-	if err := Bottle(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
+	if err := Artifact(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleCopyError(t *testing.T) {
+func TestArtifactCopyError(t *testing.T) {
 	orig := ioCopy
 	defer func() { ioCopy = orig }()
 	ioCopy = func(io.Writer, io.Reader) (int64, error) { return 0, errBoom }
-	if err := Bottle(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
+	if err := Artifact(makeTree(t), project, version, &bytes.Buffer{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestBottleTarCloseError(t *testing.T) {
-	// Pinned to gzip, same reason as TestBottleWriteHeaderError: an empty tree
+func TestArtifactTarCloseError(t *testing.T) {
+	// Pinned to gzip, same reason as TestArtifactWriteHeaderError: an empty tree
 	// writes nothing until tw.Close flushes the tar trailer, which triggers the
 	// first (failing) write to the destination.
-	withCodec(t, bottle.ExtTarGz)
-	if err := Bottle(t.TempDir(), project, version, errWriter{}); !errors.Is(err, errBoom) {
+	withCodec(t, artifact.ExtTarGz)
+	if err := Artifact(t.TempDir(), project, version, errWriter{}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottle(t *testing.T) {
+func TestWriteArtifact(t *testing.T) {
 	dir := makeTree(t)
 	out := t.TempDir()
 
-	p, err := WriteBottle(dir, project, version, "darwin", "aarch64", out)
+	p, err := WriteArtifact(dir, project, version, "darwin", "aarch64", out)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,9 +283,9 @@ func TestWriteBottle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	order, _ := readBottle(t, f)
+	order, _ := readArtifact(t, f)
 	if len(order) == 0 || order[0] != prefix+".hidden" {
-		t.Fatalf("unexpected bottle contents: %v", order)
+		t.Fatalf("unexpected artifact contents: %v", order)
 	}
 
 	vtxt := filepath.Join(out, project, "darwin", "aarch64", "versions.txt")
@@ -298,7 +298,7 @@ func TestWriteBottle(t *testing.T) {
 	}
 
 	// A second call appends.
-	if _, err := WriteBottle(dir, project, "3.0.0", "darwin", "aarch64", out); err != nil {
+	if _, err := WriteArtifact(dir, project, "3.0.0", "darwin", "aarch64", out); err != nil {
 		t.Fatal(err)
 	}
 	b, err = os.ReadFile(vtxt)
@@ -310,69 +310,69 @@ func TestWriteBottle(t *testing.T) {
 	}
 }
 
-func TestWriteBottleMkdirAllError(t *testing.T) {
+func TestWriteArtifactMkdirAllError(t *testing.T) {
 	orig := osMkdirAll
 	defer func() { osMkdirAll = orig }()
 	osMkdirAll = func(string, fs.FileMode) error { return errBoom }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottleCreateError(t *testing.T) {
+func TestWriteArtifactCreateError(t *testing.T) {
 	orig := osCreate
 	defer func() { osCreate = orig }()
 	osCreate = func(string) (io.WriteCloser, error) { return nil, errBoom }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottleBottleError(t *testing.T) {
+func TestWriteArtifactArtifactError(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "nope")
-	if _, err := WriteBottle(missing, project, version, "darwin", "aarch64", t.TempDir()); err == nil {
+	if _, err := WriteArtifact(missing, project, version, "darwin", "aarch64", t.TempDir()); err == nil {
 		t.Fatal("want error for missing installDir")
 	}
 }
 
-func TestWriteBottleTarballCloseError(t *testing.T) {
+func TestWriteArtifactTarballCloseError(t *testing.T) {
 	orig := osCreate
 	defer func() { osCreate = orig }()
 	osCreate = func(string) (io.WriteCloser, error) { return &fakeWC{closeErr: errBoom}, nil }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottleVersionsOpenError(t *testing.T) {
+func TestWriteArtifactVersionsOpenError(t *testing.T) {
 	orig := osOpenFileAppend
 	defer func() { osOpenFileAppend = orig }()
 	osOpenFileAppend = func(string) (io.WriteCloser, error) { return nil, errBoom }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottleVersionsWriteError(t *testing.T) {
+func TestWriteArtifactVersionsWriteError(t *testing.T) {
 	orig := osOpenFileAppend
 	defer func() { osOpenFileAppend = orig }()
 	osOpenFileAppend = func(string) (io.WriteCloser, error) { return &fakeWC{writeErr: errBoom}, nil }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-func TestWriteBottleVersionsCloseError(t *testing.T) {
+func TestWriteArtifactVersionsCloseError(t *testing.T) {
 	orig := osOpenFileAppend
 	defer func() { osOpenFileAppend = orig }()
 	osOpenFileAppend = func(string) (io.WriteCloser, error) { return &fakeWC{closeErr: errBoom}, nil }
-	if _, err := WriteBottle(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
+	if _, err := WriteArtifact(makeTree(t), project, version, "darwin", "aarch64", t.TempDir()); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v, want errBoom", err)
 	}
 }
 
-// TestBottleDoesNotCarryTheBuildersUmask. Two builds of one recipe on two
-// machines produced two different bottles, and the difference was the umask.
+// TestArtifactDoesNotCarryTheBuildersUmask. Two builds of one recipe on two
+// machines produced two different artifacts, and the difference was the umask.
 // Measured 2026-09-29 on zlib.net 1.3.2, built on the s390x seed VM before and
 // after it was replaced: every FILE byte-identical, and every DIRECTORY 0755
 // on one host and 0775 on the other — 0022 against 0002.
@@ -384,8 +384,8 @@ func TestWriteBottleVersionsCloseError(t *testing.T) {
 // This builds the same tree twice under those two umasks and asserts the tar
 // headers come out identical. Without normalise it fails on the directories,
 // which is the defect reproduced rather than described.
-func TestBottleDoesNotCarryTheBuildersUmask(t *testing.T) {
-	bottleUnder := func(mask int) []string {
+func TestArtifactDoesNotCarryTheBuildersUmask(t *testing.T) {
+	artifactUnder := func(mask int) []string {
 		old := syscall.Umask(mask)
 		defer syscall.Umask(old)
 		dir := t.TempDir()
@@ -403,18 +403,18 @@ func TestBottleDoesNotCarryTheBuildersUmask(t *testing.T) {
 			t.Fatal(err)
 		}
 		var buf bytes.Buffer
-		if err := Bottle(dir, "zlib.net", "1.3.2", &buf); err != nil {
+		if err := Artifact(dir, "zlib.net", "1.3.2", &buf); err != nil {
 			t.Fatal(err)
 		}
 		return headersOf(t, buf.Bytes())
 	}
 
-	strict, loose := bottleUnder(0o022), bottleUnder(0o002)
+	strict, loose := artifactUnder(0o022), artifactUnder(0o002)
 	if len(strict) == 0 {
-		t.Fatal("premise: the bottle has no entries")
+		t.Fatal("premise: the artifact has no entries")
 	}
 	if fmt.Sprint(strict) != fmt.Sprint(loose) {
-		t.Errorf("the builder's umask reached the bottle:\n  umask 022 %v\n  umask 002 %v", strict, loose)
+		t.Errorf("the builder's umask reached the artifact:\n  umask 022 %v\n  umask 002 %v", strict, loose)
 	}
 	// And what it settled on, so a later change has to say so out loud.
 	want := []string{
@@ -429,8 +429,8 @@ func TestBottleDoesNotCarryTheBuildersUmask(t *testing.T) {
 	}
 }
 
-// A bottle that ships a setuid binary means it, and a=rX would strip the bit.
-func TestBottleKeepsSetuid(t *testing.T) {
+// An artifact that ships a setuid binary means it, and a=rX would strip the bit.
+func TestArtifactKeepsSetuid(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "ping")
 	if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
@@ -440,7 +440,7 @@ func TestBottleKeepsSetuid(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := Bottle(dir, "iputils.org", "1.0", &buf); err != nil {
+	if err := Artifact(dir, "iputils.org", "1.0", &buf); err != nil {
 		t.Fatal(err)
 	}
 	got := headersOf(t, buf.Bytes())
@@ -460,7 +460,7 @@ func headersOf(t *testing.T, packed []byte) []string {
 	// follows Codec rather than pinning one compressor.
 	var dec io.Reader
 	switch Codec {
-	case bottle.ExtTarZst:
+	case artifact.ExtTarZst:
 		z, err := zstd.NewReader(bytes.NewReader(packed))
 		if err != nil {
 			t.Fatal(err)

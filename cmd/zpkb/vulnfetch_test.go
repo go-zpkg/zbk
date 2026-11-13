@@ -674,8 +674,8 @@ func TestVulnFetchWithoutWriteLeavesTheTreeAlone(t *testing.T) {
 // the catalogue gives no version for is not shipped here, and asking about it
 // falls back to the whole-package question — which is how the first run
 // reported "90 finding(s) across 5 project(s)" where all five answered
-// `no bottle here`. Right figures, different meaning.
-func TestVulnFetchSkipsAProjectWithNoBottleForThePlatform(t *testing.T) {
+// `no artifact here`. Right figures, different meaning.
+func TestVulnFetchSkipsAProjectWithNoArtifactForThePlatform(t *testing.T) {
 	url, asked := fetchServer(t, `{"results":[{}]}`)
 	// crates.io/bat is published; the catalogue says nothing about it being
 	// absent, and curl.se is repository-keyed so it is dropped anyway.

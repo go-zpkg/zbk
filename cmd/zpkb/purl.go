@@ -4,10 +4,10 @@ import "strings"
 
 // ⛔⛔ THE PURL TYPE IS `generic`, AND `pkgx` WAS A NAMESPACE NOBODY OWNS.
 //
-// `oci.go:47-59` in go-zpkg/bottle already ruled this question for media
+// `oci.go:47-59` in go-zpkg/artifact already ruled this question for media
 // types — *"`vnd.pkgx.*` WAS A VENDOR NAMESPACE WE DO NOT OWN, FOR A FORMAT
 // ITS OWNER DOES NOT DEFINE"* — and moved them to `vnd.go-zpkg.*`. The purl
-// was left behind (go-zpkg/bottle#221), so every signature payload, SBOM
+// was left behind (go-zpkg/artifact#221), so every signature payload, SBOM
 // component, VEX statement and provenance material still named pkgx's
 // ecosystem for packages this project is not compatible with.
 //
@@ -23,14 +23,14 @@ import "strings"
 // `pkg:generic/...` purl"*. BOTH answer nothing. The key a database will
 // accept is derived separately by [versions.Identity] from what the recipe
 // names — a GitHub repository, an npm or crates.io package — which is what
-// `zpkb vulnid` queries with. A bottle's own purl is an identity LABEL, and
+// `zpkb vulnid` queries with. An artifact's own purl is an identity LABEL, and
 // the only question about a label is whether it claims something untrue.
 const purlType = "generic"
 
-// legacyPurlPrefix is what every bottle published before this change carries.
+// legacyPurlPrefix is what every artifact published before this change carries.
 //
 // ⛔ IT IS READ AND NEVER WRITTEN. The read path must accept it or `zpkb
-// buildenv` cannot answer about a single published bottle; the mint path must
+// buildenv` cannot answer about a single published artifact; the mint path must
 // not, or the two spellings would both be current and the change would never
 // finish.
 const legacyPurlPrefix = "pkg:pkgx/"

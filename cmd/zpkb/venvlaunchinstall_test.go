@@ -85,7 +85,7 @@ func TestInstallVenvLaunchCopiesAndRelativises(t *testing.T) {
 		t.Fatal(err)
 	}
 	if filepath.IsAbs(target) {
-		t.Fatalf("python still points at an absolute path %q: the bottle would carry the build store's path", target)
+		t.Fatalf("python still points at an absolute path %q: the artifact would carry the build store's path", target)
 	}
 	// AND IT RESOLVES. A relative link that reaches nothing is the defect this
 	// replaces, dressed differently.
@@ -254,7 +254,7 @@ func TestFindVenvLaunch(t *testing.T) {
 			t.Fatal(err)
 		}
 		if filepath.Dir(got) == beside {
-			t.Error("the host's launcher was preferred over the one on PATH: a cross build would put the wrong platform in the bottle")
+			t.Error("the host's launcher was preferred over the one on PATH: a cross build would put the wrong platform in the artifact")
 		}
 	})
 

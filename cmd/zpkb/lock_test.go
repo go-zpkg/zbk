@@ -6,7 +6,7 @@ import (
 	"errors"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
 	"github.com/go-zpkg/zpkb/target"
@@ -48,11 +48,11 @@ func lockbed(t *testing.T, recipes map[string]string) (dir string, written *map[
 	// measured. Publication is exercised on its own in lockpublished_test.go,
 	// where both answers are given deliberately.
 	prevTag, prevPick := lockPublishedTagFor, lockPickPublished
-	lockPublishedTagFor = func(_ string, v bottle.Ver, osn, arch string) (string, bool, error) {
+	lockPublishedTagFor = func(_ string, v artifact.Ver, osn, arch string) (string, bool, error) {
 		return v.Raw + "--" + osn + "-" + arch, true, nil
 	}
-	lockPickPublished = func(_, _, _, _ string) (bottle.Ver, error) {
-		return bottle.Ver{}, errors.New("the fixture has no registry")
+	lockPickPublished = func(_, _, _, _ string) (artifact.Ver, error) {
+		return artifact.Ver{}, errors.New("the fixture has no registry")
 	}
 
 	t.Cleanup(func() {
@@ -86,7 +86,7 @@ func TestLockPinsTheResolvedVersions(t *testing.T) {
 	}
 	// It says where it stops. A lock that quietly guarantees less than a
 	// reader assumes is worse than one that names its limit.
-	if !strings.Contains(got, "does NOT pin: the BYTES of the built bottle") {
+	if !strings.Contains(got, "does NOT pin: the BYTES of the built artifact") {
 		t.Errorf("the lock does not say what it leaves unpinned:\n%s", got)
 	}
 }

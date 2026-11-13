@@ -19,7 +19,7 @@ import (
 // replaced by installVenvLaunch, which installs cmd/venvlaunch instead; see
 // venvlaunchinstall.go for why a script cannot do this job in the images we
 // target. The sh one rewrote the venv's shebangs with `sed` on every
-// invocation, which is also three dependencies (sh, sed, a writable bottle)
+// invocation, which is also three dependencies (sh, sed, a writable artifact)
 // this design no longer has.
 
 // pyRunEnv spawns like pyRun but with extra environment entries (the old

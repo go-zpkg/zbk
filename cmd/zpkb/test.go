@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/buildscript"
 	"github.com/go-zpkg/zpkb/config"
@@ -154,7 +154,7 @@ type testRequest struct {
 	ZpkgxBin  string
 	// BuildHash is the identity of the build to test, which the install
 	// prefix now carries. Empty means "find it": `--test-only` tests an
-	// already-published bottle and never ran a build, so it has no identity
+	// already-published artifact and never ran a build, so it has no identity
 	// to pass and the store is asked instead.
 	BuildHash string
 	// Run executes the generated script; nil uses the package default, which
@@ -204,13 +204,13 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 	// a package nobody asked about.
 	hash := req.BuildHash
 	if hash == "" {
-		p, ok := bottle.ResolveBuild(config.ZpkgDir(), req.Project, bottle.Ver{Raw: ver})
+		p, ok := artifact.ResolveBuild(config.ZpkgDir(), req.Project, artifact.Ver{Raw: ver})
 		if !ok {
 			err := fmt.Errorf("no installed build of %s %s to test in %s", req.Project, ver, config.ZpkgDir())
 			fmt.Fprintln(stderr, "error:", err)
 			return testNotRun, err
 		}
-		b, _ := bottle.ParseStoreDirName(filepath.Base(p))
+		b, _ := artifact.ParseStoreDirName(filepath.Base(p))
 		hash = b.Variant
 	}
 	paths := config.Compute(req.Project, ver, hash, req.Target)
@@ -286,7 +286,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 		// An environment `pkgx` could not assemble is not a test that
 		// failed: not one line of the test block ran. Five of the nine
 		// failures in the s390x seed's first sweep were this — a test
-		// dependency with no bottle for the platform, or a soname pkgx's
+		// dependency with no artifact for the platform, or a soname pkgx's
 		// map does not name — and reporting them as failures files bugs
 		// against packages for an incomplete registry.
 		var st interp.ExitStatus
@@ -317,7 +317,7 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 	// {{prefix}} is the INSTALLED prefix, not the build's staging directory.
 	// That is the whole difference between this and a build: the test reads
 	// the package where a consumer would find it, so a file the build made and
-	// the bottle omitted is a failure here rather than a surprise later.
+	// the artifact omitted is a failure here rather than a surprise later.
 	toks := moustache.Prefix(paths.Install)
 	toks = append(toks, moustache.Version(ver, "version")...)
 	toks = append(toks, moustache.Token{From: "version.tag", To: tag})
@@ -330,7 +330,7 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 	// {{deps.<project>.prefix}} and .version, for the eleven recipes whose
 	// TEST names one. gnu.org/glibc is among them:
 	//
-	//	gcc -o test-bottle test.c -nostdinc -isystem {{prefix}}/include \
+	//	gcc -o test-artifact test.c -nostdinc -isystem {{prefix}}/include \
 	//	    -isystem {{deps.gnu.org/gcc.prefix}}/lib/gcc/*/…
 	//
 	// Left verbatim, a moustache reaches the shell and fails somewhere

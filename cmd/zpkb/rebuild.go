@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 )
 
 // ⛔ A REBUILD THAT REPLACES ITS TAG CANNOT BE DISTINGUISHED FROM WHAT IT
@@ -12,14 +12,14 @@ import (
 //
 // Measured 2026-11-02: go-zpkg/packages#399 gave fftw.org SIMD codelets, the
 // darwin lane rebuilt it, and the result went out as `3.3.11` — the same tag
-// the scalar build had. `nm` showed 0 → 207 `_neon` symbols, so the bottles
+// the scalar build had. `nm` showed 0 → 207 `_neon` symbols, so the artifacts
 // are plainly different; nothing in the registry says so. Anyone holding the
 // old one keeps it, and "did I get the SIMD build?" is unanswerable from the
 // version.
 //
-// `_N` is the answer bottle already understood and nothing produced: it
+// `_N` is the answer artifact already understood and nothing produced: it
 // parses, it sorts after the build it supersedes, and an exact pin tells the
-// two apart (bottle's rebuild_test.go). This is the half that mints it.
+// two apart (artifact's rebuild_test.go). This is the half that mints it.
 //
 // ⛔ OPT-IN, AND DELIBERATELY NOT FOLDED INTO --force. Every manual dispatch
 // of the darwin lane already sets FORCE=1 — the workflow does it
@@ -34,14 +34,14 @@ import (
 // already there.
 //
 // ⛔ IT COUNTS WHAT IS PUBLISHED FOR THIS PLATFORM, not what is tagged. A tag
-// listing spans every platform — bottle's own VersionsFor says so — so a
+// listing spans every platform — artifact's own VersionsFor says so — so a
 // darwin rebuild must not take its number from a linux one. Getting that
 // wrong would leave a gap on one platform and a collision on the other.
 //
 // Versions whose numeric components differ are ignored: `3.3.12_4` says
 // nothing about how many times `3.3.11` has been rebuilt.
 func nextRebuild(project, version, osn, arch string) (int, error) {
-	want := bottle.ParseVer(version)
+	want := artifact.ParseVer(version)
 	// The same seams `bk catalog` reads through, so the number minted here
 	// and the catalogue's idea of what exists cannot come from two different
 	// readings of the registry.
@@ -78,7 +78,7 @@ func nextRebuild(project, version, osn, arch string) (int, error) {
 }
 
 // sameNums reports whether two versions differ only by their rebuild counter.
-func sameNums(a, b bottle.Ver) bool {
+func sameNums(a, b artifact.Ver) bool {
 	if len(a.Nums) != len(b.Nums) {
 		return false
 	}

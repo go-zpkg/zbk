@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"gopkg.in/yaml.v3"
 )
 
@@ -132,7 +132,7 @@ type Event struct {
 	// tell a reader to stop looking — about a version no event here names,
 	// and downgrades the statement to `under_investigation` instead. So
 	// leaving this empty is not neutral: it is the difference between a
-	// determination that travels with the bottle and one that does not. See
+	// determination that travels with the artifact and one that does not. See
 	// scopedTo in openvex.go.
 	DetectedVersion string `yaml:"detected-version,omitempty"`
 	// Justification is required by, and only meaningful for,
@@ -246,7 +246,7 @@ func checkEvent(e Event) error {
 // The one that matters is a DASH-numeric tail. `3.5.8-1` is how Debian and
 // Alpine spell "the first rebuild of 3.5.8", and it is the spelling a person
 // coming from either will write. Here the rebuild separator is `_`
-// (bottle.splitRebuild splits on the last one), so `3.5.8-1` parses as a
+// (artifact.splitRebuild splits on the last one), so `3.5.8-1` parses as a
 // version with no rebuild at all — and the advisory would then claim that
 // plain `3.5.8` carries the fix, which is the one unpublished build.
 func checkFixedVersion(v string) error {
@@ -296,10 +296,10 @@ func (a Advisory) Fixes() (string, bool) {
 
 // FixedBy reports whether a given version of this project carries the fix.
 //
-// It asks BOTTLE, through the constraint language the resolver already uses,
+// It asks ARTIFACT, through the constraint language the resolver already uses,
 // rather than comparing the strings here. The comparison that matters is the
 // REBUILD: `3.5.8` must not satisfy an advisory fixed in `3.5.8_1`, because
-// those are different bottles and only one of them has the fix. bottle.Ver
+// those are different artifacts and only one of them has the fix. artifact.Ver
 // carries the rebuild and its comparator reads it; a second implementation
 // here would be a second place for that rule to be wrong.
 func (a Advisory) FixedBy(version string) bool {
@@ -307,5 +307,5 @@ func (a Advisory) FixedBy(version string) bool {
 	if !ok {
 		return false
 	}
-	return bottle.ParseVer(version).Satisfies(">=" + fixed)
+	return artifact.ParseVer(version).Satisfies(">=" + fixed)
 }

@@ -45,7 +45,7 @@ import (
 // hash covers the INPUTS — platform, version, parsed recipe, dependencies —
 // which is what Nix's derivation hash and Spack's spec hash cover too.
 //
-// It does not pin the OUTPUT bytes. A bottle digest would, and `bottle` can
+// It does not pin the OUTPUT bytes. An artifact digest would, and `artifact` can
 // verify a digest but has no exported way to be asked for one; and a lock
 // taken before anything is built has no output to name. Saying so is better
 // than a lock that quietly guarantees less than a reader assumes.
@@ -142,7 +142,7 @@ func runLock(args []string, stdout, stderr io.Writer) int {
 		Version:   lockfileVersion,
 		Platform:  *platform,
 		Generated: lockNow().UTC().Format(time.RFC3339),
-		BK:        bkVersion(),
+		ZBK:       bkVersion(),
 		Roots:     fs.Args(),
 		Pantry:    gitRevOf(*pantryDir),
 		Overlay:   gitRevOf(*overlayDir),

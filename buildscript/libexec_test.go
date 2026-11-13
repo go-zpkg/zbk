@@ -147,7 +147,7 @@ func TestWriteLibexecForCompilerShims(t *testing.T) {
 
 // The triple-prefixed spellings must be materialised too. autoconf looks for
 // `x86_64-pc-linux-gnu-gcc` BEFORE the bare `gcc`, and when it finds the
-// bottle's bare compiler instead of our shim it gets a driver with none of the
+// artifact's bare compiler instead of our shim it gets a driver with none of the
 // sovereign sysroot/crt/runtime flags — libisl's configure then reports
 // "C compiler cannot create executables".
 func TestCompilerShimsCoverTriplePrefixedNames(t *testing.T) {

@@ -11,20 +11,20 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/fixup"
 )
 
 // Seams, the same two `undeclared` has, so both commands can be driven
 // without a network and neither grows a private copy that drifts.
 var (
-	unlinkedGraph             = bottle.GraphFor
-	unlinkedInstall           = bottle.CompleteClosureFor
+	unlinkedGraph             = artifact.GraphFor
+	unlinkedInstall           = artifact.CompleteClosureFor
 	unlinkedTempDir           = os.MkdirTemp
 	unlinkedStdin   io.Reader = os.Stdin
 )
 
-// runUnlinked implements `bk unlinked`: which projects does a bottle DECLARE
+// runUnlinked implements `bk unlinked`: which projects does an artifact DECLARE
 // and never link?
 //
 // ⛔ IT IS `undeclared` READ BACKWARDS, AND THE BACKWARDS DIRECTION IS THE
@@ -38,7 +38,7 @@ var (
 //
 //	rpm.org/rpm-sequoia  declares openssl.org ^3 and links no libssl at all:
 //	                     a rebuild STATICALLY linked openssl 3.6.4 into the
-//	                     library. The bottle grew 4.2MB -> 12.6MB and carries
+//	                     library. The artifact grew 4.2MB -> 12.6MB and carries
 //	                     openssl's own version banner inside the .so.
 //	gnu.org/libiconv     declares gnu.org/gettext ^1 on darwin and links
 //	                     nothing but libSystem. Every darwin consumer installs
@@ -52,8 +52,8 @@ var (
 // ⛔ WHY THE VENDORING CASE IS THE SERIOUS ONE. A broken reference is
 // VISIBLE: `libssl.so.1.1` is an unresolvable soname that a sweep counts. A
 // vendored copy is invisible — the manifest still says `openssl.org ^3`, and
-// when openssl ships a fix, updating the openssl bottle does not change the
-// bottle that embedded it, while its own version does not move either. A
+// when openssl ships a fix, updating the openssl artifact does not change the
+// artifact that embedded it, while its own version does not move either. A
 // dependency-shaped CVE audit has nothing to compare.
 func runUnlinked(args []string, stdout, stderr io.Writer) int {
 	fset := flag.NewFlagSet("unlinked", flag.ContinueOnError)
@@ -63,8 +63,8 @@ func runUnlinked(args []string, stdout, stderr io.Writer) int {
 	// ⛔ A PLATFORM, because the answer is per-platform and the interesting
 	// cases are not on the machine asking. rpm.org/rpm-sequoia — the one
 	// confirmed vendoring case — is published for linux and not for darwin,
-	// so a host-only command cannot look at the very bottle it was written
-	// for. bottle.CompleteClosureFor stages another platform's tree, which
+	// so a host-only command cannot look at the very artifact it was written
+	// for. artifact.CompleteClosureFor stages another platform's tree, which
 	// is what lets a mac audit linux.
 	platform := fset.String("platform", "", "audit this os/arch instead of the host's")
 	if err := fset.Parse(args); err != nil {
@@ -91,7 +91,7 @@ func runUnlinked(args []string, stdout, stderr io.Writer) int {
 		defer os.RemoveAll(dir)
 	}
 
-	osn, arch := bottle.HostSlug()
+	osn, arch := artifact.HostSlug()
 	if *platform != "" {
 		o, a, ok := strings.Cut(*platform, "/")
 		if !ok || o == "" || a == "" {
@@ -142,7 +142,7 @@ type Unlinked struct {
 // TRANSITIVE dependency is one nobody promised to link — curl.se brings
 // openssl, and a package that declares curl.se and links no openssl has done
 // nothing wrong. Only what a recipe named ITSELF is a claim about itself.
-func unlinkedOf(project, dir string, g *bottle.Graph) []Unlinked {
+func unlinkedOf(project, dir string, g *artifact.Graph) []Unlinked {
 	refs := referencedProjects(project, dir)
 	var out []Unlinked
 	for _, e := range g.Deps[project] {
@@ -168,7 +168,7 @@ func unlinkedOf(project, dir string, g *bottle.Graph) []Unlinked {
 //
 // Mach-O says `@rpath/<project>/v…/lib/libfoo.dylib` — the project is IN the
 // reference. ELF says only `libfoo.so.3`, so the project has to be recovered
-// by finding which installed bottle ships that soname; doing it by filename
+// by finding which installed artifact ships that soname; doing it by filename
 // is what makes this work on both without two separate commands.
 func referencedProjects(project, dir string) map[string]bool {
 	owners := sonameOwners(dir)
@@ -189,7 +189,7 @@ func referencedProjects(project, dir string) map[string]bool {
 			}
 			return nil
 		}
-		if strs, serr := bottle.ELFNeeded(p); serr == nil {
+		if strs, serr := artifact.ELFNeeded(p); serr == nil {
 			for _, s := range strs {
 				for _, o := range owners[s] {
 					out[o] = true

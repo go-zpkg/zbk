@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/schema"
 	"gopkg.in/yaml.v3"
 )
@@ -189,7 +189,7 @@ func rootKeys(path string) (map[string]map[string]bool, error) {
 	}
 	var doc map[string]any
 	if strings.HasSuffix(path, ".hcl") {
-		doc, err = bottle.HCLToMap(body, path)
+		doc, err = artifact.HCLToMap(body, path)
 		if err != nil {
 			return nil, err
 		}

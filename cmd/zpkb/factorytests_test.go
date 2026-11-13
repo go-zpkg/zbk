@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/pantry"
 	"github.com/go-zpkg/zpkb/target"
@@ -177,7 +177,7 @@ func TestFactoryNamesTheFailingTests(t *testing.T) {
 }
 
 // --test-only builds nothing and tests what the registry already holds.
-// The factory tests what it publishes ONCE; this is how a bottle that
+// The factory tests what it publishes ONCE; this is how an artifact that
 // stopped working — a dependency whose signature went bad, say — gets
 // noticed after the fact.
 func TestFactoryTestOnlyBuildsNothing(t *testing.T) {
@@ -211,7 +211,7 @@ func TestFactoryTestOnlyBuildsNothing(t *testing.T) {
 	}
 }
 
-// A platform with no bottle and a registry that would not answer are BOTH
+// A platform with no artifact and a registry that would not answer are BOTH
 // "not run", and neither is a failure — an unobtained answer must not read
 // as a negative one.
 func TestFactoryTestOnlyDistinguishesAbsentFromUnreachable(t *testing.T) {
@@ -221,7 +221,7 @@ func TestFactoryTestOnlyDistinguishesAbsentFromUnreachable(t *testing.T) {
 		err       error
 		wantIn    string
 	}{
-		{"no bottle here", false, nil, "no bottle here"},
+		{"no artifact here", false, nil, "no artifact here"},
 		{"registry unreachable", false, errors.New("dial tcp: refused"), "publish-check"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,8 +293,8 @@ func TestTestOnlyReadsItsDefaultFromTheEnvironment(t *testing.T) {
 // --test-only asks the REGISTRY which version to test, not the recipe.
 //
 // The seed's sweep reported openssl.org 4.0.3 and tcl-lang.org 9.1.0 as
-// "no bottle here" — for two projects the registry holds perfectly good
-// bottles of, at other versions. The recipe's resolver names what we would
+// "no artifact here" — for two projects the registry holds perfectly good
+// artifacts of, at other versions. The recipe's resolver names what we would
 // BUILD; the question is what we PUBLISHED.
 func TestTestOnlyTestsTheVersionTheRegistryHolds(t *testing.T) {
 	var out bytes.Buffer
@@ -304,11 +304,11 @@ func TestTestOnlyTestsTheVersionTheRegistryHolds(t *testing.T) {
 	f.testOnly = true
 
 	prevPub, prevHas, prevRun := factoryPublishedVersion, factoryHasPlatform, factoryTestRunner
-	factoryPublishedVersion = func(project, constraint, osn, arch string) (bottle.Ver, error) {
+	factoryPublishedVersion = func(project, constraint, osn, arch string) (artifact.Ver, error) {
 		if constraint != "*" {
 			t.Errorf("constraint = %q, want *", constraint)
 		}
-		return bottle.ParseVer("4.0.2"), nil
+		return artifact.ParseVer("4.0.2"), nil
 	}
 	factoryHasPlatform = func(string, string, string, string, string) (bool, error) { return true, nil }
 	factoryTestRunner = func(time.Duration, io.Writer, io.Writer) func(string, []string) error {
@@ -334,9 +334,9 @@ func TestABuildStillAsksTheRecipe(t *testing.T) {
 	f := testFactory(t, &out, dir)
 	f.testOnly = false
 	prev := factoryPublishedVersion
-	factoryPublishedVersion = func(string, string, string, string) (bottle.Ver, error) {
+	factoryPublishedVersion = func(string, string, string, string) (artifact.Ver, error) {
 		t.Error("a build asked the registry which version to build")
-		return bottle.Ver{}, errors.New("must not be called")
+		return artifact.Ver{}, errors.New("must not be called")
 	}
 	t.Cleanup(func() { factoryPublishedVersion = prev })
 
@@ -357,8 +357,8 @@ func TestTestOnlyRecordsAProjectTheRegistryDoesNotHold(t *testing.T) {
 	f := testFactory(t, &out, dir)
 	f.testOnly = true
 	prev := factoryPublishedVersion
-	factoryPublishedVersion = func(string, string, string, string) (bottle.Ver, error) {
-		return bottle.Ver{}, errors.New("no version is published for linux/s390x")
+	factoryPublishedVersion = func(string, string, string, string) (artifact.Ver, error) {
+		return artifact.Ver{}, errors.New("no version is published for linux/s390x")
 	}
 	t.Cleanup(func() { factoryPublishedVersion = prev })
 
@@ -374,8 +374,8 @@ func TestRunFactoryTestOnlyRecordsAVersionItCannotName(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "lib.org", "versions:\n  github: a/lib/tags\nbuild: make\ntest: true\n")
 	prev := factoryPublishedVersion
-	factoryPublishedVersion = func(string, string, string, string) (bottle.Ver, error) {
-		return bottle.Ver{}, errors.New("no version is published for linux/x86-64")
+	factoryPublishedVersion = func(string, string, string, string) (artifact.Ver, error) {
+		return artifact.Ver{}, errors.New("no version is published for linux/x86-64")
 	}
 	t.Cleanup(func() { factoryPublishedVersion = prev })
 

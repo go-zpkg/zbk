@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/fixup"
 )
 
@@ -27,13 +27,13 @@ var ownerRE = regexp.MustCompile(`^(.+?)/v[0-9][^/]*/`)
 
 // Seams: the two things here that need a network.
 var (
-	undeclaredGraph             = bottle.GraphFor
-	undeclaredInstall           = bottle.CompleteClosure
+	undeclaredGraph             = artifact.GraphFor
+	undeclaredInstall           = artifact.CompleteClosure
 	undeclaredTempDir           = os.MkdirTemp
 	undeclaredStdin   io.Reader = os.Stdin
 )
 
-// runUndeclared implements `bk undeclared`: which projects does a bottle LINK
+// runUndeclared implements `bk undeclared`: which projects does an artifact LINK
 // without declaring?
 //
 // This is the CAUSE whose symptom `closurecheck` reports. gnupg.org/gpgme
@@ -87,7 +87,7 @@ func runUndeclared(args []string, stdout, stderr io.Writer) int {
 		defer os.RemoveAll(dir)
 	}
 
-	osn, arch := bottle.HostSlug()
+	osn, arch := artifact.HostSlug()
 	seen := map[string]bool{}
 	total := 0
 	for _, p := range projects {
@@ -189,7 +189,7 @@ func ownerOf(rel string) (string, bool) {
 // openssl and declares neither, because libgit2.org brings both and says so.
 // That is a declaration, one hop further out, and calling it a defect was what
 // made the first version of this over-report.
-func undeclaredOf(owner string, refs map[string]bool, g *bottle.Graph) []string {
+func undeclaredOf(owner string, refs map[string]bool, g *artifact.Graph) []string {
 	reach := map[string]bool{owner: true}
 	queue := []string{owner}
 	for len(queue) > 0 {

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestAuditRelocatableFindsTheBuilderOnlyRpath: a mirrored bottle is never
+// TestAuditRelocatableFindsTheBuilderOnlyRpath: a mirrored artifact is never
 // unpacked, so FixUp's guards never see it. The audit is the same guards run
 // read-only over a laid-out prefix, which is what a mirror can afford.
 //
@@ -44,7 +44,7 @@ func TestAuditRelocatableFindsTheBuilderOnlyRpath(t *testing.T) {
 }
 
 // TestAuditRelocatableIsQuietOnAHealthyPrefix: the negative control. Without
-// it the audit could report every bottle and still look like it works.
+// it the audit could report every artifact and still look like it works.
 func TestAuditRelocatableIsQuietOnAHealthyPrefix(t *testing.T) {
 	zpkgDir := t.TempDir()
 	prefix := filepath.Join(zpkgDir, "lloyd.github.io", "yajl", "v2.1.0")
@@ -63,7 +63,7 @@ func TestAuditRelocatableIsQuietOnAHealthyPrefix(t *testing.T) {
 }
 
 // TestAuditRelocatableReadsNothingItCannotParse: a prefix with no Mach-O at all
-// is not an error — a mirrored bottle can be pure scripts or data.
+// is not an error — a mirrored artifact can be pure scripts or data.
 func TestAuditRelocatableSkipsNonMachO(t *testing.T) {
 	prefix := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
@@ -80,7 +80,7 @@ func TestAuditRelocatableSkipsNonMachO(t *testing.T) {
 
 // The audit refuses a Mach-O that names one rpath twice. ld will not link
 // against such a library, so the damage lands on every dependent rather than on
-// the bottle carrying it — which is why a duplicate survived a build, a
+// the artifact carrying it — which is why a duplicate survived a build, a
 // signature, a publish and an inspection without anything complaining, until
 // github.com/facebookincubator/fizz failed to link against folly.
 func TestAuditRefusesADuplicateRpath(t *testing.T) {
@@ -145,7 +145,7 @@ func TestAuditRelocatableFindsAMagicThatContradictsTheCPU(t *testing.T) {
 		t.Fatalf("err = %v, want ErrMachoMagicMismatch", err)
 	}
 	// and the audit reports it over a laid-out prefix, which is the only way a
-	// MIRRORED bottle is ever looked at — walkExes visits bin/, lib/ and
+	// MIRRORED artifact is ever looked at — walkExes visits bin/, lib/ and
 	// libexec/, so the file has to be in one of them
 	prefix := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(prefix, "lib"), 0o755); err != nil {
@@ -289,7 +289,7 @@ func TestAuditRelocatableFindsTheStaleSignature(t *testing.T) {
 
 // TestAuditRelocatableSurfacesAnUnreadableSignature: a signature bk cannot
 // compute is reported, not silently passed. Reading "no verdict" as "sound" is
-// how an unrunnable bottle gets published.
+// how an unrunnable artifact gets published.
 func TestAuditRelocatableSurfacesAnUnreadableSignature(t *testing.T) {
 	zpkgDir := t.TempDir()
 	prefix := filepath.Join(zpkgDir, "x", "v1")
@@ -381,7 +381,7 @@ func TestCheckAbsoluteRefsReportsAnUnreadableFile(t *testing.T) {
 	}
 }
 
-// TestFixUpGuardsWhatWeBuild: the guards existed and ran on the bottles we
+// TestFixUpGuardsWhatWeBuild: the guards existed and ran on the artifacts we
 // COPY, not the ones we MAKE.
 //
 // AuditRelocatable has exactly one caller — the factory's mirror path, whose

@@ -20,7 +20,7 @@
 package hcl
 
 import (
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/pantry"
 )
 
@@ -33,12 +33,12 @@ func Parse(src []byte, filename string) (*pantry.Recipe, error) {
 // ParseWithDoc is Parse, and also returns the document it validated — the keys
 // the file states. See pantry.ParseWithDoc for why both come from one reading.
 func ParseWithDoc(src []byte, filename string) (*pantry.Recipe, map[string]any, error) {
-	// bottle converts HCL to the YAML the schema validates, because the CLIENT
+	// artifact converts HCL to the YAML the schema validates, because the CLIENT
 	// has to read these files too — the overlay is fetched at install time.
 	// Keeping a second converter here would be two readings of one format,
 	// and the day they disagreed the factory and the installer would build
 	// different things from the same recipe.
-	y, err := bottle.HCLToYAML(src, filename)
+	y, err := artifact.HCLToYAML(src, filename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,8 +46,8 @@ func ParseWithDoc(src []byte, filename string) (*pantry.Recipe, map[string]any, 
 }
 
 // ToMap parses package.hcl into the generic map[string]any document shape that
-// a package.yml decodes to. It is bottle's reading, re-exported so a caller
+// a package.yml decodes to. It is artifact's reading, re-exported so a caller
 // here need not know where the parser lives.
 func ToMap(src []byte, filename string) (map[string]any, error) {
-	return bottle.HCLToMap(src, filename)
+	return artifact.HCLToMap(src, filename)
 }

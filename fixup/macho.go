@@ -189,7 +189,7 @@ func walkMachoStrings(raw []byte, bo binary.ByteOrder, hdr, ncmd int, visit func
 // (@rpath/facebook.com/zstd/v1.5.7/lib/libzstd.1.5.7.dylib) is LONGER than the
 // wrong one CMake writes by default (@rpath/libzstd.1.dylib). Refusing to grow
 // meant refusing to fix it, silently — see #125, where a bare install name
-// aborted every consumer of the zstd bottle at dyld time.
+// aborted every consumer of the zstd artifact at dyld time.
 //
 // It is NOT a way around the LC_RPATH rule. An rpath must still be linked in at
 // build time, because its VALUE — how deep the package installs — is not
@@ -445,7 +445,7 @@ var dropRpaths = dropMachoRpaths
 
 // builderRpath reports whether an LC_RPATH is an ABSOLUTE path into the
 // builder's store — $ZPKG_DIR as the build ran, never a literal. On the
-// machine that built the bottle it is a fallback that resolves; anywhere else
+// machine that built the artifact it is a fallback that resolves; anywhere else
 // it resolves to nothing and only says where the builder keeps its files
 // (go-zpkg/bk#395). A path outside the store is somebody else's decision and is
 // not touched here.
@@ -538,7 +538,7 @@ func underDir(p, dir string) (string, bool) {
 // relativeRpath turns an ABSOLUTE rpath pointing inside $ZPKG_DIR into the
 // @loader_path one that means the same thing, and reports whether it changed.
 //
-// This is the third defect of a darwin bottle, distinct from a bare install
+// This is the third defect of a darwin artifact, distinct from a bare install
 // name and from an absolute reference: the REFERENCE is relocated and the
 // SEARCH ROOT is not. gnu.org/help2man's perl XS records
 //
@@ -549,7 +549,7 @@ func underDir(p, dir string) (string, bool) {
 // .../gnu.org/gettext/v1.0.0/lib). Off that machine the reference resolves
 // against nothing, and on darwin there is no second chance: dyld ignores
 // LD_LIBRARY_PATH, SIP strips DYLD_LIBRARY_PATH, and pkgx's --library-path
-// branch is linux-only. The bottle's own rpaths are the whole mechanism.
+// branch is linux-only. The artifact's own rpaths are the whole mechanism.
 //
 // It cannot be repaired by linking deeper rpaths in: bk emits @loader_path
 // depths 4 through 8, measured for <prefix>/bin and <prefix>/lib, and this
@@ -624,14 +624,14 @@ func rewriteMachoRefs(exe string, opts Options) error {
 	//
 	//   Library not loaded: /Users/runner/.pkgx/libssh2.org/v1.11.1/lib/libssh2.1.dylib
 	//
-	// That is what makes a darwin bottle unusable anywhere but its build
+	// That is what makes a darwin artifact unusable anywhere but its build
 	// machine, and no rpath rescues it: an absolute reference never consults
-	// one. Rewriting those into @rpath/… is what makes the bottle relocatable.
+	// one. Rewriting those into @rpath/… is what makes the artifact relocatable.
 	//
 	// But ONLY if this file carries an rpath that reaches $ZPKG_DIR. Turning a
 	// reference that works on the build machine into an @rpath one that
-	// resolves nowhere would trade a bottle that works in one place for a
-	// bottle that works in none — so it is measured per file, not assumed.
+	// resolves nowhere would trade an artifact that works in one place for a
+	// artifact that works in none — so it is measured per file, not assumed.
 	toRpath := false
 	// Whether any rpath is a builder path we can restate relatively. It is
 	// tracked apart from toRpath because the two are independent: a file can
@@ -648,7 +648,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 	//	    .../facebook.com/folly/v2026.09.14.00/lib/libfolly.0.58.0-dev.dylib
 	//	c++: error: linker command failed with exit code 1
 	//
-	// Every dependent then fails to link. Measured on the folly bottle this
+	// Every dependent then fails to link. Measured on the folly artifact this
 	// factory published: 2 × @loader_path/../../../.. where one is bk's and one
 	// came from the rewrite. Leaving the absolute entry alone keeps a builder
 	// path in the artefact, which is a leak; writing the duplicate breaks
@@ -717,7 +717,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 	// past the header padding the linker left. Where it does not fit, the
 	// answer is the major — not nothing: skipping the file would give up the
 	// relocation that was already working and leave a builder path in the
-	// bottle.
+	// artifact.
 	useABI := true
 	rewrite := func(cmd uint32, s string) string {
 		if opts.BuildInstall != "" {
@@ -760,7 +760,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 		// A reference that is ALREADY @rpath/… — because the dependency was
 		// itself built with an @rpath install name — never passed through the
 		// absolute-path branch below, so its version stayed whole. Measured on
-		// the grep bottle rebuilt once pcre2 had been: it recorded
+		// the grep artifact rebuilt once pcre2 had been: it recorded
 		// @rpath/pcre.org/v2/v10.48/lib/libpcre2-8.0.dylib, which breaks again
 		// the day pcre2 reaches 10.49. The relocation was right and the version
 		// was not.
@@ -798,7 +798,7 @@ func rewriteMachoRefs(exe string, opts Options) error {
 		}
 		if _, ok := underDir(s, opts.ZpkgDir); ok {
 			// Major-versioned, exactly as the ELF side does to its RUNPATH
-			// entries, and for the reason measured on the published grep bottle:
+			// entries, and for the reason measured on the published grep artifact:
 			// it named
 			//
 			//   /Users/runner/.pkgx/pcre.org/v2/v10.47/lib/libpcre2-8.0.dylib
@@ -849,8 +849,8 @@ func rewriteMachoRefs(exe string, opts Options) error {
 //	  Referenced from: …/build/bin/llvm-min-tblgen
 //	  Reason: tried: '/Users/runner/.pkgx/libzstd.1.dylib' (no such file), …
 //
-// That is #125: our published facebook.com/zstd bottle carries the bare form
-// where upstream pkgx's bottle for the SAME version carries
+// That is #125: our published facebook.com/zstd artifact carries the bare form
+// where upstream pkgx's artifact for the SAME version carries
 // @rpath/facebook.com/zstd/v1.5.7/lib/libzstd.1.5.7.dylib, and llvm.org could
 // not build on either darwin arch because of it.
 //
@@ -938,7 +938,7 @@ func qualifyRef(exe, soname string, opts Options) (string, bool) {
 	//
 	// 60 of the 76 are libzstd.1.dylib: zstd's bare install name, recorded by
 	// every consumer linked before qualifyID gave it a directory, still being
-	// carried by bottles built since.
+	// carried by artifacts built since.
 	if proj, ok := closureOwner(soname, opts); ok {
 		return proj, true
 	}
@@ -1022,7 +1022,7 @@ var ErrBuilderOnlyRpath = errors.New("fixup: sibling package reachable only thro
 //	  Referenced from: …/pkgx.sh/v2.11.0/bin/pkgx
 //	  Reason: no LC_RPATH's found
 //
-// Found in the published registry, on a bottle that builds, signs, attests and
+// Found in the published registry, on an artifact that builds, signs, attests and
 // publishes without a complaint. There is nothing to guess at here — no rpath
 // and an @rpath reference is dead in every environment — so it stops the build
 // rather than becoming someone's dyld error weeks later.
@@ -1095,7 +1095,7 @@ func siblingRef(s string) bool {
 // relRpathReaches is rpathReaches restricted to RELATIVE entries.
 //
 // An absolute rpath is not relocatability. It names the directory the build
-// machine happened to use, and llvm.org's darwin bottle is what that produces:
+// machine happened to use, and llvm.org's darwin artifact is what that produces:
 // 118 of its 118 Mach-O files that reference a sibling carry
 // "/Users/runner/.pkgx" and "@loader_path/../lib", so every one of them loads
 // on the CI runner and on nothing else —
@@ -1106,7 +1106,7 @@ func siblingRef(s string) bool {
 // — while it built, signed, attested and published without a complaint.
 //
 // Measured before this was made an error rather than a warning: of six sampled
-// darwin bottles only llvm.org is in that state. zlib.net, sqlite.org and
+// darwin artifacts only llvm.org is in that state. zlib.net, sqlite.org and
 // gnome.org/libxml2 carry the absolute entry too but keep relative ones that
 // reach, so they leak a build path rather than break; openssl.org and curl.se
 // carry neither. Refusing the build therefore stops exactly the packages that

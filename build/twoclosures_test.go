@@ -89,7 +89,7 @@ func TestARecipesOwnToolchainPinStillReplacesTheBaseOne(t *testing.T) {
 
 	// and the project itself never joins its own toolchain
 	if contains(EvalToolDeps("gnu.org/grep", nil, nil, lin()), "gnu.org/grep") {
-		t.Error("a project's own published bottle joined the toolchain of its build")
+		t.Error("a project's own published artifact joined the toolchain of its build")
 	}
 }
 
@@ -99,7 +99,7 @@ func TestARecipesOwnToolchainPinStillReplacesTheBaseOne(t *testing.T) {
 // impossible: m4 declares no build dependencies and still fails on
 // freedesktop.org/pkg-config, because BaseToolchain is injected into every
 // build. Bootstrap mode drops exactly that, and must drop nothing else -- the
-// recipe's OWN build dependencies are still bottles, deliberately.
+// recipe's OWN build dependencies are still artifacts, deliberately.
 func TestBootstrapToolDepsDropsTheToolchainAndNothingElse(t *testing.T) {
 	// The real case: a recipe with no build dependencies of its own.
 	if got := BootstrapToolDeps(nil, lin()); len(got) != 0 {
@@ -183,13 +183,13 @@ func TestWithoutSelfDepRemovesOnlyTheSelfEdge(t *testing.T) {
 // The two real cases, both two-cycles or compiler pins rather than self edges:
 // curl.se/ca-certs declares curl.se so its script can run `curl` to fetch a
 // cert bundle, while curl.se needs ca-certs; and perl.org declares
-// `llvm.org: <19` on linux, a compiler named by bottle.
+// `llvm.org: <19` on linux, a compiler named by artifact.
 func TestWithoutUnresolvableKeepsWhatTheRegistryHas(t *testing.T) {
 	in := map[string]any{"curl.se": "*", "gnu.org/make": "*"}
 	var logged []string
 	resolve := func(p, _ string) (string, error) {
 		if p == "curl.se" {
-			return "", errors.New("no bottle for linux/s390x")
+			return "", errors.New("no artifact for linux/s390x")
 		}
 		return "4.4.1", nil
 	}
@@ -198,9 +198,9 @@ func TestWithoutUnresolvableKeepsWhatTheRegistryHas(t *testing.T) {
 		t.Error("an unresolvable tool must be left to the host")
 	}
 	if got["gnu.org/make"] != "*" {
-		t.Errorf("a tool the registry HAS must stay a bottle, got %v", got)
+		t.Errorf("a tool the registry HAS must stay an artifact, got %v", got)
 	}
-	// Reported, not silent: a seed bottle built without a declared tool is a
+	// Reported, not silent: a seed artifact built without a declared tool is a
 	// fact that outlives the run.
 	if len(logged) != 1 || !strings.Contains(logged[0], "curl.se") {
 		t.Errorf("the drop must be named in the log, got %v", logged)
@@ -230,7 +230,7 @@ func TestWithoutUnresolvableNeedsAResolver(t *testing.T) {
 // The defect this pins was found in a build LOG, not in a test: the first
 // version derived the constraint from DepSpecs' pkgx wire form and passed
 // "@1" where the recipe said "1". resolve cannot answer that, said no, and a
-// bottle we had just built was dropped as missing —
+// artifact we had just built was dropped as missing —
 //
 //	bootstrap: no gnu.org/m4 here — taking it from the host
 //	           (no version of gnu.org/m4 satisfies "@1" (available: 1))
@@ -268,7 +268,7 @@ func TestWithoutUnresolvableReducesPlatformKeys(t *testing.T) {
 	in := map[string]any{"linux": map[string]any{"llvm.org": "<19", "gnu.org/make": "*"}}
 	resolve := func(p, _ string) (string, error) {
 		if p == "llvm.org" {
-			return "", errors.New("no bottle here")
+			return "", errors.New("no artifact here")
 		}
 		return "4.4.1", nil
 	}
@@ -286,7 +286,7 @@ func TestWithoutUnresolvableReducesPlatformKeys(t *testing.T) {
 // It is exported because a caller deriving a constraint from DepSpecs gets a
 // pkgx WIRE form — `gnu.org/m4@1` — and trimming the project off that yields
 // "@1", which nothing can resolve. One caller did exactly that and dropped a
-// bottle it had just built.
+// artifact it had just built.
 func TestReduceDeps(t *testing.T) {
 	got := ReduceDeps(map[string]any{
 		"gnu.org/m4": "1",

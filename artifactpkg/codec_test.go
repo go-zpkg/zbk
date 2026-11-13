@@ -1,4 +1,4 @@
-package bottlepkg
+package artifactpkg
 
 import (
 	"archive/tar"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -21,7 +21,7 @@ func withCodec(t *testing.T, ext string) {
 	t.Cleanup(func() { Codec = orig })
 }
 
-// installTree lays out a minimal install prefix to bottle.
+// installTree lays out a minimal install prefix to artifact.
 func installTree(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -38,23 +38,23 @@ func installTree(t *testing.T) string {
 // the readers were still shipping — the measurements alone were never the
 // reason to flip, the deployed readers were.
 //
-// What makes the default safe is not the codec, it is that a published bottle
+// What makes the default safe is not the codec, it is that a published artifact
 // is never rewritten: everything already in the catalogue stays gzip and stays
 // readable by any binary, and only new publishes change.
 func TestCodecDefaultsToZstd(t *testing.T) {
-	if Codec != bottle.ExtTarZst {
-		t.Fatalf("Codec = %q, want %q", Codec, bottle.ExtTarZst)
+	if Codec != artifact.ExtTarZst {
+		t.Fatalf("Codec = %q, want %q", Codec, artifact.ExtTarZst)
 	}
 }
 
-// TestBottleWritesZstdWhenAsked: the payload must be real zstd, and the tar
+// TestArtifactWritesZstdWhenAsked: the payload must be real zstd, and the tar
 // inside it must be the same tar gzip would have produced.
-func TestBottleWritesZstdWhenAsked(t *testing.T) {
-	withCodec(t, bottle.ExtTarZst)
+func TestArtifactWritesZstdWhenAsked(t *testing.T) {
+	withCodec(t, artifact.ExtTarZst)
 	install := installTree(t)
 
 	var packed bytes.Buffer
-	if err := Bottle(install, "acme.org/tool", "1.0.0", &packed); err != nil {
+	if err := Artifact(install, "acme.org/tool", "1.0.0", &packed); err != nil {
 		t.Fatal(err)
 	}
 
@@ -87,15 +87,15 @@ func TestBottleWritesZstdWhenAsked(t *testing.T) {
 	}
 }
 
-// TestWriteBottleNamesTheFileByCodec: the EXTENSION is what tells a publisher
+// TestWriteArtifactNamesTheFileByCodec: the EXTENSION is what tells a publisher
 // (and a static dist) which decoder to use, so it has to follow the codec.
-func TestWriteBottleNamesTheFileByCodec(t *testing.T) {
-	for _, ext := range []string{bottle.ExtTarGz, bottle.ExtTarZst} {
+func TestWriteArtifactNamesTheFileByCodec(t *testing.T) {
+	for _, ext := range []string{artifact.ExtTarGz, artifact.ExtTarZst} {
 		withCodec(t, ext)
 		install := installTree(t)
 		out := t.TempDir()
 
-		p, err := WriteBottle(install, "acme.org/tool", "1.0.0", "linux", "aarch64", out)
+		p, err := WriteArtifact(install, "acme.org/tool", "1.0.0", "linux", "aarch64", out)
 		if err != nil {
 			t.Fatalf("%s: %v", ext, err)
 		}
@@ -116,7 +116,7 @@ func TestCompressorRejectsUnknownCodec(t *testing.T) {
 	if _, err := compressor(io.Discard); err == nil {
 		t.Fatal("want an error")
 	}
-	if err := Bottle(installTree(t), "acme.org/tool", "1.0.0", io.Discard); err == nil {
-		t.Fatal("Bottle must refuse an unknown codec")
+	if err := Artifact(installTree(t), "acme.org/tool", "1.0.0", io.Discard); err == nil {
+		t.Fatal("Artifact must refuse an unknown codec")
 	}
 }

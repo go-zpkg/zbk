@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/moustache"
 	"github.com/go-zpkg/zpkb/recipefile"
@@ -64,7 +64,7 @@ func alternation(set map[string]bool) string {
 // Exported because a caller that needs the constraint must not derive it from
 // DepSpecs. That renders a pkgx WIRE form — `gnu.org/m4@1`, `cmake.org^3` —
 // and trimming the project off it yields "@1", a string nothing can resolve.
-// One caller already did that and dropped a bottle it had just built.
+// One caller already did that and dropped an artifact it had just built.
 //
 // So there is one reduction, and everything that asks a question about a
 // dependency asks it the same way.
@@ -150,7 +150,7 @@ func SpecProject(spec string) string {
 // whole build and runtime closure, sorted — IS the build environment: the
 // compiler, its libc, every tool the recipe invoked, at the versions actually
 // used. It was computed on every build and discarded, which is why a published
-// bottle could not say what compiled it.
+// artifact could not say what compiled it.
 //
 // Resolving a second time elsewhere would be the obvious alternative and the
 // wrong one: `resolve` reaches the registry, and two resolutions a moment
@@ -188,10 +188,10 @@ func DepTokens(runtime, buildDeps map[string]any, tgt target.Target, zpkgDir str
 			//     Merkle property was inert — two builds differing only in
 			//     how a dependency was built would have hashed alike.
 			//
-			// bottle.StorePrefix resolves the installed build and falls back
+			// artifact.StorePrefix resolves the installed build and falls back
 			// to the composed path when nothing is installed, which is the
 			// string this produced before and keeps a dry run unchanged.
-			Path: bottle.StorePrefix(zpkgDir, p, bottle.Ver{Raw: ver}),
+			Path: artifact.StorePrefix(zpkgDir, p, artifact.Ver{Raw: ver}),
 		})
 	}
 	return moustache.Deps(deps), deps, nil
@@ -337,7 +337,7 @@ func BaseToolchain() []string {
 		// a later 5.4.x will do.
 		//
 		// Spelt with "~", not "@5.3". A BARE version is a caret in this resolver —
-		// `bottle`'s satisfies ends "default: // \"^\" and bare … sameN(v, base, 1)"
+		// `artifact`'s satisfies ends "default: // \"^\" and bare … sameN(v, base, 1)"
 		// — so `gawk@5.3` means ">=5.3, same major" and ADMITS 5.4.1, the one
 		// version this line exists to exclude. Measured against the registry, one
 		// empty store each:
@@ -400,7 +400,7 @@ func EvalLinkDeps(runtime map[string]any, tgt target.Target) []string {
 // in the same process as qt's. One closure asked a question that has no answer.
 //
 // The project itself is filtered out of the base toolchain for the reason
-// EvalDeps gives below: its own published bottle must not shadow the thing
+// EvalDeps gives below: its own published artifact must not shadow the thing
 // being built.
 func EvalToolDeps(project string, runtime, buildDeps map[string]any, tgt target.Target) []string {
 	out := DepSpecs(buildDeps, tgt)
@@ -447,9 +447,9 @@ func sortedSpecs(specs []string) []string {
 // recipe itself declares as a build dependency.
 //
 // It exists because the base toolchain is a CYCLE with no entry point, and
-// that is invisible until an architecture has no bottles at all. Every build
+// that is invisible until an architecture has no artifacts at all. Every build
 // gets the fifteen projects BaseToolchain names injected into its pkgx
-// environment, as BOTTLES -- so on linux/s390x, where neither this registry
+// environment, as ARTIFACTS -- so on linux/s390x, where neither this registry
 // nor dist.pkgx.dev publishes anything, gnu.org/m4 fails on
 //
 //	pkgx: no version of freedesktop.org/pkg-config satisfies  AND is
@@ -460,13 +460,13 @@ func sortedSpecs(specs []string) []string {
 //
 // --libc=pkgx does not help and neither does its absence: the build container's
 // distribution supplies a COMPILER fallback, never a declared dependency, so
-// both modes go through pkgx and both demand a bottle.
+// both modes go through pkgx and both demand an artifact.
 //
 // So one generation has to be made with the host's own tools, into a registry
 // that generation never leaves. This is that escape, and it is deliberately
 // the smallest one that works: the recipe's own build dependencies still
-// resolve as bottles, and the LINK closure is untouched, because what a
-// bottle links against is what it ships -- only the tools that RUN the build
+// resolve as artifacts, and the LINK closure is untouched, because what a
+// artifact links against is what it ships -- only the tools that RUN the build
 // come from outside.
 func BootstrapToolDeps(buildDeps map[string]any, tgt target.Target) []string {
 	return sortedSpecs(DepSpecs(buildDeps, tgt))
@@ -479,12 +479,12 @@ func BootstrapToolDeps(buildDeps map[string]any, tgt target.Target) []string {
 // always -- gcc's own comment says ">=14 lets the newest gcc WE have build the
 // older one, so the seed comes from our own chain instead of an upstream
 // binary" -- and it is exactly wrong when the chain does not exist yet. On an
-// architecture with no bottles, a project that needs itself can never be
+// architecture with no artifacts, a project that needs itself can never be
 // first, and nothing downstream of it can either: gnu.org/glibc build-depends
 // on gcc 14, so the whole toolchain sits behind that one edge.
 //
 // Only in bootstrap mode, and only the self-edge. Every other build dependency
-// stays a bottle, because every other one CAN be built in order.
+// stays an artifact, because every other one CAN be built in order.
 func WithoutSelfDep(project string, buildDeps map[string]any) map[string]any {
 	if _, ok := buildDeps[project]; !ok {
 		return buildDeps
@@ -508,7 +508,7 @@ func WithoutSelfDep(project string, buildDeps map[string]any) map[string]any {
 //	export PATH="{{deps.gnu.org/sed.prefix}}/bin:$PATH"
 //
 // — putting a known-good sed in front of whatever the system has. On an
-// architecture with no sed bottle the system's IS the only sed, and the
+// architecture with no sed artifact the system's IS the only sed, and the
 // unresolved token stopped the build with the guard Runner.Build added for
 // exactly this shape.
 //
@@ -621,14 +621,14 @@ func ProvidedCommands(provides any, tgt target.Target) []string {
 // Only in bootstrap mode, and the reason it is safe is written a few functions
 // above: EvalToolDeps is "the set a build RUNS", and "Nothing here is linked
 // into the artefact." A build dependency is a TOOL. The link closure --
-// EvalLinkDeps, what the bottle actually carries -- is untouched.
+// EvalLinkDeps, what the artifact actually carries -- is untouched.
 //
 // It is what the remaining s390x seed failures all were, each differently:
 //
 //   - curl.se/ca-certs declares curl.se so its script can run
 //     `curl -k https://curl.se/ca/… -o cert.pem`. curl.se in turn needs
 //     ca-certs, so neither can be first. The host has a curl.
-//   - perl.org declares `llvm.org: <19` on linux: a compiler, named by bottle.
+//   - perl.org declares `llvm.org: <19` on linux: a compiler, named by artifact.
 //     The host has a compiler; that is the whole premise of --bootstrap.
 //
 // `resolve` is asked whether the tool can be INSTALLED, not merely whether a
@@ -646,7 +646,7 @@ func ProvidedCommands(provides any, tgt target.Target) []string {
 // cannot install is not a tool you have, so the question has to be about the
 // closure.
 //
-// A drop is reported, not silent: a seed bottle built without a tool somebody
+// A drop is reported, not silent: a seed artifact built without a tool somebody
 // declared is a fact that outlives the run.
 //
 // If the recipe needed that dependency's PATH rather than its binaries, the
@@ -668,7 +668,7 @@ func WithoutUnresolvable(buildDeps map[string]any, tgt target.Target,
 	//	bootstrap: no gnu.org/m4 here — taking it from the host
 	//	           (no version of gnu.org/m4 satisfies "@1" (available: 1))
 	//
-	// "available: 1" is the tell — the bottle WAS there, freshly built, and
+	// "available: 1" is the tell — the artifact WAS there, freshly built, and
 	// 1.4.21 satisfies "1". The judge has to ask what the subject asks.
 	keep := map[string]any{}
 	for proj, cons := range reduceDepMap(buildDeps, tgt) {
@@ -708,14 +708,14 @@ func EvalDeps(project string, runtime, buildDeps map[string]any, tgt target.Targ
 	}
 	add(DepSpecs(runtime, tgt))
 	add(DepSpecs(buildDeps, tgt))
-	// A package's OWN published bottle never joins the toolchain of its own
+	// A package's OWN published artifact never joins the toolchain of its own
 	// build. It would shadow the thing being built with an older copy — and if
 	// that copy is broken, the package can no longer be repaired at all:
 	//
 	//   configure: error: no working 'grep' found
 	//     A working 'grep' command is needed to build GNU Grep.
 	//
-	// which is where gnu.org/grep sat on 2026-09-05, its published bottle
+	// which is where gnu.org/grep sat on 2026-09-05, its published artifact
 	// unable to start because a dependency's MINOR upgrade had moved out from
 	// under an absolute install name. Nothing else in the factory could make
 	// the next grep, and the tools that need grep (curl's configure, autoconf's
@@ -789,7 +789,7 @@ func SanitizedEnv(home, zpkgDir string) []string {
 	// ZPKG_VERIFY travels with them, and for the same reason: it is the other
 	// half of the same decision — which registry, and on what terms. Verification
 	// is on by default and a build inherits that; the opt-out exists for a test
-	// harness pointed at a scratch registry of deliberately unsigned bottles,
+	// harness pointed at a scratch registry of deliberately unsigned artifacts,
 	// where the alternative is not "less safety" but "no test".
 	// ZPKG_CACHE belongs with ZPKG_DIST for exactly the reason spelled out above:
 	// it names a distribution point. Dropping it sent the `pkgx +deps` line of
@@ -811,7 +811,7 @@ func SanitizedEnv(home, zpkgDir string) []string {
 	// A build script is third-party code: the recipes come from
 	// pkgxdev/pantry, they run as root in the sovereign chroot, and the
 	// workflow's token carries `packages: write` on the whole organisation.
-	// Handing it to them means any recipe can publish a bottle.
+	// Handing it to them means any recipe can publish an artifact.
 	//
 	// It was passed through "for recipes that fetch from GitHub". Measured
 	// against a fresh pantry on 2026-10-05, that is not what uses it:

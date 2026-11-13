@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-attest/sbom"
 	"github.com/go-attest/sign"
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -60,7 +60,7 @@ func TestCatalogIsTheUnionOfPantryAndOverlay(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p, "--overlay", o}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestCatalogIsTheUnionOfPantryAndOverlay(t *testing.T) {
 // projects the wasm lanes build. The seventh, github.com/simdjson/simdjson,
 // has its recipe ONLY in packages/wasip1/recipes — neither the pantry nor the
 // overlay carries it — so a catalogue read from those two could never name a
-// bottle that is published and installable. The fixture has the real shape: a
+// artifact that is published and installable. The fixture has the real shape: a
 // `github.com/<org>/<repo>` slug in a FLAT tree (no `projects/` level), beside
 // projects BOTH trees have (lua.org, zlib.net, filippo.io/age), whose LANE
 // recipe wins since go-zpkg/bk#376 (#375 had the pantry winning).
@@ -108,10 +108,10 @@ func TestCatalogNamesAProjectOnlyAPlatformLaneBuilds(t *testing.T) {
 		}
 	}
 	prevV, prevP := versionsFor, publishedTagFor
-	versionsFor = func(project, osn, arch string) ([]bottle.Ver, bool, error) {
-		return []bottle.Ver{bottle.ParseVer("5.0.5")}, true, nil
+	versionsFor = func(project, osn, arch string) ([]artifact.Ver, bool, error) {
+		return []artifact.Ver{artifact.ParseVer("5.0.5")}, true, nil
 	}
-	publishedTagFor = func(project string, v bottle.Ver, osn, arch string) (string, bool, error) {
+	publishedTagFor = func(project string, v artifact.Ver, osn, arch string) (string, bool, error) {
 		return "v" + v.Raw, true, nil
 	}
 	t.Cleanup(func() { versionsFor, publishedTagFor = prevV, prevP })
@@ -121,7 +121,7 @@ func TestCatalogNamesAProjectOnlyAPlatformLaneBuilds(t *testing.T) {
 	if code := runCatalog(args, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestCatalogIgnoresWhatIsNotARecipe(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, _ := bottle.UnmarshalCatalog(out.Bytes())
+	cat, _ := artifact.UnmarshalCatalog(out.Bytes())
 	if len(cat.Projects) != 1 || cat.Projects[0].Project != "zlib.net" {
 		t.Errorf("projects = %+v", cat.Projects)
 	}
@@ -250,7 +250,7 @@ func TestCatalogWritesAFile(t *testing.T) {
 func TestCatalogReportsAMarshalFailure(t *testing.T) {
 	p, _, _ := catbed(t, map[string]string{"zlib.net": catRecipe}, nil)
 	prev := marshalCatalog
-	marshalCatalog = func(bottle.Catalog) ([]byte, error) { return nil, errors.New("nope") }
+	marshalCatalog = func(artifact.Catalog) ([]byte, error) { return nil, errors.New("nope") }
 	t.Cleanup(func() { marshalCatalog = prev })
 	var out, errb bytes.Buffer
 	if code := runCatalog([]string{"--pantry", p}, &out, &errb); code != 1 {
@@ -261,7 +261,7 @@ func TestCatalogReportsAMarshalFailure(t *testing.T) {
 	}
 }
 
-// A catalogue is published the way a bottle is published, SIGNATURE
+// A catalogue is published the way an artifact is published, SIGNATURE
 // INCLUDED. A client with ZPKG_VERIFY on — the default — refuses an
 // unsigned one, and rightly: the catalogue is the list of names a person
 // then types, so deciding its contents is deciding what <TAB> offers.
@@ -269,9 +269,9 @@ func TestCatalogPublishes(t *testing.T) {
 	p, _, _ := catbed(t, map[string]string{"zlib.net": catRecipe, "gnu.org/bash": catRecipe}, nil)
 	var gotOS, gotArch, gotProject, gotVer, gotExt string
 	var gotTgz []byte
-	var gotRefs []bottle.Referrer
+	var gotRefs []artifact.Referrer
 	prevP, prevK, prevT := ociPush, signingKey, catalogTarball
-	ociPush = func(_, project, ver, osn, arch string, tgz []byte, ext string, refs []bottle.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, project, ver, osn, arch string, tgz []byte, ext string, refs []artifact.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
 		gotProject, gotVer, gotOS, gotArch, gotTgz, gotExt, gotRefs = project, ver, osn, arch, tgz, ext, refs
 		return ocispec.Descriptor{}, nil
 	}
@@ -289,10 +289,10 @@ func TestCatalogPublishes(t *testing.T) {
 	if gotOS != "linux" || gotArch != "s390x" {
 		t.Errorf("published for %s/%s", gotOS, gotArch)
 	}
-	if gotProject != bottle.CatalogProjectName || gotVer != bottle.CatalogVersion || gotExt != bottle.ExtTarGz {
+	if gotProject != artifact.CatalogProjectName || gotVer != artifact.CatalogVersion || gotExt != artifact.ExtTarGz {
 		t.Errorf("published as %s v%s %s", gotProject, gotVer, gotExt)
 	}
-	cat, err := bottle.CatalogFromTarball(gotTgz)
+	cat, err := artifact.CatalogFromTarball(gotTgz)
 	if err != nil {
 		t.Fatalf("what was pushed is not a catalogue: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestCatalogPublishes(t *testing.T) {
 	// The signature, which is the point.
 	signed := false
 	for _, r := range gotRefs {
-		if r.ArtifactType == bottle.ArtifactTypeSignature {
+		if r.ArtifactType == artifact.ArtifactTypeSignature {
 			signed = true
 		}
 	}
@@ -325,7 +325,7 @@ func TestCatalogPublishes(t *testing.T) {
 		t.Fatalf("an unsigned publish exited %d: %s", code, errb.String())
 	}
 	for _, r := range gotRefs {
-		if r.ArtifactType == bottle.ArtifactTypeSignature {
+		if r.ArtifactType == artifact.ArtifactTypeSignature {
 			t.Error("a signature appeared with no key")
 		}
 	}
@@ -341,7 +341,7 @@ func TestCatalogPublishes(t *testing.T) {
 	}
 	signingKey = func(string) (*sign.Keypair, error) { return nil, nil }
 
-	catalogTarball = func(bottle.Catalog) ([]byte, error) { return nil, errors.New("cannot pack") }
+	catalogTarball = func(artifact.Catalog) ([]byte, error) { return nil, errors.New("cannot pack") }
 	if code := runCatalog([]string{"--pantry", p, "--publish"}, &out, &errb); code != 1 {
 		t.Errorf("an unpackable catalogue exited %d", code)
 	}
@@ -356,7 +356,7 @@ func TestCatalogPublishes(t *testing.T) {
 	}
 	sbomJSON = prevSbom
 
-	ociPush = func(string, string, string, string, string, []byte, string, []bottle.Referrer, map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(string, string, string, string, string, []byte, string, []artifact.Referrer, map[string]string) (ocispec.Descriptor, error) {
 		return ocispec.Descriptor{}, errors.New("registry down")
 	}
 	if code := runCatalog([]string{"--pantry", p, "--publish"}, &out, &errb); code != 1 {
@@ -370,16 +370,16 @@ func TestCatalogPublishes(t *testing.T) {
 func TestCatalogVersionsIsOptInAndSurvivesOneFailure(t *testing.T) {
 	p, _, _ := catbed(t, map[string]string{"a.org": catRecipe, "b.org": catRecipe}, nil)
 	prevV, prevP := versionsFor, publishedTagFor
-	versionsFor = func(project, osn, arch string) ([]bottle.Ver, bool, error) {
+	versionsFor = func(project, osn, arch string) ([]artifact.Ver, bool, error) {
 		switch project {
 		case "a.org":
-			return []bottle.Ver{bottle.ParseVer("1.0.0"), bottle.ParseVer("2.0.0")}, true, nil
+			return []artifact.Ver{artifact.ParseVer("1.0.0"), artifact.ParseVer("2.0.0")}, true, nil
 		case "b.org":
 			return nil, false, errors.New("not found")
 		}
 		return nil, false, nil
 	}
-	publishedTagFor = func(_ string, v bottle.Ver, _, _ string) (string, bool, error) {
+	publishedTagFor = func(_ string, v artifact.Ver, _, _ string) (string, bool, error) {
 		return v.Raw, true, nil
 	}
 	t.Cleanup(func() { versionsFor, publishedTagFor = prevV, prevP })
@@ -394,7 +394,7 @@ func TestCatalogVersionsIsOptInAndSurvivesOneFailure(t *testing.T) {
 	if !strings.Contains(errb.String(), "b.org: not found") {
 		t.Errorf("the one failure was not warned: %q", errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestCatalogVersionsIsOptInAndSurvivesOneFailure(t *testing.T) {
 		t.Errorf("b.org got versions from a failed call: %+v", b)
 	}
 	// And without --versions, nothing is asked at all.
-	versionsFor = func(string, string, string) ([]bottle.Ver, bool, error) {
+	versionsFor = func(string, string, string) ([]artifact.Ver, bool, error) {
 		t.Fatal("the registry was asked without --versions")
 		return nil, false, nil
 	}
@@ -422,13 +422,13 @@ func TestCatalogVersionsIsOptInAndSurvivesOneFailure(t *testing.T) {
 func TestCatalogVersionsSkipsAnEmptyAnswer(t *testing.T) {
 	p, _, _ := catbed(t, map[string]string{"a.org": catRecipe}, nil)
 	prev := versionsFor
-	versionsFor = func(string, string, string) ([]bottle.Ver, bool, error) { return nil, true, nil }
+	versionsFor = func(string, string, string) ([]artifact.Ver, bool, error) { return nil, true, nil }
 	t.Cleanup(func() { versionsFor = prev })
 	var out, errb bytes.Buffer
 	if code := runCatalog([]string{"--pantry", p, "--versions"}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, _ := bottle.UnmarshalCatalog(out.Bytes())
+	cat, _ := artifact.UnmarshalCatalog(out.Bytes())
 	if a, _ := cat.Lookup("a.org"); len(a.Versions) != 0 || len(a.Platforms) != 0 {
 		t.Errorf("an empty answer invented something: %+v", a)
 	}
@@ -442,7 +442,7 @@ func TestCatalogVersionsSkipsAnEmptyAnswer(t *testing.T) {
 //	has never published the project. Named, no version: that is
 //	the answer a person looking for doxygen.nl needs.
 //
-// elsewhere the tag is ours but the bottle is for another architecture —
+// elsewhere the tag is ours but the artifact is for another architecture —
 //
 //	a mirror wave that landed x86-64 and not s390x.
 //
@@ -455,12 +455,12 @@ func TestCatalogRecordsOnlyWhatThisRegistryHasForThisPlatform(t *testing.T) {
 		"older.org": catRecipe, "here.org": catRecipe, "down.org": catRecipe,
 	}, nil)
 	prevV, prevP := versionsFor, publishedTagFor
-	three := []bottle.Ver{bottle.ParseVer("1.0.0"), bottle.ParseVer("2.0.0"), bottle.ParseVer("3.0.0")}
-	versionsFor = func(project, osn, arch string) ([]bottle.Ver, bool, error) {
+	three := []artifact.Ver{artifact.ParseVer("1.0.0"), artifact.ParseVer("2.0.0"), artifact.ParseVer("3.0.0")}
+	versionsFor = func(project, osn, arch string) ([]artifact.Ver, bool, error) {
 		return three, project != "borrowed.org", nil
 	}
 	probes := map[string]int{}
-	publishedTagFor = func(project string, v bottle.Ver, _, _ string) (string, bool, error) {
+	publishedTagFor = func(project string, v artifact.Ver, _, _ string) (string, bool, error) {
 		probes[project]++
 		switch project {
 		case "elsewhere.org":
@@ -478,7 +478,7 @@ func TestCatalogRecordsOnlyWhatThisRegistryHasForThisPlatform(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p, "--versions"}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func TestCatalogRecordsOnlyWhatThisRegistryHasForThisPlatform(t *testing.T) {
 		}
 	}
 	// A probe that FAILED is warned, and leaves the project bare rather
-	// than silently indistinguishable from one with no bottle: "the
+	// than silently indistinguishable from one with no artifact: "the
 	// registry did not answer" and "the registry has nothing" are
 	// different facts and only one of them is about the catalogue.
 	if !strings.Contains(errb.String(), "down.org: registry down") {
@@ -527,16 +527,16 @@ func TestCatalogRecordsOnlyWhatThisRegistryHasForThisPlatform(t *testing.T) {
 	}
 }
 
-// A project with no bottle here must not cost one request per tag: that
+// A project with no artifact here must not cost one request per tag: that
 // is the normal state of a young lane, times two thousand projects.
 func TestThePlatformProbeIsBounded(t *testing.T) {
-	var vs []bottle.Ver
+	var vs []artifact.Ver
 	for i := 1; i <= 40; i++ {
-		vs = append(vs, bottle.ParseVer(fmt.Sprintf("%d.0.0", i)))
+		vs = append(vs, artifact.ParseVer(fmt.Sprintf("%d.0.0", i)))
 	}
 	n := 0
 	prev := publishedTagFor
-	publishedTagFor = func(string, bottle.Ver, string, string) (string, bool, error) {
+	publishedTagFor = func(string, artifact.Ver, string, string) (string, bool, error) {
 		n++
 		return "", false, nil
 	}
@@ -551,20 +551,20 @@ func TestThePlatformProbeIsBounded(t *testing.T) {
 	// And a probe that fails is reported, not read as "not here": those
 	// are different answers and only one of them is about the registry's
 	// contents.
-	publishedTagFor = func(string, bottle.Ver, string, string) (string, bool, error) {
+	publishedTagFor = func(string, artifact.Ver, string, string) (string, bool, error) {
 		return "", false, errors.New("registry down")
 	}
 	if _, _, err := newestHere("x.org", vs, "linux", "s390x"); err == nil {
-		t.Error("a failed probe reads as an absent bottle")
+		t.Error("a failed probe reads as an absent artifact")
 	}
 }
 
 // The version a reader is shown must be the NEWEST, and version order is
 // not string order: a plain sort puts "1.9" above "1.10".
 func TestNewestHereUsesVersionOrderNotStringOrder(t *testing.T) {
-	vs := []bottle.Ver{bottle.ParseVer("1.9"), bottle.ParseVer("1.10")} // ascending, as bottle returns them
+	vs := []artifact.Ver{artifact.ParseVer("1.9"), artifact.ParseVer("1.10")} // ascending, as artifact returns them
 	prev := publishedTagFor
-	publishedTagFor = func(_ string, v bottle.Ver, _, _ string) (string, bool, error) {
+	publishedTagFor = func(_ string, v artifact.Ver, _, _ string) (string, bool, error) {
 		return v.Raw, true, nil
 	}
 	t.Cleanup(func() { publishedTagFor = prev })
@@ -611,7 +611,7 @@ func TestCatalogSurvivesOneUnreadableDirectory(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p}, &out, &errb); code != 0 {
 		t.Fatalf("one unreadable directory failed the whole catalogue: %d %s", code, errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -631,7 +631,7 @@ func TestCatalogCarriesRuntimeDependencies(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p, "--platform", "linux/x86-64"}, &out, &errb); code != 0 {
 		t.Fatalf("code=%d %s", code, errb.String())
 	}
-	cat, err := bottle.UnmarshalCatalog(out.Bytes())
+	cat, err := artifact.UnmarshalCatalog(out.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -651,7 +651,7 @@ func TestCatalogCarriesRuntimeDependencies(t *testing.T) {
 	if code := runCatalog([]string{"--pantry", p, "--platform", "darwin/aarch64"}, &out, &errb); code != 0 {
 		t.Fatalf("darwin: code=%d", code)
 	}
-	dcat, _ := bottle.UnmarshalCatalog(out.Bytes())
+	dcat, _ := artifact.UnmarshalCatalog(out.Bytes())
 	dapp, _ := dcat.Lookup("app.org")
 	if strings.Join(dapp.Deps, " ") != "lib.org" {
 		t.Errorf("darwin app.org deps = %v; the linux-only one leaked", dapp.Deps)
@@ -679,8 +679,8 @@ func TestCatalogCountsProjectsItCannotRead(t *testing.T) {
 		t.Errorf("the unreadable project was not counted: %q", errb.String())
 	}
 	// It is still LISTED — it exists, we just cannot say what it needs.
-	if _, ok := (func() (bottle.CatalogProject, bool) {
-		c, _ := bottle.UnmarshalCatalog(out.Bytes())
+	if _, ok := (func() (artifact.CatalogProject, bool) {
+		c, _ := artifact.UnmarshalCatalog(out.Bytes())
 		return c.Lookup("b.org")
 	}()); !ok {
 		t.Error("an unreadable project was dropped from the catalogue entirely")

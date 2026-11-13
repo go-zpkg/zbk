@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -42,7 +42,7 @@ func vexTree(t *testing.T, project, body string) string {
 
 func TestVexReferrerCarriesTheDecision(t *testing.T) {
 	dir := vexTree(t, "openssl.org", vexAdvisory)
-	ref, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("bottle"), vexWhen)
+	ref, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("artifact"), vexWhen)
 	if err != nil {
 		t.Fatalf("vexReferrer: %v", err)
 	}
@@ -89,16 +89,16 @@ func TestVexReferrerCarriesTheDecision(t *testing.T) {
 	}
 }
 
-// ⛔ The document must be byte-identical for the same bottle, or a re-push
+// ⛔ The document must be byte-identical for the same artifact, or a re-push
 // attaches a second referrer beside the first instead of replacing it. The
 // @id therefore carries no timestamp and no counter.
 func TestVexReferrerIsByteIdenticalOnARePush(t *testing.T) {
 	dir := vexTree(t, "openssl.org", vexAdvisory)
-	a, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("bottle"), vexWhen)
+	a, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("artifact"), vexWhen)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("bottle"), vexWhen)
+	b, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "linux", "x86-64", []byte("artifact"), vexWhen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestVexReferrerIsByteIdenticalOnARePush(t *testing.T) {
 		t.Errorf("two runs differ:\n%s\n---\n%s", a.Blob, b.Blob)
 	}
 	// And two PLATFORMS are two artefacts, so their documents differ.
-	c, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "darwin", "aarch64", []byte("bottle"), vexWhen)
+	c, err := vexReferrer(dir, "openssl.org", "3.5.8_1", "darwin", "aarch64", []byte("artifact"), vexWhen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestVexReferrerIsAbsentWhenNothingWasTriaged(t *testing.T) {
 }
 
 // ⛔ A file that exists and cannot be used STOPS the publish. The alternative
-// is a bottle that looks complete and asserts nothing — and an absent VEX
+// is an artifact that looks complete and asserts nothing — and an absent VEX
 // document reads as "nothing was ever found", which is the opposite of what a
 // broken record means.
 func TestVexReferrerRefusesRatherThanOmit(t *testing.T) {
@@ -162,7 +162,7 @@ func TestVexReferrerRefusesRatherThanOmit(t *testing.T) {
 			t.Skip(err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(p, 0o644) })
-		// NOT the absent case: a permission error must surface, or a bottle
+		// NOT the absent case: a permission error must surface, or an artifact
 		// whose justification could not be read is published as if it had
 		// none.
 		_, err := vexReferrer(dir, "openssl.org", "3.5.8", "linux", "x86-64", []byte("b"), vexWhen)
@@ -172,7 +172,7 @@ func TestVexReferrerRefusesRatherThanOmit(t *testing.T) {
 	})
 	t.Run("a document the encoder refuses", func(t *testing.T) {
 		// Reached without a seam: OpenVEX requires a timestamp, so an
-		// undated call cannot produce a document. publishBottle never passes
+		// undated call cannot produce a document. publishArtifact never passes
 		// the zero time — it falls back to buildTime() — but the refusal must
 		// reach the caller rather than yielding a document with no date.
 		dir := vexTree(t, "openssl.org", vexAdvisory)
@@ -183,24 +183,24 @@ func TestVexReferrerRefusesRatherThanOmit(t *testing.T) {
 	})
 }
 
-// Through publishBottle, which is the only thing the factory calls. The unit
+// Through publishArtifact, which is the only thing the factory calls. The unit
 // test above proves the document is right; this proves it is ATTACHED, and
 // that the two referrers already there are not displaced.
 func TestPublishAttachesTheVexReferrer(t *testing.T) {
 	dir := vexTree(t, "openssl.org", vexAdvisory)
-	b := writeBottle(t, "b.tar.gz")
-	var got []bottle.Referrer
+	b := writeArtifact(t, "b.tar.gz")
+	var got []artifact.Referrer
 	saved := ociPush
 	t.Cleanup(func() { ociPush = saved })
-	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, refs []bottle.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(_, _, _, _, _ string, _ []byte, _ string, refs []artifact.Referrer, _ map[string]string) (ocispec.Descriptor, error) {
 		got = refs
 		return ocispec.Descriptor{}, nil
 	}
-	if _, _, err := publishBottle(publishOptions{
+	if _, _, err := publishArtifact(publishOptions{
 		Dist: "oci://x/y", Project: "openssl.org", Version: "3.5.8_1",
 		OS: "linux", Arch: "x86-64", Path: b, Advisories: dir,
 	}); err != nil {
-		t.Fatalf("publishBottle: %v", err)
+		t.Fatalf("publishArtifact: %v", err)
 	}
 	var kinds []string
 	for _, r := range got {
@@ -219,41 +219,41 @@ func TestPublishAttachesTheVexReferrer(t *testing.T) {
 	// And with no advisory tree, the other two are unchanged — the VEX
 	// referrer is additive, not a replacement.
 	got = nil
-	if _, _, err := publishBottle(publishOptions{
+	if _, _, err := publishArtifact(publishOptions{
 		Dist: "oci://x/y", Project: "openssl.org", Version: "3.5.8_1",
 		OS: "linux", Arch: "x86-64", Path: b,
 	}); err != nil {
-		t.Fatalf("publishBottle: %v", err)
+		t.Fatalf("publishArtifact: %v", err)
 	}
 	if len(got) != 2 {
 		t.Errorf("referrers without a tree = %d, want 2", len(got))
 	}
 }
 
-// A broken advisory file stops publishBottle, so nothing is pushed.
+// A broken advisory file stops publishArtifact, so nothing is pushed.
 func TestPublishRefusesABrokenAdvisoryFile(t *testing.T) {
 	dir := vexTree(t, "openssl.org", "schema-version: 9\n")
-	b := writeBottle(t, "b.tar.gz")
+	b := writeArtifact(t, "b.tar.gz")
 	pushed := false
 	saved := ociPush
 	t.Cleanup(func() { ociPush = saved })
-	ociPush = func(string, string, string, string, string, []byte, string, []bottle.Referrer, map[string]string) (ocispec.Descriptor, error) {
+	ociPush = func(string, string, string, string, string, []byte, string, []artifact.Referrer, map[string]string) (ocispec.Descriptor, error) {
 		pushed = true
 		return ocispec.Descriptor{}, nil
 	}
-	_, _, err := publishBottle(publishOptions{
+	_, _, err := publishArtifact(publishOptions{
 		Dist: "oci://x/y", Project: "openssl.org", Version: "3.5.8_1",
 		OS: "linux", Arch: "x86-64", Path: b, Advisories: dir,
 	})
 	if err == nil {
-		t.Fatal("published a bottle whose justification could not be read")
+		t.Fatal("published an artifact whose justification could not be read")
 	}
 	if pushed {
-		t.Error("the bottle was pushed anyway")
+		t.Error("the artifact was pushed anyway")
 	}
 }
 
-// The document names the platform, because two platforms' bottles are two
+// The document names the platform, because two platforms' artifacts are two
 // artefacts and a statement about one must not claim to be the other.
 func TestVexDocumentIDNamesThePlatform(t *testing.T) {
 	a := vexDocumentID("openssl.org", "3.5.8_1", "linux", "x86-64")

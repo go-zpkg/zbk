@@ -123,7 +123,7 @@ func shimBase(name string) string {
 //	x86_64-w64-mingw32-gcc -O3 -Wall -c -o adler32.o adler32.c
 //	bk gcc: gcc is not on PATH outside …/build.libexec
 //
-// while `x86_64-w64-mingw32-gcc` sat in the llvm-mingw bottle's bin, shadowed
+// while `x86_64-w64-mingw32-gcc` sat in the llvm-mingw artifact's bin, shadowed
 // by our own shim. The doc comment above said the shim "drives the compiler of
 // the same name" and shimBase made that false for every prefixed spelling.
 //

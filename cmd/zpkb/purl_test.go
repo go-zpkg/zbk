@@ -2,16 +2,16 @@ package main
 
 import "testing"
 
-// ⛔⛔ EVERY BOTTLE ALREADY PUBLISHED RECORDS `pkg:pkgx/`, AND THIS COMMAND'S
-// JOB IS TO ANSWER ABOUT BOTTLES THAT EXIST.
+// ⛔⛔ EVERY ARTIFACT ALREADY PUBLISHED RECORDS `pkg:pkgx/`, AND THIS COMMAND'S
+// JOB IS TO ANSWER ABOUT ARTIFACTS THAT EXIST.
 //
-// `zpkb buildenv` reads a published bottle's provenance to say what it was
+// `zpkb buildenv` reads a published artifact's provenance to say what it was
 // built against. If the read path followed the mint path to `pkg:generic/`,
 // the answer for the whole existing registry would become "the provenance
 // records no build environment" — a sentence that is indistinguishable from a
-// bottle published before provenance existed at all, which is the one
+// artifact published before provenance existed at all, which is the one
 // distinction envAttestedBy was written to preserve.
-func TestABottleSignedWithTheRetiredPurlIsStillUnderstood(t *testing.T) {
+func TestAArtifactSignedWithTheRetiredPurlIsStillUnderstood(t *testing.T) {
 	for _, tc := range []struct{ uri, project, version string }{
 		{"pkg:pkgx/go.dev@1.27.1", "go.dev", "1.27.1"},
 		{"pkg:generic/go.dev@1.27.1", "go.dev", "1.27.1"},
@@ -51,7 +51,7 @@ func TestWhatIsNotOursIsNotRead(t *testing.T) {
 }
 
 // ⛔ THE MINT PATH HAS ONE SPELLING. Two current spellings would mean the
-// change never finishes: a later reader could not tell which bottles were
+// change never finishes: a later reader could not tell which artifacts were
 // built after it.
 func TestOnlyOneSpellingIsMinted(t *testing.T) {
 	got := purlFor("gnu.org/bash", "5.2.37")

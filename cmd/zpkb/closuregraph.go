@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-zpkg/bottle"
+	"github.com/go-zpkg/artifact"
 	"github.com/go-zpkg/zpkb/build"
 	"github.com/go-zpkg/zpkb/logical"
 	"github.com/go-zpkg/zpkb/pantry"
@@ -23,7 +23,7 @@ import (
 // can build it deps-first. Adding build dependencies makes it a graph with
 // cycles — gnu.org/gcc build-depends on gnu.org/gcc, curl.se/ca-certs runs
 // curl to fetch its bundle while curl needs the bundle — and on an
-// architecture with no bottles at all that is the difference between a plan
+// architecture with no artifacts at all that is the difference between a plan
 // and a wish.
 //
 // Every reduction goes through build.ReduceDeps, the same one the builder
@@ -169,7 +169,7 @@ func (g *closureGraph) constrained() []string {
 // projects that MAY be pulled in, not ones this closure is known to need.
 func (g *closureGraph) implicitExtras() []string {
 	var out []string
-	for _, p := range bottle.SonameProviders() {
+	for _, p := range artifact.SonameProviders() {
 		if !g.seen[p] {
 			out = append(out, p)
 		}

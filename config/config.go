@@ -20,7 +20,7 @@ var userHomeDir = os.UserHomeDir
 type Paths struct {
 	// Root is the directory every other build directory lives under (the brewkit
 	// cache dir, or the pantry checkout). It is what -ffile-prefix-map maps to
-	// /build, so no builder path leaks into a bottle (go-zpkg/bk#387).
+	// /build, so no builder path leaks into an artifact (go-zpkg/bk#387).
 	Root         string
 	Home         string // a fresh HOME for the build (== bkroot for the default layout)
 	Src          string // extracted sources
@@ -33,11 +33,11 @@ type Paths struct {
 
 // ZpkgDir returns the store prefix ($ZPKG_DIR, else ~/.zpkg).
 //
-// ⛔⛔ IT MUST AGREE WITH bottle.Dir(), AND FOR A WHILE IT DID NOT. This
-// returned `~/.pkgx` long after bottle/pkgx.go:385 moved the store to
+// ⛔⛔ IT MUST AGREE WITH artifact.Dir(), AND FOR A WHILE IT DID NOT. This
+// returned `~/.pkgx` long after artifact/pkgx.go:385 moved the store to
 // `~/.zpkg`, so one product had two functions computing the store root and
 // they disagreed — zpkb staged and looked in upstream pkgx's directory while
-// everything built on bottle used ours. The duplication is the defect; this
+// everything built on artifact used ours. The duplication is the defect; this
 // is the cheap half of the fix and the two should become one call.
 func ZpkgDir() string {
 	if d := os.Getenv("ZPKG_DIR"); d != "" {
@@ -83,11 +83,11 @@ func dataHomeFor(goos, home string) string {
 // ⛔⛔ `hash` IS THE BUILD'S IDENTITY AND IT GOES IN THE INSTALL PREFIX. The
 // prefix is baked into every binary the build produces — an `@rpath`-relative
 // reference like `@rpath/zlib.net/v1.3.2/lib/libz.1.dylib`, read out of a
-// real published bottle — so a prefix that names only the version produces
+// real published artifact — so a prefix that names only the version produces
 // binaries that cannot say WHICH build they were linked against, and a store
 // that cannot hold two builds of one version.
 //
-// With the hash in it the bottle stays relocatable AND names itself, which is
+// With the hash in it the artifact stays relocatable AND names itself, which is
 // the combination Nix gives up (its paths are absolute) and Spack gives up
 // (its paths are not designed to move). See go-zpkg/zpkb#410.
 //

@@ -349,7 +349,7 @@ func TestFixInterpSurfacesAWriteFailure(t *testing.T) {
 	}
 }
 
-// FixUp must stop on it, not carry on to the steps after. A bottle whose
+// FixUp must stop on it, not carry on to the steps after. An artifact whose
 // loader path still names a build directory is not one to go on signing.
 func TestFixUpStopsWhenTheInterpRewriteFails(t *testing.T) {
 	prefix := filepath.Join(t.TempDir(), "v2.44")

@@ -26,7 +26,7 @@ echo "$SED|$GREP|$EGREP|$FGREP"`
 	}
 
 	// Control: the same script alone keeps the path baked at libtool's build
-	// time, which is what the bottle does today.
+	// time, which is what the artifact does today.
 	ctl := shOut(t, libtoolizeOpening)
 	if !strings.HasPrefix(ctl, "/__w/_actions/pkgxdev/brewkit/") {
 		t.Fatalf("control did not reproduce the baked default: %q", ctl)

@@ -32,7 +32,7 @@ func TestWrapWasip1C(t *testing.T) {
 			`$ZPKG_DIR/github.com/WebAssembly/wasi-libc/v[0-9]*`,
 			`$ZPKG_DIR/compiler-rt.llvm.org/wasi/v[0-9]*`,
 			`the wasip1 toolchain is not installed`,
-			// C++: libc++ is its own bottle, named only when installed
+			// C++: libc++ is its own artifact, named only when installed
 			`$ZPKG_DIR/libcxx.llvm.org/wasi/v[0-9]*`,
 			`${ZPKB_WASI_CXX:+ -fno-exceptions -stdlib=libc++ -nostdinc++ -isystem $ZPKB_WASI_CXX/include/wasm32-wasip1/c++/v1 -L$ZPKB_WASI_CXX/lib/wasm32-wasip1}`,
 		} {
