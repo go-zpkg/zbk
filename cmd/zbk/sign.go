@@ -98,7 +98,12 @@ func runSign(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "  -force given: signing the PUBLISHED bytes regardless")
 	}
 
-	payload, err := simpleSigning(fmt.Sprintf("pkg:pkgx/%s@%s", *project, *version), published)
+	// ⛔ THE PURL IS NOT WHAT A VERIFIER COMPARES, which is why this can move
+	// without re-signing the corpus. bottle's payloadCommitsTo (verify.go:185)
+	// reads ONLY `critical.image.docker-manifest-digest`; the identity is
+	// never looked at. A bottle signed with the retired `pkg:pkgx/` purl still
+	// verifies, because the digest it commits to has not changed.
+	payload, err := simpleSigning(purlFor(*project, *version), published)
 	if err != nil {
 		fmt.Fprintln(stderr, "zbk sign:", err)
 		return 1

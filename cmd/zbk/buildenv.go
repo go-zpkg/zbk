@@ -13,16 +13,15 @@ import (
 	"github.com/go-zpkg/zbk/target"
 )
 
-// envPrefix marks a resolvedDependency that names a BUILD ENVIRONMENT entry
-// rather than a source archive.
+// A resolvedDependency that names a BUILD ENVIRONMENT entry carries a purl
+// rather than a source archive's digest — see [cutPurl] and [purlFor].
 //
 // The two live in the same SLSA list and are told apart by shape, not by
 // position: a source material carries a sha256 of bytes that were fetched, an
-// environment material carries this purl and no digest, because we have the
-// version the build resolved and not the bytes it read. `bk source` already
+// environment material carries a purl and no digest, because we have the
+// version the build resolved and not the bytes it read. `zbk source` already
 // filters on "has a sha256", so the two readers do not see each other's
 // entries.
-const envPrefix = "pkg:pkgx/"
 
 // attestedEnv is one entry of a published bottle's recorded build environment.
 type attestedEnv struct {
@@ -61,19 +60,16 @@ func envAttestedBy(refs []bottle.Referrer) ([]attestedEnv, error) {
 	}
 	var out []attestedEnv
 	for _, d := range stmt.Predicate.BuildDefinition.ResolvedDependencies {
-		rest, ok := strings.CutPrefix(d.URI, envPrefix)
+		// ⛔ BOTH SPELLINGS ARE READ HERE AND ONLY THE CURRENT ONE IS MINTED.
+		// Every bottle published before the purl moved to `pkg:generic/`
+		// records `pkg:pkgx/`, and this function's whole job is to answer
+		// about bottles that already exist; cutPurl keeps the last-"@" rule
+		// this loop used to carry.
+		project, version, ok := cutPurl(d.URI)
 		if !ok {
 			continue
 		}
-		// The LAST "@": a project name is a path and may hold no "@", but a
-		// version never does. Cutting at the first one would split
-		// `pkg:pkgx/x@1@2` in the wrong place, and a project whose name
-		// contained one would lose part of itself.
-		i := strings.LastIndex(rest, "@")
-		if i <= 0 || i == len(rest)-1 {
-			continue
-		}
-		out = append(out, attestedEnv{Project: rest[:i], Version: rest[i+1:]})
+		out = append(out, attestedEnv{Project: project, Version: version})
 	}
 	if len(out) == 0 {
 		return nil, errNoEnvironment

@@ -704,15 +704,15 @@ func buildTag(project, version, glibc string, spec bottle.Concrete) string {
 // compiler?", and a rebuild counter over such bottles would be a number
 // nobody could derive or check.
 //
-// A URI of `pkg:pkgx/<project>@<version>` rather than a path: the prefix is
-// where this machine put it, which is not a fact about the artefact. No digest
-// is claimed, because we have the version the build resolved and not the bytes
-// it read — and a material asserting a digest it did not verify would be the
-// same empty promise this whole change exists to remove.
+// A purl rather than a path: the prefix is where this machine put it, which is
+// not a fact about the artefact. No digest is claimed, because we have the
+// version the build resolved and not the bytes it read — and a material
+// asserting a digest it did not verify would be the same empty promise this
+// whole change exists to remove.
 func environmentMaterials(env []moustache.Dep) []provenance.Material {
 	out := make([]provenance.Material, 0, len(env))
 	for _, d := range env {
-		out = append(out, provenance.Material{URI: "pkg:pkgx/" + d.Project + "@" + d.Version})
+		out = append(out, provenance.Material{URI: purlFor(d.Project, d.Version)})
 	}
 	return out
 }
@@ -807,7 +807,7 @@ func boolParam(b bool) string {
 func buildReferrers(project, version, osn, arch string, tarball []byte, src build.SourceRef, env []moustache.Dep, now time.Time, kp *sign.Keypair, origin provOrigin) ([]bottle.Referrer, error) {
 	sum := sha256.Sum256(tarball)
 	dg := hex.EncodeToString(sum[:])
-	purl := fmt.Sprintf("pkg:pkgx/%s@%s", project, version)
+	purl := purlFor(project, version)
 
 	doc := sbom.Document{Name: project, Version: version, PURL: purl, SHA256: dg, Created: now}
 	sb, err := sbomJSON(doc)
