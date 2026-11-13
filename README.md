@@ -1,7 +1,7 @@
 # zpkb — a pure-Go brewkit
 
 `zpkb` is a `CGO_ENABLED=0` build tool written from scratch in Go. It reads a
-recipe, builds the package in a zpkgx environment, relocates the install tree,
+recipe, builds the package in a zpkx environment, relocates the install tree,
 and packages an artifact.
 
 It was written from a **bibliography** rather than from one predecessor:
@@ -139,7 +139,7 @@ package, and a sweep that cannot tell the two apart files bugs for an outage.
 
 ## Building artifacts that owe nothing to the build container
 
-`--libc=zpkgx` retargets the compiler at the pkgx `gnu.org/glibc` artifact — its crt
+`--libc=zpkx` retargets the compiler at the pkgx `gnu.org/glibc` artifact — its crt
 objects, its libc, its dynamic linker — instead of the build container's, so the
 output runs `FROM scratch`. `--glibc <version>` pins that sysroot to an exact
 glibc line, and `zpkb builder` stages the sovereign rootfs itself: static Go
@@ -214,8 +214,8 @@ provides = ["bin/curl", "bin/curl-config"]
 
 ## Why
 
-Completes the pure-Go [`go-zpkg`](https://github.com/go-zpkg) family (artifact / zpkgm /
-zpkgx / mirror) with the last Deno piece — a single static binary that builds pantry
+Completes the pure-Go [`go-zpkg`](https://github.com/go-zpkg) family (artifact / zpkm /
+zpkx / mirror) with the last Deno piece — a single static binary that builds pantry
 recipes with no Deno/Ruby/patchelf runtime, and cross-builds cleanly.
 
 ## Naming a tree, not only a package
@@ -365,7 +365,7 @@ Two deliberate shapes:
 `zpkb lock` resolves each version from the recipe's `versions:` block, so it
 pins **what the recipes can build**. That is exactly right for
 `zpkb factory --lock`, which is about to build them, and wrong for
-`zpkgx --lock`, which can only install what the factory has already
+`zpkx --lock`, which can only install what the factory has already
 **published**. The two run ahead of each other by construction.
 
 Measured 2026-10-09, by generating a lock and running it in a `FROM scratch`
@@ -374,13 +374,13 @@ container rather than by reading the code:
 ```
 $ zpkb lock -platform linux/aarch64 -o curl.lock.hcl curl.se
 lock: 1 of 5 pin(s) NOT published for linux/aarch64 — `zpkb factory --lock` can
-      build this file, `zpkgx --lock` cannot run it:
+      build this file, `zpkx --lock` cannot run it:
     curl.se/ca-certs             2026.09.25     (published here: 2026.8.13)
     `zpkb lock -runnable` pins what is published instead.
 lock: 5 project(s) pinned → curl.lock.hcl
 ```
 
-Before this, that lock was written in silence and `zpkgx --lock` refused it
+Before this, that lock was written in silence and `zpkx --lock` refused it
 with a message about a version nobody had chosen.
 
 `-runnable` pins the newest **published** version that satisfies every demand
@@ -925,7 +925,7 @@ Two rules it refuses to bend:
 Several names per database is deliberate, not a mistake: NVD files Berkeley DB
 under two product names, and dropping one loses the advisories filed there.
 
-Note also what is **not** in OSV's ecosystem list: `zpkgx`. It has `Homebrew`,
+Note also what is **not** in OSV's ecosystem list: `zpkx`. It has `Homebrew`,
 `Alpine`, `Wolfi`, `Chainguard` and `vcpkg`. The long-term answer for this fleet
 is to become one of those rather than to keep translating into someone else's.
 
@@ -1261,7 +1261,7 @@ Against what we actually ship on this platform the count is **zero**:
 `bitwarden.com` is published at 1.22.1 and OSV returns nothing for it, which
 is right — `MAL-2026-3020` affects 2026.4.0.
 
-Checked with `zpkgx ls <project>` on each of the six, after reading the
+Checked with `zpkx ls <project>` on each of the six, after reading the
 written records and finding **no `detected-version` in any of them** — the
 field only appears when a version was asked about, so its absence was the
 tell. The first version of this paragraph called the 90 "a list someone can
@@ -1444,7 +1444,7 @@ fails.
 
 ## `zpkb catalog`
 
-Builds the catalogue a browser (`zpkgx ls`, `<TAB>`) reads: every project named
+Builds the catalogue a browser (`zpkx ls`, `<TAB>`) reads: every project named
 by the pantry and the overlay, with its runtime dependencies, and — with
 `--versions` — the newest version the registry really carries for
 `--platform`. `--publish` pushes it signed.
@@ -1483,10 +1483,10 @@ catalogue when none is named), lists the commands in the artifact's `bin/`
 `provides` the catalogue states. The two differences are reported **apart**,
 because they are different failures:
 
-- **LISTED, NO FILE**: `zpkgx -Q age-keygen` names a package that cannot supply
+- **LISTED, NO FILE**: `zpkx -Q age-keygen` names a package that cannot supply
   the command.
-- **FILE, NOT LISTED**: the command exists and is invisible to `zpkgx -Q`,
-  `zpkgs search` and the `<TAB>` index (`minigzip` in the zlib.net artifact).
+- **FILE, NOT LISTED**: the command exists and is invisible to `zpkx -Q`,
+  `zpks search` and the `<TAB>` index (`minigzip` in the zlib.net artifact).
 
 `--catalog` takes `catalog.json` or the catalogue artifact's `.tar.gz`. `--fail`
 exits 1 on any finding or on a project that could not be checked. It lives in

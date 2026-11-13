@@ -276,7 +276,7 @@ func TestTheBuiltLauncherRunsARealRelocatedVenv(t *testing.T) {
 	if err != nil || len(sites) == 0 {
 		t.Fatalf("no site-packages under %s: %v", venv, err)
 	}
-	if err := os.WriteFile(filepath.Join(sites[0], "zpkgmarker.py"),
+	if err := os.WriteFile(filepath.Join(sites[0], "zpkmarker.py"),
 		[]byte("VALUE = 'the venv package was imported'\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -284,8 +284,8 @@ func TestTheBuiltLauncherRunsARealRelocatedVenv(t *testing.T) {
 	// A shebang naming nothing, on purpose: the kernel never reads it, because
 	// the launcher hands this file to python as an argument.
 	entry := "#!/this/interpreter/does/not/exist\n" +
-		"import sys, zpkgmarker\n" +
-		"print(zpkgmarker.VALUE, 'in', sys.prefix != sys.base_prefix)\n"
+		"import sys, zpkmarker\n" +
+		"print(zpkmarker.VALUE, 'in', sys.prefix != sys.base_prefix)\n"
 	if err := os.WriteFile(filepath.Join(venv, "bin", "acme"), []byte(entry), 0o755); err != nil {
 		t.Fatal(err)
 	}

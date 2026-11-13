@@ -76,7 +76,7 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	recipe := fs.String("recipe", "", "path to the package.yml recipe (required)")
 	version := fs.String("version", "", "exact version to test (default: latest the recipe resolves)")
-	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the test env")
+	zpkx := fs.String("zpkx", "zpkx", "path to the zpkx binary used for the test env")
 	sandbox := fs.String("sandbox", "", "directory to run in (default: the computed testbed)")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -102,14 +102,14 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	// Absolute, for the same reason runBuild does it: the script runs under a
 	// sanitized PATH of /usr/bin:/bin:/usr/sbin:/sbin, which excludes the two
 	// directories pkgx is normally installed into.
-	zpkgxBin := *zpkgx
-	if abs, err := lookPath(zpkgxBin); err == nil {
-		zpkgxBin = abs
+	zpkxBin := *zpkx
+	if abs, err := lookPath(zpkxBin); err == nil {
+		zpkxBin = abs
 	}
 
 	state, _ := runRecipeTest(testRequest{
 		Recipe: rec, RecipeDir: filepath.Dir(*recipe), Project: project,
-		Version: *version, Target: tgt, Sandbox: *sandbox, ZpkgxBin: zpkgxBin,
+		Version: *version, Target: tgt, Sandbox: *sandbox, ZpkxBin: zpkxBin,
 	}, stdout, stderr)
 	return state.exit()
 }
@@ -151,7 +151,7 @@ type testRequest struct {
 	Version   string // exact; empty resolves the latest the recipe offers
 	Target    target.Target
 	Sandbox   string // empty computes the testbed
-	ZpkgxBin  string
+	ZpkxBin   string
 	// BuildHash is the identity of the build to test, which the install
 	// prefix now carries. Empty means "find it": `--test-only` tests an
 	// already-published artifact and never ran a build, so it has no identity
@@ -253,7 +253,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 		shimDir = ""
 	}
 
-	script, err := renderTest(req.Recipe, req.Project, ver, tag, req.Target, paths, box, req.RecipeDir, req.ZpkgxBin, shimDir)
+	script, err := renderTest(req.Recipe, req.Project, ver, tag, req.Target, paths, box, req.RecipeDir, req.ZpkxBin, shimDir)
 	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)
 		return testNotRun, err
@@ -313,7 +313,7 @@ func runRecipeTest(req testRequest, stdout, stderr io.Writer) (testState, error)
 
 // renderTest turns the recipe's test node into the runnable script.
 func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
-	paths config.Paths, box, recipeDir, zpkgxBin, shimDir string) (string, error) {
+	paths config.Paths, box, recipeDir, zpkxBin, shimDir string) (string, error) {
 	// {{prefix}} is the INSTALLED prefix, not the build's staging directory.
 	// That is the whole difference between this and a build: the test reads
 	// the package where a consumer would find it, so a file the build made and
@@ -380,7 +380,7 @@ func renderTest(rec *pantry.Recipe, project, ver, tag string, tgt target.Target,
 		Home:     paths.Home,
 		Sandbox:  box,
 		ZpkgDir:  config.ZpkgDir(),
-		ZpkgxBin: zpkgxBin,
+		ZpkxBin:  zpkxBin,
 		BashPath: "/bin/bash",
 		ShimDir:  shimDir,
 		Host:     target.Host(),

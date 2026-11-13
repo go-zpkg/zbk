@@ -63,7 +63,7 @@ type TestWrapOptions struct {
 	Home     string        // a fresh HOME, created by the script
 	Sandbox  string        // the empty directory the test runs in
 	ZpkgDir  string        // $ZPKG_DIR, so the eval resolves where the build published
-	ZpkgxBin string        // path to the pkgx binary
+	ZpkxBin  string        // path to the pkgx binary
 	BashPath string        // shebang interpreter (default /bin/bash)
 	Host     target.Target // where we run — drives TMPDIR
 	// ShimDir holds bk's compiler shims (cc, gcc, c++, g++ and their
@@ -121,9 +121,9 @@ func WrapTest(o TestWrapOptions) string {
 	if bash == "" {
 		bash = "/bin/bash"
 	}
-	zpkgxBin := o.ZpkgxBin
-	if zpkgxBin == "" {
-		zpkgxBin = "zpkgx"
+	zpkxBin := o.ZpkxBin
+	if zpkxBin == "" {
+		zpkxBin = "zpkx"
 	}
 	var b strings.Builder
 	// `set -e`, and NOT pipefail. A build is one long script where a stage
@@ -161,9 +161,12 @@ func WrapTest(o TestWrapOptions) string {
 	// test has no artefact and no link step: everything it names is something
 	// that has to RUN, so splitting them would invent a distinction the recipe
 	// never made.
-	writeDepEval(&b, zpkgxBin, o.testPlus(), "test", EnvFailExit)
-	if o.ZpkgxBin != "" {
-		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.ZpkgxBin)
+	writeDepEval(&b, zpkxBin, o.testPlus(), "test", EnvFailExit)
+	// Both spellings, for the reason WrapScript gives: a build script is the
+	// writer of this name, not a reader, so it cannot refuse a retired one.
+	if o.ZpkxBin != "" {
+		fmt.Fprintf(&b, "export ZPKX=%q\n", o.ZpkxBin)
+		fmt.Fprintf(&b, "export ZPKGX=%q\n", o.ZpkxBin) // retired spelling
 	}
 
 	// After the eval, so the artifacts are on disk and $ZPKG_DIR is set; before

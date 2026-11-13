@@ -143,7 +143,7 @@ func TestBkpyvenvDispatch(t *testing.T) {
 		t.Errorf("seal ok = %d: %q", c, sb.String())
 	}
 	// ⛔⛔ AND IT IS A BINARY, NOT A SHEBANG. What this used to assert was
-	// `#!/usr/bin/env -S zpkgx python@3.12` — a line that had already shipped
+	// `#!/usr/bin/env -S zpkx python@3.12` — a line that had already shipped
 	// for months naming `pkgx`, upstream's runtime, which we do not publish;
 	// that `env` is absent from a FROM-scratch image; and that `env -S` is
 	// absent from busybox. The installed entry point now has no interpreter of

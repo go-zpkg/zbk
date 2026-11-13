@@ -5,15 +5,15 @@ what shipped, kept because the hazards below are still the ones that bite.**
 
 ## What shipped, and how to read this note
 
-The mechanism is `--libc=zpkgx` on `zpkb build` and `zpkb factory` — not the
+The mechanism is `--libc=zpkx` on `zpkb build` and `zpkb factory` — not the
 `ZPKB_ZPKG_LIBC=1` environment variable the body of this note names. That name was
 the design-time one; every occurrence below should be read as "the sovereign-libc
 mode". The rest of the analysis stands as written.
 
 ⛔ The commands were `bk` and `pkgx` when this was written, and the flag value
-was `pkgx`. They are `zpkb` and `zpkgx`, and the value is `zpkgx`
+was `pkgx`. They are `zpkb` and `zpkx`, and the value is `zpkx`
 (go-zpkg/zpkb#457). This note has been brought in line throughout: where it
-says `zpkb` or `zpkgx` it means the tool, and where it says **upstream pkgx**
+says `zpkb` or `zpkx` it means the tool, and where it says **upstream pkgx**
 it means the project this one forked from.
 
 Two other things changed on the way from note to code:
@@ -121,16 +121,16 @@ host — e.g. deliberately building a manylinux-2.28 floor. See Hazard (f).)
 The insertion points in `zpkb` are already the right shape. Two functions own the
 build environment:
 
-* `build.EvalDeps` (`build/build.go`) assembles the `zpkgx +…` closure: a
+* `build.EvalDeps` (`build/build.go`) assembles the `zpkx +…` closure: a
   `BaseToolchain()` plus the recipe's runtime + build deps.
 * `buildscript.Wrap` (`buildscript/wrapper.go`) emits the runnable script:
-  `eval "$(zpkgx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
+  `eval "$(zpkx +…)"`, then the target-keyed `LDFLAGS`/`CFLAGS`, then the user
   script. `depPlus` is exactly where `+llvm.org` is appended today.
 
 The mechanism adds, **for a linux target only, when `ZPKB_ZPKG_LIBC=1`**:
 
 1. **Implicit toolchain deps.** Inject `gnu.org/glibc` and
-   `gnu.org/gcc/libstdcxx` into the `zpkgx +…` closure (clang from `llvm.org` is
+   `gnu.org/gcc/libstdcxx` into the `zpkx +…` closure (clang from `llvm.org` is
    already injected by `depPlus`). This is a one-line addition to a new
    `libcToolchain()` helper consumed by `EvalDeps`, mirroring `BaseToolchain()`.
    These are *build-time* deps; whether the produced artifact also lists
@@ -141,12 +141,12 @@ The mechanism adds, **for a linux target only, when `ZPKB_ZPKG_LIBC=1`**:
    shell that (a) locates the glibc artifact's lib dir + loader + libgcc_s from the
    already-`eval`'d `$ZPKG_DIR`, (b) writes `clang.cfg` next to the resolved
    clang, and (c) symlinks `clang++.cfg`, `clang-cpp.cfg`, `<versioned>.cfg` to
-   it. Because the zpkgx env is `eval`'d with `set -a` just above, the glibc/gcc
+   it. Because the zpkx env is `eval`'d with `set -a` just above, the glibc/gcc
    prefixes are discoverable by globbing `$ZPKG_DIR/gnu.org/glibc/v*/lib` — no
    `{{deps.*}}` moustache needed (though the `{{deps.gnu.org/glibc.prefix}}`
    token is available too, since `DepTokens` already resolves it).
 
-   Locating clang itself: `command -v clang` after the zpkgx `eval` gives the
+   Locating clang itself: `command -v clang` after the zpkx `eval` gives the
    shimmed path; `readlink -f` resolves it into the real
    `$ZPKG_DIR/llvm.org/v*/bin` dir where the `.cfg` must land (a `.cfg` beside a
    symlink is *not* read — clang reads it beside the **real** binary, located
@@ -452,9 +452,9 @@ viable future variant.
 A first, deliberately-minimal slice of the mechanism is implemented in `bk`
 behind an off-by-default switch — see `buildscript`:
 
-* `WrapOptions.LibcZpkgx` (Go-side gate, default `false`) makes `Wrap` emit the
+* `WrapOptions.LibcZpkx` (Go-side gate, default `false`) makes `Wrap` emit the
   clang.cfg-generation shell, itself additionally guarded at runtime by
-  `if [ -n "$ZPKB_ZPKG_LIBC" ]`. With `LibcZpkgx` false the wrapper output is
+  `if [ -n "$ZPKB_ZPKG_LIBC" ]`. With `LibcZpkx` false the wrapper output is
   byte-identical to before, so nothing in the default build path changes.
 * The emitted block is skipped for a `windows` target and for a cross-arch build
   (`Target.Arch != Host.Arch`) — Hazards (d)/(e).

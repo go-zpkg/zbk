@@ -169,7 +169,7 @@ var pyVersionRe = regexp.MustCompile(`Python (\d+\.\d+)`)
 // ⛔ THE PYTHON VERSION IS NOW A POETRY-ONLY NEED, so it is read inside that
 // branch. It used to be read unconditionally, because the launcher this
 // installed was a script whose shebang had to NAME an interpreter —
-// `#!/usr/bin/env -S zpkgx python@X.Y`. Three defects lived in that one line:
+// `#!/usr/bin/env -S zpkx python@X.Y`. Three defects lived in that one line:
 // it said `pkgx` for months after the rename (nothing greps a shebang), `env`
 // is absent from a FROM-scratch image, and `env -S` is absent from busybox.
 // venvlaunch finds the interpreter through the venv instead, so the version is

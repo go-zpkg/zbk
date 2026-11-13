@@ -9,7 +9,7 @@
 // os.Executable wraps.
 //
 // That one difference settles four defects this repository paid for
-// separately, each measured rather than assumed (go-zpkg/zpkgx#151):
+// separately, each measured rather than assumed (go-zpkg/zpkx#151):
 //
 //	no /usr/bin/env, no /bin/sh   1513 of 1870 scripts in a real installed
 //	                              tree need one or the other, so they cannot

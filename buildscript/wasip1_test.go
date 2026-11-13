@@ -21,7 +21,7 @@ func TestWrapWasip1C(t *testing.T) {
 		// HasCompiler (a recipe naming its own compiler) must not suppress clang.
 		s := Wrap(WrapOptions{
 			UserScript: "make", Deps: []string{"gnu.org/gcc"}, HasCompiler: true,
-			Target: wasiTgt(), Host: host, Home: "/h", SrcRoot: "/s", LibcZpkgx: true,
+			Target: wasiTgt(), Host: host, Home: "/h", SrcRoot: "/s", LibcZpkx: true,
 		})
 		for _, want := range []string{
 			`"+llvm.org"`, `"+github.com/WebAssembly/wasi-libc"`, `"+compiler-rt.llvm.org/wasi"`,

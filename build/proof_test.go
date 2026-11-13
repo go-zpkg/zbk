@@ -33,7 +33,7 @@ func TestProofPropsInBuildDir(t *testing.T) {
 	if err := os.WriteFile(stub, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	r.ZpkgxBin = stub
+	r.ZpkxBin = stub
 	// really run the generated (wrapped) script under bash, then create the
 	// staging dir so the pipeline's rename step still works.
 	//

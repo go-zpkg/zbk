@@ -247,14 +247,14 @@ func TestEnsureWritableChmodErrorAtEveryWriter(t *testing.T) {
 // An @rpath reference that names nothing under $ZPKG_DIR is left exactly as it
 // is: /usr/lib and the frameworks are not ours to rewrite.
 func TestRpathReferenceOutsideZpkgDirIsUntouched(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "thing", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe,
 		machoCmd{lcRpath, "@loader_path/../../../.."},
 		machoCmd{lcLoadDylib, "@rpath/../outside/libfoo.dylib"},
 	)
-	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
+	if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ReadMachoStrings(exe)
@@ -269,8 +269,8 @@ func TestRpathReferenceOutsideZpkgDirIsUntouched(t *testing.T) {
 // The dead-rpath check reads the file twice; both reads must surface their
 // error rather than let a binary through unexamined.
 func TestCheckRpathResolvableReadErrors(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "thing", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcLoadDylib, "/usr/lib/libSystem.B.dylib"})
 	for _, nth := range []int{1, 2} {
@@ -292,12 +292,12 @@ func TestCheckRpathResolvableReadErrors(t *testing.T) {
 
 // And the same on the branch that reaches it after a rewrite.
 func TestRewriteMachoDeadRpathAfterRewrite(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "thing", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcIDDylib, prefix + "+brewing/lib/libthing.dylib"},
 		machoCmd{lcLoadDylib, "@rpath/tukaani.org/xz/v5.8.3/lib/liblzma.5.dylib"})
-	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: zpkgx})
+	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: zpkx})
 	if !errors.Is(err, ErrDeadRpath) {
 		t.Errorf("err = %v, want ErrDeadRpath after a rewrite too", err)
 	}
@@ -306,14 +306,14 @@ func TestRewriteMachoDeadRpathAfterRewrite(t *testing.T) {
 // A write failure during the Mach-O rewrite must reach the caller — it is the
 // difference between an artifact that was relocated and one that was not.
 func TestRewriteMachoWriteErrorSurfaces(t *testing.T) {
-	zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-	prefix := filepath.Join(zpkgx, "acme.org", "thing", "v1.0.0")
+	zpkx := filepath.Join(t.TempDir(), ".pkgx")
+	prefix := filepath.Join(zpkx, "acme.org", "thing", "v1.0.0")
 	exe := filepath.Join(prefix, "bin", "thing")
 	place(t, exe, machoCmd{lcIDDylib, prefix + "+brewing/lib/libthing.dylib"})
 	saved := osWriteFile
 	defer func() { osWriteFile = saved }()
 	osWriteFile = func(string, []byte, os.FileMode) error { return errInject }
-	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: zpkgx})
+	err := FixUp(Options{Prefix: prefix, BuildInstall: prefix + "+brewing", Platform: "darwin", ZpkgDir: zpkx})
 	if !errors.Is(err, errInject) {
 		t.Errorf("err = %v, want the write error", err)
 	}

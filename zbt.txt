@@ -1,0 +1,22 @@
+ok  	github.com/go-zpkg/zpkb/artifactpkg	(cached)
+ok  	github.com/go-zpkg/zpkb/build	0.623s
+ok  	github.com/go-zpkg/zpkb/buildscript	0.283s
+ok  	github.com/go-zpkg/zpkb/cmd/venvlaunch	(cached)
+ok  	github.com/go-zpkg/zpkb/cmd/zpkb	46.512s
+ok  	github.com/go-zpkg/zpkb/config	(cached)
+ok  	github.com/go-zpkg/zpkb/fetch	(cached)
+ok  	github.com/go-zpkg/zpkb/fixup	(cached)
+ok  	github.com/go-zpkg/zpkb/httpretry	(cached)
+ok  	github.com/go-zpkg/zpkb/logical	(cached)
+ok  	github.com/go-zpkg/zpkb/moustache	(cached)
+ok  	github.com/go-zpkg/zpkb/overrides	(cached)
+ok  	github.com/go-zpkg/zpkb/pantry	(cached)
+ok  	github.com/go-zpkg/zpkb/pantry/hcl	(cached)
+ok  	github.com/go-zpkg/zpkb/recipefile	(cached)
+ok  	github.com/go-zpkg/zpkb/schema	(cached)
+ok  	github.com/go-zpkg/zpkb/spec	(cached)
+ok  	github.com/go-zpkg/zpkb/support	(cached)
+ok  	github.com/go-zpkg/zpkb/target	(cached)
+?   	github.com/go-zpkg/zpkb/useragent	[no test files]
+ok  	github.com/go-zpkg/zpkb/versions	(cached)
+ok  	github.com/go-zpkg/zpkb/vuln	(cached)

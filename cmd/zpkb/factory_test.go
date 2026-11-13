@@ -394,7 +394,7 @@ func TestRunFactoryGlibcFlavor(t *testing.T) {
 	if code := h.run(t, "--recipes", "lib.org gnu.org/glibc", "--glibc", "2.27.0", "--max-versions", "1"); code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, h.errb.String())
 	}
-	if runner.LibcMode != "zpkgx" || runner.Glibc != "2.27.0" {
+	if runner.LibcMode != "zpkx" || runner.Glibc != "2.27.0" {
 		t.Fatalf("runner libc = %q glibc = %q", runner.LibcMode, runner.Glibc)
 	}
 	// ⛔ THE GLIBC FLAVOUR COMES FIRST AND THE IDENTITY LAST. Both are in the
@@ -694,19 +694,19 @@ func TestRunFactoryUsageErrors(t *testing.T) {
 	}
 }
 
-// TestRunFactoryZpkgxLookupFallback: an unresolvable pkgx name is passed through
+// TestRunFactoryZpkxLookupFallback: an unresolvable pkgx name is passed through
 // verbatim rather than swallowed.
-func TestRunFactoryZpkgxLookupFallback(t *testing.T) {
+func TestRunFactoryZpkxLookupFallback(t *testing.T) {
 	h := newFactoryHarness(t)
 	writeClosureRecipe(t, h.pantry, "lib.org", "versions:\n  github: a/lib/tags\nbuild: make\n")
 	var gotBin string
 	lookPath = func(string) (string, error) { return "", errors.New("not found") }
 	buildFactory = func(bin string) *build.Runner { gotBin = bin; return &build.Runner{} }
-	if code := h.run(t, "--recipes", "lib.org", "--zpkgx", "/opt/zpkgx", "--max-versions", "1"); code != 0 {
+	if code := h.run(t, "--recipes", "lib.org", "--zpkx", "/opt/zpkx", "--max-versions", "1"); code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if gotBin != "/opt/zpkgx" {
-		t.Fatalf("zpkgx bin = %q", gotBin)
+	if gotBin != "/opt/zpkx" {
+		t.Fatalf("zpkx bin = %q", gotBin)
 	}
 }
 

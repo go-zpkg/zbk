@@ -64,7 +64,7 @@ func okRunner(project string, tgt target.Target) *Runner {
 		Touch:          func(string) error { return nil },
 		FixUp:          func(fixup.Options) error { return nil },
 		WriteArtifact:  func(_, _, _, _, _, out string) (string, error) { return filepath.Join(out, "b.tar.gz"), nil },
-		ZpkgxBin:       "/pkgx/bin/pkgx", BashPath: "/bin/bash",
+		ZpkxBin:        "/pkgx/bin/pkgx", BashPath: "/bin/bash",
 	}
 	r.Run = func(string, []string) error { return os.MkdirAll(r.BuildInstall, 0o755) }
 	return r

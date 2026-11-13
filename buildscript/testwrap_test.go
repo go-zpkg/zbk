@@ -17,7 +17,7 @@ func TestWrapTestRunsThePackageInAnEmptySandbox(t *testing.T) {
 		Package:    "gnu.org/gawk@5.4.1",
 		Deps:       []string{"gnu.org/diffutils"},
 		Home:       "/bk/home", Sandbox: "/bk/testbed",
-		ZpkgDir: "/opt/pkgx", ZpkgxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
+		ZpkgDir: "/opt/pkgx", ZpkxBin: "/opt/pkgx/bin/pkgx", BashPath: "/opt/bash",
 		Host: linuxHost(),
 	})
 	wants := []string{
@@ -49,7 +49,7 @@ func TestWrapTestRunsThePackageInAnEmptySandbox(t *testing.T) {
 func TestWrapTestHasNoneOfTheBuildsToolchain(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "true", Package: "zlib.net@1.3.2",
-		Home: "/h", Sandbox: "/box", ZpkgDir: "/opt/pkgx", ZpkgxBin: "pkgx",
+		Home: "/h", Sandbox: "/box", ZpkgDir: "/opt/pkgx", ZpkxBin: "pkgx",
 		Host: linuxHost(),
 	})
 	for _, forbidden := range []string{
@@ -66,7 +66,7 @@ func TestWrapTestHasNoneOfTheBuildsToolchain(t *testing.T) {
 func TestWrapTestPutsThePackageUnderTestFirst(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "true", Package: "p@1", Deps: []string{"a", "b"},
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx", Host: linuxHost(),
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx", Host: linuxHost(),
 	})
 	want := `pkgx "+p@1" "+a" "+b"`
 	if !strings.Contains(s, want) {
@@ -80,24 +80,29 @@ func TestWrapTestPutsThePackageUnderTestFirst(t *testing.T) {
 func TestWrapTestWithNoDepsStillInstallsThePackage(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "true", Package: "p@1",
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx", Host: linuxHost(),
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx", Host: linuxHost(),
 	})
 	if !strings.Contains(s, `pkgx "+p@1"`) {
 		t.Errorf("the package is not in the eval:\n%s", s)
 	}
 }
 
-func TestWrapTestDefaultsBashAndZpkgx(t *testing.T) {
+func TestWrapTestDefaultsBashAndZpkx(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "true", Package: "p@1", Home: "/h", Sandbox: "/box", Host: linuxHost(),
 	})
 	if !strings.HasPrefix(s, "#!/bin/bash\n") {
 		t.Errorf("want the default shebang, got:\n%s", s)
 	}
-	if !strings.Contains(s, `pkgx "+p@1"`) {
-		t.Errorf("want the default pkgx, got:\n%s", s)
+	// ⛔⛔ THE WHOLE NAME, NOT A TAIL OF IT. This asserted `pkgx "+p@1"`, which
+	// passed for YEARS by matching the end of `zpkgx "+p@1"` — the needle was a
+	// SUFFIX of what the code printed, so the assertion was true of a command
+	// nobody ran. The rename to `zpkx` is what broke the accidental match and
+	// exposed it; the test was never checking the default it names.
+	if !strings.Contains(s, `zpkx "+p@1"`) {
+		t.Errorf("want the default zpkx, got:\n%s", s)
 	}
-	// With no ZpkgxBin there is nothing to export as $ZPKGX; a recipe that reads
+	// With no ZpkxBin there is nothing to export as $ZPKX; a recipe that reads
 	// it would otherwise get an empty string that looks like a path.
 	if strings.Contains(s, "export ZPKGX=") {
 		t.Errorf("exported an empty ZPKGX:\n%s", s)
@@ -122,7 +127,7 @@ func TestWrapTestWithNothingToInstallEmitsNoEval(t *testing.T) {
 func TestWrapTestAsksForACompilerWhenTheTestCompiles(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "cc test.c -lz", Package: "zlib.net@1.3.2", Compiler: true,
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx", Host: linuxHost(),
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx", Host: linuxHost(),
 	})
 	if !strings.Contains(s, `"+llvm.org"`) {
 		t.Errorf("no compiler in the eval:\n%s", s)
@@ -137,7 +142,7 @@ func TestWrapTestAsksForACompilerWhenTheTestCompiles(t *testing.T) {
 func TestWrapTestAsksForNoCompilerWhenTheTestDoesNot(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "gawk --version", Package: "gnu.org/gawk@5.4.1",
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx", Host: linuxHost(),
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx", Host: linuxHost(),
 	})
 	if strings.Contains(s, "llvm.org") {
 		t.Errorf("installed a compiler for a test that compiles nothing:\n%s", s)
@@ -149,7 +154,7 @@ func TestWrapTestAsksForNoCompilerWhenTheTestDoesNot(t *testing.T) {
 func TestWrapTestTakesDarwinsCompilerFromTheHost(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "cc test.c", Package: "p@1", Compiler: true,
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx",
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx",
 		Host: target.Target{Platform: "darwin", Arch: "aarch64"},
 	})
 	if strings.Contains(s, "llvm.org") {
@@ -164,7 +169,7 @@ func TestWrapTestTakesDarwinsCompilerFromTheHost(t *testing.T) {
 func TestWrapTestEnvFailureHasItsOwnExitStatus(t *testing.T) {
 	s := WrapTest(TestWrapOptions{
 		UserScript: "true", Package: "p@1",
-		Home: "/h", Sandbox: "/box", ZpkgxBin: "pkgx", Host: linuxHost(),
+		Home: "/h", Sandbox: "/box", ZpkxBin: "pkgx", Host: linuxHost(),
 	})
 	if !strings.Contains(s, "exit 69") {
 		t.Errorf("the test eval does not carry EnvFailExit:\n%s", s)
@@ -174,7 +179,7 @@ func TestWrapTestEnvFailureHasItsOwnExitStatus(t *testing.T) {
 	}
 	b := Wrap(WrapOptions{
 		UserScript: "make", Deps: []string{"zlib.net"},
-		Target: linuxHost(), Host: linuxHost(), ZpkgxBin: "pkgx",
+		Target: linuxHost(), Host: linuxHost(), ZpkxBin: "pkgx",
 	})
 	if !strings.Contains(b, "  exit 1\n") {
 		t.Errorf("a BUILD must still exit 1 — the distinction is no use to it:\n%s", b)

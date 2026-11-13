@@ -132,7 +132,7 @@ func runBashLimited(limit time.Duration, out, errOut io.Writer) func(string, []s
 
 // realBuildRunner wires the real bk/artifact implementations into a Runner. Every
 // field but pickVersion/runBash is a direct package function of matching shape.
-func realBuildRunner(zpkgxBin string) *build.Runner {
+func realBuildRunner(zpkxBin string) *build.Runner {
 	return &build.Runner{
 		PickVersion:     pickVersion,
 		ResolveVersion:  versions.Resolve,
@@ -145,7 +145,7 @@ func realBuildRunner(zpkgxBin string) *build.Runner {
 		WriteArtifact:   artifactpkg.WriteArtifact,
 		ResolveDep:      pickVersion,
 		ToolInstallable: toolInstallable,
-		ZpkgxBin:        zpkgxBin,
+		ZpkxBin:         zpkxBin,
 		BashPath:        "/bin/bash",
 	}
 }
@@ -158,15 +158,15 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	dist := fs.String("dist", "", "output dir for the packaged artifact (omit to skip packaging)")
 	recipe := fs.String("recipe", "", "path to the package.yml recipe (required)")
 	version := fs.String("version", "", "exact version to build (default: latest resolvable)")
-	// ⛔ THE DEFAULT IS `zpkgx`, THE BINARY WE SHIP. It was `pkgx` until
+	// ⛔ THE DEFAULT IS `zpkx`, THE BINARY WE SHIP. It was `pkgx` until
 	// 2026-11-10, which is a name nothing in this organisation installs — and
 	// upstream's `pkgx` is a plausible thing to find on a developer's PATH, so
 	// the failure was not "command not found" but a build resolved against
 	// SOMEBODY ELSE'S pantry. The five factory workflows passed
-	// `--zpkgx "$(command -v zpkgx)"` and never saw it.
-	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
-	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc artifact (sovereign FROM-scratch, linux, C recipes); default keeps the build container's system glibc`)
-	glibc := fs.String("glibc", "", `with --libc=zpkgx, pin the exact glibc version to link against, e.g. -glibc 2.27.0 (a chosen HPC floor); default newest`)
+	// `--zpkx "$(command -v zpkx)"` and never saw it.
+	zpkx := fs.String("zpkx", "zpkx", "path to the zpkx binary used for the deps env")
+	libc := fs.String("libc", "", `C library to link against: "zpkx" targets the gnu.org/glibc artifact (sovereign FROM-scratch, linux, C recipes); default keeps the build container's system glibc`)
+	glibc := fs.String("glibc", "", `with --libc=zpkx, pin the exact glibc version to link against, e.g. -glibc 2.27.0 (a chosen HPC floor); default newest`)
 	jobs := fs.Int("jobs", envInt("JOBS"), "parallelism handed to a recipe's build (`hw.concurrency`); 0 = one per CPU")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -183,12 +183,12 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	// and ~/.local/bin, so a bare "pkgx" would not be found for the deps eval. If
 	// resolution fails, keep the value as given (explicit paths still work and the
 	// original error stays clear).
-	zpkgxBin := *zpkgx
-	if abs, err := lookPath(zpkgxBin); err == nil {
-		zpkgxBin = abs
+	zpkxBin := *zpkx
+	if abs, err := lookPath(zpkxBin); err == nil {
+		zpkxBin = abs
 	}
 
-	runner := buildFactory(zpkgxBin)
+	runner := buildFactory(zpkxBin)
 	runner.RecipeDir = filepath.Dir(*recipe)
 	runner.LibcMode = *libc
 	runner.Glibc = *glibc

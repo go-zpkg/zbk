@@ -43,7 +43,7 @@ import (
 // not a child of it, so a copy can move a byte-identical artifact and leave its
 // signature behind; artifact.CopyPublished was written with exactly that defect
 // and its test caught it. A copy whose result cannot be verified is worse than
-// one that failed, because `zpkgs install` verifies by default — the failure
+// one that failed, because `zpks install` verifies by default — the failure
 // would surface at install time, to a user, as a trust error.
 func runCopy(args []string, stdout, stderr io.Writer) int {
 	fset := flag.NewFlagSet("copy", flag.ContinueOnError)

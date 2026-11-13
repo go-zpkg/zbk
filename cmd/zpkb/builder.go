@@ -36,7 +36,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 	platform := fs.String("platform", envOr("PLATFORM", "linux/aarch64"), "target os/arch")
 	toolchain := fs.String("toolchain", "", "file listing the toolchain packages, one `project[constraint]` per line (default: the built-in list)")
 	bkBin := fs.String("zpkb", "", "path to a target-arch zpkb binary to install at /usr/local/bin/zpkb")
-	zpkgxBin := fs.String("zpkgx", "", "path to a target-arch zpkgx binary to install at /usr/local/bin/zpkgx")
+	zpkxBin := fs.String("zpkx", "", "path to a target-arch zpkx binary to install at /usr/local/bin/zpkx")
 	dist := fs.String("dist", "", "artifact registry to install from (default $ZPKG_DIST)")
 	overlay := fs.String("overlay", "", "pantry overlay consulted before the upstream pantry (default $ZPKG_PANTRY_OVERLAY)")
 	microvm := fs.Bool("microvm", false, "also write .weft-microvm/config.json so `weft microvm run` can boot the directory as-is")
@@ -77,7 +77,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 		Arch:      arch,
 		Roots:     roots,
 		BkBin:     *bkBin,
-		ZpkgxBin:  *zpkgxBin,
+		ZpkxBin:   *zpkxBin,
 		MicroVM:   *microvm,
 		Container: *container,
 		Overlay:   artifact.PantryOverlay,
@@ -361,7 +361,7 @@ type stageOptions struct {
 	OS, Arch  string
 	Roots     map[string]string
 	BkBin     string
-	ZpkgxBin  string
+	ZpkxBin   string
 	MicroVM   bool
 	Container bool
 	Overlay   string
@@ -483,7 +483,7 @@ func stageBuilder(o stageOptions) error {
 	// inside an image whose tools introduced themselves by their retired
 	// names — and a developer with upstream's `pkgx` on PATH could not tell
 	// the two apart by looking at the tree.
-	for _, b := range []struct{ src, name string }{{o.BkBin, "zpkb"}, {o.ZpkgxBin, "zpkgx"}} {
+	for _, b := range []struct{ src, name string }{{o.BkBin, "zpkb"}, {o.ZpkxBin, "zpkx"}} {
 		if b.src == "" {
 			continue
 		}

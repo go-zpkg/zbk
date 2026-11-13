@@ -177,8 +177,8 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		"BUILD and stage each artifact under --artifacts, and push nothing. Not a dry run: the compile, the staging, the packing and the package's own test all happen — only the one irreversible step is skipped. This is what lets a recipe be built TWICE and the two artifacts compared (`zpkb reproduce`) without publishing a second copy of something already published")
 	rebuild := fs.Bool("rebuild", envBool("REBUILD"), "publish a build of an ALREADY-PUBLISHED version as the next `_N` rebuild instead of replacing its tag — Homebrew's `rebuild`, Debian's `+bN`. For a recipe fix that changes the binary without changing the upstream version: fftw gained SIMD codelets and went out as the same 3.3.11, so nothing could tell the two apart. NOT folded into --force, which every manual darwin dispatch already sets: a counter minted on every forced run would bump N each time a lane was retried. ⛔ upstream pkgx/libpkgx cannot parse `_N` at all, so a project carrying one is unreadable to an upstream client")
 	requireOrigin := fs.Bool("require-origin", false, "with --mirror-from, PROMOTE instead of mirror: refuse any artifact whose source provenance does not prove the host toolchain was unused, and carry that verdict forward instead of restating it as ours. This is how a sovereign seed reaches the production registry — generations 0 and 1 publish only to a throwaway registry, and `bk origin` is the only thing that can tell one of their artifacts from a host-built one")
-	libc := fs.String("libc", "", `C library to link against: "zpkgx" targets the gnu.org/glibc artifact instead of the build container's`)
-	glibc := fs.String("glibc", "", "build and publish the whole closure against this exact glibc, e.g. 2.27.0 (implies --libc=zpkgx)")
+	libc := fs.String("libc", "", `C library to link against: "zpkx" targets the gnu.org/glibc artifact instead of the build container's`)
+	glibc := fs.String("glibc", "", "build and publish the whole closure against this exact glibc, e.g. 2.27.0 (implies --libc=zpkx)")
 	bootstrap := fs.Bool("bootstrap", false, "FIRST FILL ONLY on an architecture no registry has: build without the base toolchain in the environment, taking those tools from the host. The base toolchain is a cycle with no entry point (see build.BootstrapToolDeps), so without this nothing can be built first. Artifacts made this way were driven by unpinned host tools: publish them to a throwaway registry, use them to stage the sovereign rootfs, and rebuild everything inside it")
 	advisories := fs.String("advisories", envOr("ADVISORIES_DIR", ""), "advisory tree (`<dir>/<project>/advisories.yaml`) to attach as an OpenVEX document beside each artifact's SBOM and provenance, so a rebuild carries the finding that justified it. Validated ONCE before anything is built")
 	jobs := fs.Int("jobs", envInt("JOBS"), "parallelism handed to each recipe build (`hw.concurrency`); 0 = one per CPU. Lower it when the target is emulated.")
@@ -187,7 +187,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	force := fs.Bool("force", envBool("FORCE"), "rebuild and republish even when the artifact is already in the registry — the projects you REQUESTED only, never the dependency closure behind them")
 	compress := fs.String("compress", envOr("COMPRESS", "zstd"), "codec for NEW artifacts: zstd or gzip. Already-published artifacts are never rewritten, so gzip stays readable; this only governs what we create")
 	signKey := fs.String("sign", "", "sign published artifacts with this go-attest/sign secret key file (else $SIGNING_KEY)")
-	zpkgx := fs.String("zpkgx", "zpkgx", "path to the zpkgx binary used for the deps env")
+	zpkx := fs.String("zpkx", "zpkx", "path to the zpkx binary used for the deps env")
 	failures := fs.String("failures", "failures.txt", "write the list of failed builds here")
 	failuresDetail := fs.String("failures-detail", "failures-detail.txt", "write each failure's error tail here")
 	runTests := fs.Bool("test", true, "run each published package's own test: block and RECORD the outcome (never changes the run's result)")
@@ -263,7 +263,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 	// --glibc is the whole-stack glibc floor: it only means anything when the
 	// build links our own glibc artifact rather than the container's.
 	if *glibc != "" && *libc == "" {
-		*libc = "zpkgx"
+		*libc = "zpkx"
 	}
 
 	// ⛔ THE ADVISORY TREE IS CHECKED HERE, AS EARLY AS IT CAN BE — before the
@@ -383,11 +383,11 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 			"these artifacts are a SEED, not a release; rebuild them inside the sovereign rootfs")
 	}
 
-	zpkgxBin := *zpkgx
-	if abs, err := lookPath(zpkgxBin); err == nil {
-		zpkgxBin = abs
+	zpkxBin := *zpkx
+	if abs, err := lookPath(zpkxBin); err == nil {
+		zpkxBin = abs
 	}
-	runner := buildFactory(zpkgxBin)
+	runner := buildFactory(zpkxBin)
 	runner.LibcMode = *libc
 	runner.Glibc = *glibc
 	runner.Bootstrap = *bootstrap
@@ -1626,7 +1626,7 @@ func (f *factory) testPublished(rec *pantry.Recipe, proj, ver, hash string) {
 	tw := &tailWriter{w: f.stdout, max: failTailLines}
 	state, err := runRecipeTest(testRequest{
 		Recipe: rec, RecipeDir: f.runner.RecipeDir, Project: proj,
-		Version: ver, BuildHash: hash, Target: f.tgt, ZpkgxBin: f.runner.ZpkgxBin,
+		Version: ver, BuildHash: hash, Target: f.tgt, ZpkxBin: f.runner.ZpkxBin,
 		Run: factoryTestRunner(f.testTimeout, tw, tw),
 	}, tw, tw)
 	fmt.Fprintln(f.stdout, "::endgroup::")

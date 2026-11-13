@@ -24,7 +24,7 @@ func TestSovereignBuildGivesBindgenTheSysroot(t *testing.T) {
 		Deps:       []string{"openssl.org"},
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		ZpkgxBin: "/opt/pkgx/bin/pkgx", LibcZpkgx: true,
+		ZpkxBin: "/opt/pkgx/bin/pkgx", LibcZpkx: true,
 	})
 	if !strings.Contains(s, "export BINDGEN_EXTRA_CLANG_ARGS=") {
 		t.Fatalf("a sovereign build does not tell bindgen where the headers are:\n%s", s)
@@ -65,7 +65,7 @@ func TestANonSovereignBuildDoesNotSetBindgenArgs(t *testing.T) {
 		Deps:       []string{"openssl.org"},
 		Target:     linuxTgt(), Host: linuxTgt(),
 		Home: "/bk/home", SrcRoot: "/bk/build", ZpkgDir: "/opt/pkgx",
-		ZpkgxBin: "/opt/pkgx/bin/pkgx",
+		ZpkxBin: "/opt/pkgx/bin/pkgx",
 	})
 	if strings.Contains(s, "BINDGEN_EXTRA_CLANG_ARGS") {
 		t.Fatalf("a non-sovereign build sets a sysroot it does not have:\n%s", s)

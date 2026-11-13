@@ -66,14 +66,14 @@ func TestAbiLineRefusals(t *testing.T) {
 	dir := mkABIStore(t, "acme.org/thing", "1.0.0", "libthing.1.dylib")
 	orig := filepath.Join(dir, "acme.org/thing/v1.0.0/lib/libthing.1.dylib")
 	for _, tc := range []struct {
-		name, orig, leaf, zpkgx string
+		name, orig, leaf, zpkx string
 	}{
 		{"no zpkgDir", orig, "libthing.1.dylib", ""},
 		{"no leaf", orig, "", dir},
 		{"outside the store", "/elsewhere/acme.org/thing/v1.0.0/lib/libthing.1.dylib", "libthing.1.dylib", dir},
 		{"no version directory", filepath.Join(dir, "acme.org/thing/lib/libthing.1.dylib"), "libthing.1.dylib", dir},
 	} {
-		if _, ok := abiLine(tc.orig, tc.leaf, tc.zpkgx); ok {
+		if _, ok := abiLine(tc.orig, tc.leaf, tc.zpkx); ok {
 			t.Errorf("%s: answered anyway", tc.name)
 		}
 	}
@@ -89,23 +89,23 @@ func TestRewriteBindsToTheABILineWhenOffered(t *testing.T) {
 			name = "without it"
 		}
 		t.Run(name, func(t *testing.T) {
-			zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-			dep := filepath.Join(zpkgx, "abi.example", "v1.0.0", "lib")
+			zpkx := filepath.Join(t.TempDir(), ".pkgx")
+			dep := filepath.Join(zpkx, "abi.example", "v1.0.0", "lib")
 			if err := os.MkdirAll(dep, 0o755); err != nil {
 				t.Fatal(err)
 			}
 			if withLink {
-				if err := os.Symlink("v1.0.0", filepath.Join(zpkgx, "abi.example", "abi-libfoo.1.dylib")); err != nil {
+				if err := os.Symlink("v1.0.0", filepath.Join(zpkx, "abi.example", "abi-libfoo.1.dylib")); err != nil {
 					t.Fatal(err)
 				}
 			}
-			prefix := filepath.Join(zpkgx, "other.org", "bar", "v2.0.0")
+			prefix := filepath.Join(zpkx, "other.org", "bar", "v2.0.0")
 			exe := filepath.Join(prefix, "bin", "bar")
 			place(t, exe,
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcLoadDylib, filepath.Join(dep, "libfoo.1.dylib")},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(exe)
@@ -160,23 +160,23 @@ func TestRewriteBindsToTheABILineThroughTheRpathDoor(t *testing.T) {
 			"@rpath/abi.example/v1/lib/libfoo.1.dylib"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			zpkgx := filepath.Join(t.TempDir(), ".pkgx")
-			dep := filepath.Join(zpkgx, "abi.example", "v1.0.0", "lib")
+			zpkx := filepath.Join(t.TempDir(), ".pkgx")
+			dep := filepath.Join(zpkx, "abi.example", "v1.0.0", "lib")
 			if err := os.MkdirAll(dep, 0o755); err != nil {
 				t.Fatal(err)
 			}
 			if tc.link {
-				if err := os.Symlink("v1.0.0", filepath.Join(zpkgx, "abi.example", "abi-libfoo.1.dylib")); err != nil {
+				if err := os.Symlink("v1.0.0", filepath.Join(zpkx, "abi.example", "abi-libfoo.1.dylib")); err != nil {
 					t.Fatal(err)
 				}
 			}
-			prefix := filepath.Join(zpkgx, "other.org", "bar", "v2.0.0")
+			prefix := filepath.Join(zpkx, "other.org", "bar", "v2.0.0")
 			exe := filepath.Join(prefix, "bin", "bar")
 			placePad(t, exe, tc.pad,
 				machoCmd{lcRpath, "@loader_path/../../../.."},
 				machoCmd{lcLoadDylib, "@rpath/abi.example/v1.0.0/lib/libfoo.1.dylib"},
 			)
-			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkgx}); err != nil {
+			if err := FixUp(Options{Prefix: prefix, Platform: "darwin", ZpkgDir: zpkx}); err != nil {
 				t.Fatal(err)
 			}
 			got, err := ReadMachoStrings(exe)

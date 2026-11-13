@@ -10,7 +10,7 @@ import (
 
 // Installing the venvlaunch entry point, which is what replaces the three
 // embedded launcher SCRIPTS this repository used to ship (go-zpkg/zpkb#431,
-// go-zpkg/zpkb#435, go-zpkg/zpkgx#151).
+// go-zpkg/zpkb#435, go-zpkg/zpkx#151).
 //
 // There were three of them — bkpyvenv's python stub, python-venv-stubber's
 // python stub and python-venv.py's POSIX-sh stub — written by three different
@@ -25,7 +25,7 @@ import (
 //	                             tree need one or the other, so they cannot
 //	                             start in a FROM-scratch image
 //	no `env -S` on busybox        coreutils/env.c parses "+i0u:*", so the
-//	                             `env -S zpkgx python@X.Y` shebang these
+//	                             `env -S zpkx python@X.Y` shebang these
 //	                             stubs carried does not run on Alpine
 //
 // cmd/venvlaunch answers all three because a binary can read /proc/self/exe.

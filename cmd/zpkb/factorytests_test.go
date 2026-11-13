@@ -29,7 +29,7 @@ func testFactory(t *testing.T, out *bytes.Buffer, recipeDir string) *factory {
 	t.Setenv("ZPKG_DIR", filepath.Join(dir, "pkgx"))
 	installTestBuild(t, filepath.Join(dir, "pkgx"), "proj.org", "1.2.3")
 	return &factory{
-		runner:      &build.Runner{RecipeDir: recipeDir, ZpkgxBin: "pkgx"},
+		runner:      &build.Runner{RecipeDir: recipeDir, ZpkxBin: "pkgx"},
 		tgt:         target.Target{Platform: "linux", Arch: "x86-64"},
 		platform:    "linux/x86-64",
 		runTests:    true,

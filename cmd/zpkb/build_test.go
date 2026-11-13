@@ -145,7 +145,7 @@ func TestBuildCommandErrors(t *testing.T) {
 	}
 }
 
-func TestBuildResolvesZpkgxPath(t *testing.T) {
+func TestBuildResolvesZpkxPath(t *testing.T) {
 	tempEnv(t)
 	oldF, oldL := buildFactory, lookPath
 	defer func() { buildFactory, lookPath = oldF, oldL }()
@@ -160,17 +160,17 @@ func TestBuildResolvesZpkgxPath(t *testing.T) {
 	if c, _, e := run2(t, "build", "--recipe", rec, "test.org/x"); c != 0 {
 		t.Fatalf("build: code=%d err=%q", c, e)
 	}
-	if gotBin != "/abs/zpkgx" {
-		t.Errorf("resolved zpkgx = %q, want /abs/zpkgx — the default is the binary we ship", gotBin)
+	if gotBin != "/abs/zpkx" {
+		t.Errorf("resolved zpkx = %q, want /abs/zpkx — the default is the binary we ship", gotBin)
 	}
 
 	// LookPath fails → the flag value is kept as given.
 	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
-	if c, _, e := run2(t, "build", "--recipe", rec, "--zpkgx", "/explicit/zpkgx", "test.org/x"); c != 0 {
+	if c, _, e := run2(t, "build", "--recipe", rec, "--zpkx", "/explicit/zpkx", "test.org/x"); c != 0 {
 		t.Fatalf("build: code=%d err=%q", c, e)
 	}
-	if gotBin != "/explicit/zpkgx" {
-		t.Errorf("unresolved zpkgx = %q, want /explicit/zpkgx", gotBin)
+	if gotBin != "/explicit/zpkx" {
+		t.Errorf("unresolved zpkx = %q, want /explicit/zpkx", gotBin)
 	}
 }
 
@@ -268,7 +268,7 @@ func TestRealBuildRunner(t *testing.T) {
 		r.Run == nil || r.FixUp == nil || r.WriteArtifact == nil || r.ResolveDep == nil ||
 		// Unwired, this field silently disables the whole closure question
 		// and bootstrap goes back to asking the weaker one.
-		r.ToolInstallable == nil || r.ZpkgxBin == "" || r.BashPath == "" {
+		r.ToolInstallable == nil || r.ZpkxBin == "" || r.BashPath == "" {
 		t.Errorf("realBuildRunner not fully wired: %+v", r)
 	}
 }
