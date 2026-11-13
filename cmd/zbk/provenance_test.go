@@ -147,10 +147,17 @@ func TestTheProvenanceRecordsTheBuildEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(provBlob(t, refs))
-	for _, want := range []string{"pkg:pkgx/go.dev@1.27.1", "pkg:pkgx/gnu.org/glibc@2.44.0"} {
+	for _, want := range []string{"pkg:generic/go.dev@1.27.1", "pkg:generic/gnu.org/glibc@2.44.0"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the provenance does not name %s:\n%s", want, got)
 		}
+	}
+	// ⛔ AND THE RETIRED NAMESPACE IS NOT MINTED. `pkgx` is not a registered
+	// purl type and is not ours; writing it into a new attestation is the
+	// defect go-zpkg/bottle#221 exists for. It is still READ, which
+	// TestABottleSignedWithTheRetiredPurlIsStillUnderstood covers.
+	if strings.Contains(got, "pkg:pkgx/") {
+		t.Errorf("a new attestation mints the retired purl namespace:\n%s", got)
 	}
 	// ⛔ THE PATH IS NOT RECORDED. It is where THIS MACHINE put the bottle,
 	// which is not a fact about the artefact — and two builds that differ

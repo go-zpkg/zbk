@@ -57,7 +57,7 @@ func vexReferrer(dir, project, version, osn, arch string, tarball []byte, now ti
 	}
 	sum := sha256.Sum256(tarball)
 	dg := hex.EncodeToString(sum[:])
-	purl := fmt.Sprintf("pkg:pkgx/%s@%s", project, version)
+	purl := purlFor(project, version)
 	doc, err := vuln.EncodeVEX(vuln.VEXOptions{
 		ID:     vexDocumentID(project, version, osn, arch),
 		Author: builderID,

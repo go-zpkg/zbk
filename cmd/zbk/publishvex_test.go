@@ -81,7 +81,7 @@ func TestVexReferrerCarriesTheDecision(t *testing.T) {
 	}
 	// Bound to the tarball digest, the same anchor as the other attestations.
 	p := doc.Statements[0].Products[0]
-	if p.ID != "pkg:pkgx/openssl.org@3.5.8_1" {
+	if p.ID != "pkg:generic/openssl.org@3.5.8_1" {
 		t.Errorf("product = %q", p.ID)
 	}
 	if len(p.Hashes["sha-256"]) != 64 {
