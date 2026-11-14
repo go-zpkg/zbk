@@ -16,7 +16,7 @@ import (
 
 var errBoomPy = errors.New("boom")
 
-// restorePy snapshots every bkpyvenv package seam and returns a func that
+// restorePy snapshots every zpkvenv package seam and returns a func that
 // restores them, so a subtest can override freely: `defer restorePy(t)()`.
 func restorePy(t *testing.T) func() {
 	t.Helper()
@@ -95,8 +95,8 @@ func TestSrcRoot(t *testing.T) {
 	}
 }
 
-// TestBkpyvenvDispatch drives the top-level argument parsing and every exit code.
-func TestBkpyvenvDispatch(t *testing.T) {
+// TestZpkvenvDispatch drives the top-level argument parsing and every exit code.
+func TestZpkvenvDispatch(t *testing.T) {
 	defer restorePy(t)()
 	// keep every subtest hermetic: SRCROOT points at a temp tree, git-init and
 	// process spawns are stubbed to succeed unless a case overrides them.
@@ -105,7 +105,7 @@ func TestBkpyvenvDispatch(t *testing.T) {
 	pyOutput = func(string, string, ...string) (string, error) { return "Python 3.12.4\n", nil }
 
 	var sb strings.Builder
-	code := func(args ...string) int { sb.Reset(); return bkpyvenv(args, &sb) }
+	code := func(args ...string) int { sb.Reset(); return zpkvenv(args, &sb) }
 
 	if code() != 2 {
 		t.Error("no args should be usage/2")
@@ -127,7 +127,7 @@ func TestBkpyvenvDispatch(t *testing.T) {
 		defer restorePy(t)()
 		os.Unsetenv("SRCROOT")
 		pyGetwd = func() (string, error) { return "", errBoomPy }
-		if bkpyvenv([]string{"stage", "/p", "1.0"}, &sb) != 1 {
+		if zpkvenv([]string{"stage", "/p", "1.0"}, &sb) != 1 {
 			t.Error("srcRoot error should be 1")
 		}
 	})
@@ -447,16 +447,16 @@ func TestDefaultGitInitTag(t *testing.T) {
 	reset()
 }
 
-// TestBkpyvenvMultiCallDispatch proves main() routes to bkpyvenv under the shim
+// TestZpkvenvMultiCallDispatch proves main() routes to zpkvenv under the shim
 // name and a bad subcommand exits 2.
-func TestBkpyvenvMultiCallDispatch(t *testing.T) {
+func TestZpkvenvMultiCallDispatch(t *testing.T) {
 	oldExit, oldArgs := osExit, os.Args
 	defer func() { osExit, os.Args = oldExit, oldArgs }()
 	got := -1
 	osExit = func(c int) { got = c }
-	os.Args = []string{"/build/libexec/bkpyvenv", "definitely-not-a-subcommand", "/p"}
+	os.Args = []string{"/build/libexec/zpkvenv", "definitely-not-a-subcommand", "/p"}
 	main()
 	if got != 2 {
-		t.Fatalf("bkpyvenv dispatch exit = %d, want 2", got)
+		t.Fatalf("zpkvenv dispatch exit = %d, want 2", got)
 	}
 }

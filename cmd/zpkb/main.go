@@ -92,8 +92,8 @@ func main() {
 	case "fix-shebangs.ts":
 		osExit(fixShebangs(os.Args[1:], os.Stderr))
 		return
-	case "bkpyvenv":
-		osExit(bkpyvenv(os.Args[1:], os.Stderr))
+	case "zpkvenv":
+		osExit(zpkvenv(os.Args[1:], os.Stderr))
 		return
 	case "python-venv.sh":
 		osExit(pythonVenvSh(os.Args[1:], os.Stderr))

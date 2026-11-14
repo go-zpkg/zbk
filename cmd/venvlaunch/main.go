@@ -1,4 +1,4 @@
-// venvlaunch is the entry point `zpkb bkpyvenv seal` installs as
+// venvlaunch is the entry point `zpkb zpkvenv seal` installs as
 // $PREFIX/bin/<cmd> for a Python application packaged into a virtualenv.
 //
 // ⛔⛔ IT IS A BINARY BECAUSE A SCRIPT HAS NO $ORIGIN. The kernel resolves a

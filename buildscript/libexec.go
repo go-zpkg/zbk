@@ -14,7 +14,7 @@ import (
 // to add further brewkit libexec helpers bk chooses to satisfy.
 var shims = map[string]struct{}{
 	"fix-shebangs.ts":        {},
-	"bkpyvenv":               {},
+	"zpkvenv":                {},
 	"python-venv.sh":         {},
 	"python-venv.py":         {},
 	"python-venv-stubber.sh": {},
