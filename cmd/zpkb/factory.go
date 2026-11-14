@@ -1356,7 +1356,7 @@ type tailWriter struct {
 	// goroutine while another indexes it, and the factory dies mid-run:
 	//
 	//	panic: runtime error: slice bounds out of range [43:0]
-	//	main.(*tailWriter).Write(…) cmd/bk/factory.go:773
+	//	main.(*tailWriter).Write(…) cmd/zpkb/factory.go:773
 	//	mvdan.cc/sh/v3/interp.(*tracer).flush(…)
 	//	created by sync.(*WaitGroup).Go in goroutine 1
 	//

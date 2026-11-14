@@ -208,13 +208,13 @@ func TestFactoryHandsTheAdvisoryTreeToAMirroredPublish(t *testing.T) {
 // Four of the factory's flags default to a path relative to the CURRENT
 // directory, which under `go test` is cmd/bk. Three of them had been given
 // temporary paths in the harness and `--artifacts` had not, so a mirror test
-// staged `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` and `git add -A`
+// staged `cmd/zpkb/dist/lib.org/linux/x86-64/v1.0.tar.xz` and `git add -A`
 // committed it. This is the positive control: it runs the path that stages a
 // artifact and then asserts the repository is still clean.
 func TestTheFactorySuiteCannotWriteIntoTheRepository(t *testing.T) {
 	for _, p := range []string{"dist", "tests.txt", "failures.txt", "failures-detail.txt"} {
 		if _, err := os.Stat(p); err == nil {
-			t.Fatalf("cmd/bk/%s exists — a factory test wrote into the repository", p)
+			t.Fatalf("cmd/zpkb/%s exists — a factory test wrote into the repository", p)
 		}
 	}
 	h := newFactoryHarness(t)
@@ -236,7 +236,7 @@ func TestTheFactorySuiteCannotWriteIntoTheRepository(t *testing.T) {
 	}
 	for _, p := range []string{"dist", "tests.txt", "failures.txt", "failures-detail.txt"} {
 		if _, err := os.Stat(p); err == nil {
-			t.Errorf("cmd/bk/%s was created by this run", p)
+			t.Errorf("cmd/zpkb/%s was created by this run", p)
 		}
 	}
 }
