@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// tree builds what `bkpyvenv seal` leaves behind: the launcher at
+// tree builds what `zpkvenv seal` leaves behind: the launcher at
 // <prefix>/bin/<name>, and a venv beside it whose bin/python is a RELATIVE
 // symlink into a sibling "store" — the shape seal will write, and the reason
 // this launcher needs no repair.

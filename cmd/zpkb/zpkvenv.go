@@ -58,7 +58,7 @@ func defaultPyOutput(dir, name string, args ...string) (string, error) {
 	return string(out), err
 }
 
-// srcRoot is the directory bkpyvenv operates in, matching upstream's
+// srcRoot is the directory zpkvenv operates in, matching upstream's
 // `cd "$SRCROOT"`: the build tree. It honours $SRCROOT (set by the build
 // wrapper) and falls back to the current directory.
 func srcRoot() (string, error) {
@@ -68,25 +68,25 @@ func srcRoot() (string, error) {
 	return pyGetwd()
 }
 
-// bkpyvenv is bk's pure-Go port of pkgx brewkit's libexec/bkpyvenv, dispatched
-// when the multi-call binary is invoked under the name "bkpyvenv". It builds a
+// zpkvenv is bk's pure-Go port of pkgx brewkit's libexec/zpkvenv, dispatched
+// when the multi-call binary is invoked under the name "zpkvenv". It builds a
 // Python application into a self-contained, relocatable venv under $PREFIX in
 // two phases the recipe drives:
 //
-//	bkpyvenv stage [--engine=poetry] <prefix> <version>
+//	zpkvenv stage [--engine=poetry] <prefix> <version>
 //	    prepare the venv: create a git tag so setuptools-scm can see <version>
 //	    (pip engine), then `python -m venv` (Linux: --copies, so the artifact does
 //	    not bake an absolute symlink to the build python — pantry#8487) or, for
 //	    poetry, enable in-project virtualenvs. The recipe then pip-installs into
 //	    $PREFIX/venv between the two phases.
-//	bkpyvenv seal [--engine=poetry] <prefix> <cmd>...
+//	zpkvenv seal [--engine=poetry] <prefix> <cmd>...
 //	    for poetry, build an sdist and unpack it into the in-project .venv, then
 //	    move it to $PREFIX/venv; finally install cmd/venvlaunch as
 //	    $PREFIX/bin/<cmd> for each name and relativise the venv's interpreter
 //	    links, so nothing has to be repaired at run time (venvlaunchinstall.go).
-func bkpyvenv(args []string, stderr io.Writer) int {
+func zpkvenv(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: bkpyvenv <stage|seal> [--engine=poetry] <prefix> ...")
+		fmt.Fprintln(stderr, "usage: zpkvenv <stage|seal> [--engine=poetry] <prefix> ...")
 		return 2
 	}
 	cmd := args[0]
@@ -98,7 +98,7 @@ func bkpyvenv(args []string, stderr io.Writer) int {
 		args = args[1:]
 	}
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "bkpyvenv: missing <prefix>")
+		fmt.Fprintln(stderr, "zpkvenv: missing <prefix>")
 		return 2
 	}
 	prefix := args[0]
@@ -106,33 +106,33 @@ func bkpyvenv(args []string, stderr io.Writer) int {
 
 	root, err := srcRoot()
 	if err != nil {
-		fmt.Fprintln(stderr, "bkpyvenv:", err)
+		fmt.Fprintln(stderr, "zpkvenv:", err)
 		return 1
 	}
 
 	switch cmd {
 	case "stage":
 		if len(args) == 0 {
-			fmt.Fprintln(stderr, "bkpyvenv stage: missing <version>")
+			fmt.Fprintln(stderr, "zpkvenv stage: missing <version>")
 			return 2
 		}
 		if err := pyStage(root, prefix, args[0], engine); err != nil {
-			fmt.Fprintln(stderr, "bkpyvenv stage:", err)
+			fmt.Fprintln(stderr, "zpkvenv stage:", err)
 			return 1
 		}
 	case "seal":
 		if err := pySeal(root, prefix, engine, args); err != nil {
-			fmt.Fprintln(stderr, "bkpyvenv seal:", err)
+			fmt.Fprintln(stderr, "zpkvenv seal:", err)
 			return 1
 		}
 	default:
-		fmt.Fprintf(stderr, "bkpyvenv: unknown subcommand %q\n", cmd)
+		fmt.Fprintf(stderr, "zpkvenv: unknown subcommand %q\n", cmd)
 		return 2
 	}
 	return 0
 }
 
-// pyStage implements `bkpyvenv stage`.
+// pyStage implements `zpkvenv stage`.
 func pyStage(root, prefix, version, engine string) error {
 	// A git tag lets setuptools-scm / hatch-vcs derive the version from the
 	// source tree; upstream only bootstraps one when the tree is not already a
@@ -163,7 +163,7 @@ func pyStage(root, prefix, version, engine string) error {
 
 var pyVersionRe = regexp.MustCompile(`Python (\d+\.\d+)`)
 
-// pySeal implements `bkpyvenv seal`: install the entry point, and leave the
+// pySeal implements `zpkvenv seal`: install the entry point, and leave the
 // venv in a state that entry point can use without repairing it.
 //
 // ⛔ THE PYTHON VERSION IS NOW A POETRY-ONLY NEED, so it is read inside that

@@ -185,7 +185,7 @@ var Mirror func(archivePath, sha256hex, url string)
 // ExtractTarGzFile extracts the local gzip-compressed tar at src into destDir,
 // stripping strip leading path components (like `tar --strip-components=N`). It
 // reuses the same hardened extractor as Fetch, so absolute or dest-escaping
-// entries are rejected rather than written. bkpyvenv's poetry seal uses it to
+// entries are rejected rather than written. zpkvenv's poetry seal uses it to
 // unpack a freshly built sdist into the in-project venv's site-packages.
 func ExtractTarGzFile(src, destDir string, strip int) error {
 	f, err := osOpen(src)

@@ -12,7 +12,7 @@ import (
 // embedded launcher SCRIPTS this repository used to ship (go-zpkg/zpkb#431,
 // go-zpkg/zpkb#435, go-zpkg/zpkx#151).
 //
-// There were three of them — bkpyvenv's python stub, python-venv-stubber's
+// There were three of them — zpkvenv's python stub, python-venv-stubber's
 // python stub and python-venv.py's POSIX-sh stub — written by three different
 // upstream files, two of them still VERBATIM copies of pkgxdev/brewkit, which
 // declares no licence. They are deleted here rather than ported, because a
@@ -35,7 +35,7 @@ import (
 // Seams. pyLookPath and pyRelink are indirected so that the two error branches
 // no temp directory can produce — a PATH entry that disappears between lookup
 // and read, and a failed relink — stay reachable from a test.
-// pyGOOS lives in bkpyvenv.go, where it already selects the venv-creation
+// pyGOOS lives in zpkvenv.go, where it already selects the venv-creation
 // flags; it is the same question here and a second copy of it could disagree.
 // ⛔⛔ pyReadlink IS A SEAM BECAUSE THE CLEVER ALTERNATIVE FAILED ON THREE
 // KERNELS. Reaching os.Readlink's error without one means making <venv>/bin

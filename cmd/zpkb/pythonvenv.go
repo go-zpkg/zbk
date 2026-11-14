@@ -59,7 +59,7 @@ func pyVenvOneShot(root, exe string, o pyOneShotOpts) error {
 	}
 
 	// tag the tree so setuptools-scm/hatch-vcs see the version (skip a real
-	// checkout, matching bkpyvenv's guard).
+	// checkout, matching zpkvenv's guard).
 	if _, err := os.Stat(filepath.Join(root, ".git")); os.IsNotExist(err) {
 		if err := pyGitInitTag(root, version); err != nil {
 			return err
