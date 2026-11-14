@@ -3,16 +3,16 @@ module github.com/go-zpkg/zpkb
 go 1.27.4
 
 require (
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/go-attest/sbom v0.3.0
 	github.com/go-attest/sign v0.3.0
-	github.com/go-compressions/xz v0.1.0
+	github.com/go-compressions/xz v0.3.1
 	github.com/go-git/go-git/v5 v5.19.3
-	github.com/go-regexp/engine v0.3.2
+	github.com/go-regexp/engine v0.4.2
 	github.com/go-versions/semver v0.3.0
-	github.com/go-zpkg/artifact v0.87.0
-	github.com/klauspost/compress v1.20.3
+	github.com/go-zpkg/artifact v0.88.0
+	github.com/klauspost/compress v1.20.4
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
