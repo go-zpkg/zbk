@@ -16,7 +16,7 @@ import (
 func TestFactoryBuildsFromALock(t *testing.T) {
 	d := artifact.Lock{
 		Version: artifact.LockfileVersion, Platform: "linux/x86-64",
-		Generated: "2026-10-06T09:00:00Z", ZBK: "v0.13.0",
+		Generated: "2026-10-06T09:00:00Z", ZPKB: "v0.13.0",
 		Roots: []string{"curl.se"}, // ONE root
 		Pins: []artifact.LockPin{ // THREE pins
 			{Project: "curl.se", Version: "8.17.0", Spec: "sha256:a"},

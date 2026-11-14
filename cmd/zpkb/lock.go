@@ -142,7 +142,7 @@ func runLock(args []string, stdout, stderr io.Writer) int {
 		Version:   lockfileVersion,
 		Platform:  *platform,
 		Generated: lockNow().UTC().Format(time.RFC3339),
-		ZBK:       bkVersion(),
+		ZPKB:      bkVersion(),
 		Roots:     fs.Args(),
 		Pantry:    gitRevOf(*pantryDir),
 		Overlay:   gitRevOf(*overlayDir),

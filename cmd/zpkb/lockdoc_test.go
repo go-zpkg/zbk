@@ -19,7 +19,7 @@ import (
 func TestALockRoundTrips(t *testing.T) {
 	d := lockDoc{
 		Version: lockfileVersion, Platform: "linux/s390x", Generated: "2026-10-05T09:00:00Z",
-		ZBK: "v0.6.1", Roots: []string{"go-zpkg/base-toolchain", "zlib.net"},
+		ZPKB: "v0.6.1", Roots: []string{"go-zpkg/base-toolchain", "zlib.net"},
 		Pantry: "aaa", Overlay: "bbb",
 		Pins: []lockedPin{{Project: "a.org", Version: "1", Spec: "sha256:11"}, {Project: "b.org", Version: "2", Spec: "sha256:22"}},
 	}
@@ -33,7 +33,7 @@ func TestALockRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Version != d.Version || got.Platform != d.Platform || got.Generated != d.Generated ||
-		got.ZBK != d.ZBK || got.Pantry != d.Pantry || got.Overlay != d.Overlay {
+		got.ZPKB != d.ZPKB || got.Pantry != d.Pantry || got.Overlay != d.Overlay {
 		t.Errorf("header did not survive:\n got %+v\nwant %+v", got, d)
 	}
 	if strings.Join(got.Roots, " ") != strings.Join(d.Roots, " ") {
