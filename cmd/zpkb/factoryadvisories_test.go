@@ -136,7 +136,7 @@ func TestFactoryRefusesABrokenAdvisoryTreeUpFront(t *testing.T) {
 	// --platform, so the run exited non-zero before reaching the advisory
 	// check at all — the exit code said "refused" and meant "misused". Only
 	// asserting the MESSAGE caught it.
-	if strings.Contains(errb, "usage: bk factory") {
+	if strings.Contains(errb, "usage: zpkb factory") {
 		t.Fatalf("the factory never reached the advisory check: %q", errb)
 	}
 	if !strings.Contains(errb, "has no events") {

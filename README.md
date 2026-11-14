@@ -728,7 +728,7 @@ buildenv: lz4.org 1.10.0 (linux/s390x): the provenance records no build environm
 
 ⛔ **An empty build environment is a hint, not a statement.** A `--bootstrap`
 build resolves no artifacts, so its environment is empty — but so is a mirrored
-artifact's, and so is every artifact published before bk recorded one. Three
+artifact's, and so is every artifact published before zpkb recorded one. Three
 situations, one silence, and a gate cannot read a silence.
 
 So the factory now states it, and this reads it back:

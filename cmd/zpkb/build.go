@@ -173,7 +173,7 @@ func runBuild(args []string, stdout, stderr io.Writer) int {
 	}
 	rest := fs.Args()
 	if *recipe == "" || len(rest) < 1 {
-		fmt.Fprintln(stderr, "usage: bk build --recipe <package.yml> [--dist <out>] <project>")
+		fmt.Fprintln(stderr, "usage: zpkb build --recipe <package.yml> [--dist <out>] <project>")
 		return 2
 	}
 	project := rest[0]

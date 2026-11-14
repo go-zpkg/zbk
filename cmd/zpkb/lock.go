@@ -58,7 +58,7 @@ func runLock(args []string, stdout, stderr io.Writer) int {
 	platform := fs.String("platform", envOr("PLATFORM", "linux/x86-64"), "target os/arch")
 	out := fs.String("o", "", "write here instead of stdout")
 	check := fs.String("check", "", "re-resolve an existing lock and report what moved, instead of writing one")
-	runnable := fs.Bool("runnable", false, "pin the newest version PUBLISHED for -platform, so `pkgx --lock` can run the file, instead of the newest the recipes can build")
+	runnable := fs.Bool("runnable", false, "pin the newest version PUBLISHED for -platform, so `zpkx --lock` can run the file, instead of the newest the recipes can build")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

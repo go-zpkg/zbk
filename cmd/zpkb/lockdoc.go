@@ -56,8 +56,8 @@ var buildInfo = debug.ReadBuildInfo
 // resolveLock pins every project in order.
 //
 // runnable chooses WHICH QUESTION the versions answer: false pins the newest
-// the recipes can build (what `bk factory --lock` is about to build), true
-// pins the newest published for the target (what `pkgx --lock` can install).
+// the recipes can build (what `zpkb factory --lock` is about to build), true
+// pins the newest published for the target (what `zpkx --lock` can install).
 // They are different sets — see lockpublished.go, where the measurement is.
 // rootPins carries the constraint a ROOT was named with, if any.
 //
@@ -86,7 +86,7 @@ func resolveLock(set *logical.Set, overlayDir, pantryDir string, tgt target.Targ
 		if runnable {
 			// A project with nothing published for this platform is a HOLE
 			// in a runnable lock, not a pin to quietly leave at the recipe's
-			// version: the whole promise of the mode is that `pkgx --lock`
+			// version: the whole promise of the mode is that `zpkx --lock`
 			// can install every line.
 			pv, perr := publishedVersionFor(proj, demands[proj], tgt.Platform, tgt.Arch)
 			if perr != nil {

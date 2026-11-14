@@ -131,7 +131,7 @@ func runSource(args []string, stdout, stderr io.Writer) int {
 	}
 	rest := fs.Args()
 	if len(rest) != 2 {
-		fmt.Fprintln(stderr, "usage: bk source [--dist d] [--mirror m] [-o file] [--print] <project> <version>")
+		fmt.Fprintln(stderr, "usage: zpkb source [--dist d] [--mirror m] [-o file] [--print] <project> <version>")
 		return 2
 	}
 	project, ver := rest[0], rest[1]

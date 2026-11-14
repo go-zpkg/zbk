@@ -200,7 +200,7 @@ func runFactory(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *platform == "" {
-		fmt.Fprintln(stderr, "usage: bk factory --platform os/arch [--recipes \"p1 p2\"] [--pantry dir] [--to oci://…]")
+		fmt.Fprintln(stderr, "usage: zpkb factory --platform os/arch [--recipes \"p1 p2\"] [--pantry dir] [--to oci://…]")
 		return 2
 	}
 	// ⛔ A GATE THAT GUARDS NOTHING IS WORSE THAN NO GATE, because the operator

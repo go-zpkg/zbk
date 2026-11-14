@@ -46,7 +46,7 @@ func runBuilder(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *out == "" && !*dryRun {
-		fmt.Fprintln(stderr, "usage: bk builder --out <dir> [--platform linux/aarch64] [--toolchain file]")
+		fmt.Fprintln(stderr, "usage: zpkb builder --out <dir> [--platform linux/aarch64] [--toolchain file]")
 		return 2
 	}
 	osn, arch, _ := strings.Cut(*platform, "/")

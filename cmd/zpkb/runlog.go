@@ -273,7 +273,7 @@ func runRunlog(args []string, stdout, stderr io.Writer) int {
 		defer f.Close()
 		r = f
 	default:
-		fmt.Fprintln(stderr, "runlog: usage: bk runlog [--failures] [log]  (or on stdin)")
+		fmt.Fprintln(stderr, "runlog: usage: zpkb runlog [--failures] [log]  (or on stdin)")
 		return 2
 	}
 
@@ -318,7 +318,7 @@ func runRunlog(args []string, stdout, stderr io.Writer) int {
 		for _, s := range d {
 			fmt.Fprintln(stderr, "  "+s)
 		}
-		fmt.Fprintln(stderr, "  Either side can be the wrong one: bk counts where the decision is made and this")
+		fmt.Fprintln(stderr, "  Either side can be the wrong one: zpkb counts where the decision is made and this")
 		fmt.Fprintln(stderr, "  counts what it printed, so a difference is a line that was never written just as")
 		fmt.Fprintln(stderr, "  often as a line that was not read. Do not publish a number until it is resolved.")
 		return 1
