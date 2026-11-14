@@ -53,7 +53,7 @@ func fakeConstrainedPick(t *testing.T, answer func(project string, constraints [
 // ⛔ A LOCK PINNED WHAT COULD NOT BE INSTALLED AND SAID NOTHING. Measured
 // 2026-10-09: `bk lock -platform linux/aarch64 curl.se` pinned
 // curl.se/ca-certs 2026.09.25 and openssl.org 4.0.3, neither published, and
-// `pkgx --lock` refused the file in a FROM-scratch container. 2 pins of 5,
+// `zpkx --lock` refused the file in a FROM-scratch container. 2 pins of 5,
 // and the writing of it was silent.
 func TestLockNamesThePinsThePlatformCannotInstall(t *testing.T) {
 	fakePublication(t,
@@ -89,8 +89,13 @@ func TestLockNamesThePinsThePlatformCannotInstall(t *testing.T) {
 		"2026.09.25",
 		"published here: 2026.8.13", // what you COULD have had
 		"openssl.org",
-		"pkgx --lock` cannot run it",
-		"`bk lock -runnable`", // and what to do about it
+		// ⛔ THE WHOLE COMMAND NAME, NOT A TAIL OF IT. Written without the
+		// opening backtick this matched `zpkgx --lock` just as well as
+		// `pkgx --lock`, so it could not tell the two apart — the same
+		// suffix-assertion trap that let `pkgx "+p@1"` stand for
+		// `zpkgx "+p@1"` in buildscript for years.
+		"`zpkx --lock` cannot run it",
+		"`zpkb lock -runnable`", // and what to do about it
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the report does not contain %q:\n%s", want, got)
@@ -212,7 +217,7 @@ func TestRunnableLockPinsWhatIsPublishedAndSaysSo(t *testing.T) {
 		t.Errorf("the lock did not pin the PUBLISHED version:\n%s", got)
 	}
 	// ⛔ AND THE DEFAULT STILL PINS THE RECIPE'S, which is what
-	// `bk factory --lock` is about to build. A flag that changed both modes
+	// `zpkb factory --lock` is about to build. A flag that changed both modes
 	// would be a silent change of meaning for every existing lock.
 	out.Reset()
 	errb.Reset()
@@ -272,7 +277,7 @@ func TestCheckRefusesRunnableOnTheCommandLine(t *testing.T) {
 // beat none at all. Measured 2026-10-09 by running the lock it wrote in a
 // FROM-scratch container:
 //
-//	lock: 5 of 5 pin(s) published for linux/aarch64 — `pkgx --lock` can run this file
+//	lock: 5 of 5 pin(s) published for linux/aarch64 — `zpkx --lock` can run this file
 //	pkgx: no version of openssl.org satisfies "=4.0.2" AND "^3";
 //	      asked for by =4.0.2 (requested), ^3 (curl.se)
 //
@@ -336,7 +341,7 @@ func TestAnEmptyPinSetIsNotReportedAsRunnable(t *testing.T) {
 // nothing published satisfies what the closure demands of it — so the file
 // held FOUR pins, under the line
 //
-//	lock: 4 of 4 pin(s) published for linux/aarch64 — `pkgx --lock` can run this file
+//	lock: 4 of 4 pin(s) published for linux/aarch64 — `zpkx --lock` can run this file
 //
 // Every pin present was installable and the sentence was true. The lock was
 // still a closure with a hole in it, and the exit status (1) said so while

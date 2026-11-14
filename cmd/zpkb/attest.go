@@ -49,7 +49,7 @@ func runAttest(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if fs.NArg() != 2 {
-		fmt.Fprintln(stderr, "usage: bk attest [--dist oci://…] [--platform os/arch] [--require type,…] <project> <version>")
+		fmt.Fprintln(stderr, "usage: zpkb attest [--dist oci://…] [--platform os/arch] [--require type,…] <project> <version>")
 		return 2
 	}
 	project, ver := fs.Arg(0), fs.Arg(1)

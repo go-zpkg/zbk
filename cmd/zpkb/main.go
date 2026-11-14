@@ -15,7 +15,7 @@
 //	bk runlog            read a factory job log: counts, stages, and whether
 //	                     the parse agrees with bk's own totals
 //	bk lock              resolve a set to the versions it means today, write them down, and --check them later
-//	                     (-runnable pins what is PUBLISHED, so `pkgx --lock` can run the file)
+//	                     (-runnable pins what is PUBLISHED, so `zpkx --lock` can run the file)
 //	bk factory           build a recipe set's whole closure and publish every artifact
 //	bk source            fetch the source a published artifact attests it was built from
 //	bk vulnid            say, per project, the name a vulnerability database will
@@ -199,7 +199,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "fixup":
 		if len(rest) < 2 {
-			fmt.Fprintln(stderr, "usage: bk fixup <prefix>")
+			fmt.Fprintln(stderr, "usage: zpkb fixup <prefix>")
 			return 2
 		}
 		tgt, err := target.Resolve()

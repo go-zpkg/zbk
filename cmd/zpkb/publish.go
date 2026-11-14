@@ -270,7 +270,7 @@ func runPublish(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *to == "" || *project == "" || *version == "" || *platform == "" || f.NArg() != 1 {
-		fmt.Fprintln(stderr, "usage: bk publish --to oci://… --project P --version V --platform os/arch <artifact>")
+		fmt.Fprintln(stderr, "usage: zpkb publish --to oci://… --project P --version V --platform os/arch <artifact>")
 		return 2
 	}
 	osn, arch, ok := splitPlatform(*platform)

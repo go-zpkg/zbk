@@ -226,7 +226,7 @@ func TestAttestRefusals(t *testing.T) {
 	})
 	t.Run("too few arguments", func(t *testing.T) {
 		rc, _, errb := attest(t, "p")
-		if rc != 2 || !strings.Contains(errb, "usage: bk attest") {
+		if rc != 2 || !strings.Contains(errb, "usage: zpkb attest") {
 			t.Errorf("rc = %d, stderr = %q", rc, errb)
 		}
 	})

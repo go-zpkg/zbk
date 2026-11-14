@@ -44,7 +44,7 @@ func runOrigin(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if fs.NArg() != 2 {
-		fmt.Fprintln(stderr, "usage: bk origin [--dist d] [--platform os/arch] [--promotable] <project> <version>")
+		fmt.Fprintln(stderr, "usage: zpkb origin [--dist d] [--platform os/arch] [--promotable] <project> <version>")
 		return 2
 	}
 	project, version := fs.Arg(0), fs.Arg(1)
@@ -149,7 +149,7 @@ func originAttestedBy(refs []artifact.Referrer) (provOrigin, error) {
 
 // errNoOrigin is the state of every artifact published before `bk origin`
 // existed: a provenance that is present, valid, and silent on this question.
-var errNoOrigin = fmt.Errorf("the provenance records no build origin (published before bk recorded one)")
+var errNoOrigin = fmt.Errorf("the provenance records no build origin (published before zpkb recorded one)")
 
 // promotableOrigin is the gate `--require-origin` applies, as a method so the
 // factory's mirror path and `bk origin --promotable` cannot drift apart: one

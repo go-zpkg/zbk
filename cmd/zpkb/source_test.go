@@ -173,8 +173,8 @@ func TestRunSourceSurfacesEveryOtherFailure(t *testing.T) {
 		code int
 		want string
 	}{
-		{"no arguments", nil, func(t *testing.T) {}, 2, "usage: bk source"},
-		{"one argument", []string{"p"}, func(t *testing.T) {}, 2, "usage: bk source"},
+		{"no arguments", nil, func(t *testing.T) {}, 2, "usage: zpkb source"},
+		{"one argument", []string{"p"}, func(t *testing.T) {}, 2, "usage: zpkb source"},
 		{"unknown flag", []string{"--nope"}, func(t *testing.T) {}, 2, "flag provided but not defined"},
 		{"attestations unreachable", []string{"p", "1"}, func(t *testing.T) {
 			withSourceSeams(t, nil, boom, nil, nil)
@@ -239,7 +239,7 @@ func TestRunSourceReportsABadPlatform(t *testing.T) {
 // a case nothing calls is a command nobody has.
 func TestSourceIsReachableFromTheDispatcher(t *testing.T) {
 	code, _, errs := run2(t, "source")
-	if code != 2 || !strings.Contains(errs, "usage: bk source") {
+	if code != 2 || !strings.Contains(errs, "usage: zpkb source") {
 		t.Fatalf("code = %d, stderr = %q", code, errs)
 	}
 }

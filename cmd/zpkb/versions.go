@@ -21,7 +21,7 @@ func runVersions(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *recipe == "" {
-		fmt.Fprintln(stderr, "usage: bk versions --recipe <package.hcl|package.yml>")
+		fmt.Fprintln(stderr, "usage: zpkb versions --recipe <package.hcl|package.yml>")
 		return 2
 	}
 	// By extension. This read YAML unconditionally, so asking an HCL recipe

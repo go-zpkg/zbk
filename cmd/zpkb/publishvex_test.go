@@ -286,7 +286,7 @@ func TestPublishDeclaresTheAdvisoriesFlag(t *testing.T) {
 	if strings.Contains(errb.String(), "not defined") {
 		t.Errorf("the flag is not declared: %q", errb.String())
 	}
-	if !strings.Contains(errb.String(), "usage: bk publish") {
+	if !strings.Contains(errb.String(), "usage: zpkb publish") {
 		t.Errorf("want the usage line, got %q", errb.String())
 	}
 	// And the opposite case, so the test above is known to be able to fail.

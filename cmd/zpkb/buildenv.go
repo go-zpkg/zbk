@@ -180,8 +180,8 @@ func runBuildEnv(args []string, stdout, stderr io.Writer) int {
 		return sweepBuildEnv(*list, *dist, osn, arch, want, stdout, stderr)
 	}
 	if fs.NArg() != 2 {
-		fmt.Fprintln(stderr, "usage: bk buildenv [--dist d] [--platform os/arch] <project> <version>")
-		fmt.Fprintln(stderr, "       bk buildenv [--dist d] [--platform os/arch] --list <file>")
+		fmt.Fprintln(stderr, "usage: zpkb buildenv [--dist d] [--platform os/arch] <project> <version>")
+		fmt.Fprintln(stderr, "       zpkb buildenv [--dist d] [--platform os/arch] --list <file>")
 		return 2
 	}
 	proj, ver := fs.Arg(0), fs.Arg(1)

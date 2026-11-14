@@ -83,7 +83,7 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	}
 	rest := fs.Args()
 	if *recipe == "" || len(rest) < 1 {
-		fmt.Fprintln(stderr, "usage: bk test --recipe <package.yml> [--version v] <project>")
+		fmt.Fprintln(stderr, "usage: zpkb test --recipe <package.yml> [--version v] <project>")
 		return 2
 	}
 	project := rest[0]

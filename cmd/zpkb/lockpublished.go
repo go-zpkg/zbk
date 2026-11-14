@@ -25,12 +25,12 @@ import (
 //
 // Two pins of five — curl.se/ca-certs 2026.09.25 against 2026.8.13
 // published, openssl.org 4.0.3 against 4.0.2. The lock's own header promised
-// that `pkgx --lock` runs it. Nothing in writing it said otherwise.
+// that `zpkx --lock` runs it. Nothing in writing it said otherwise.
 //
 // # THE TWO USES ARE DIFFERENT QUESTIONS
 //
-// `bk factory --lock` is about to BUILD these versions, so a pin ahead of the
-// registry is exactly right there. `pkgx --lock` can only install what
+// `zpkb factory --lock` is about to BUILD these versions, so a pin ahead of the
+// registry is exactly right there. `zpkx --lock` can only install what
 // exists. One file cannot answer both by accident, so it now answers one of
 // them on purpose: `-runnable` pins what is published, the default pins what
 // the recipes build, and either way the unpublished pins are NAMED at write
@@ -98,7 +98,7 @@ func reportUnpublished(w io.Writer, pins []lockedPin, bad []unpublishedPin, fail
 	// ⛔ A COUNT CANNOT SEE WHAT IS MISSING. Measured 2026-10-09: openssl.org
 	// resolved to nothing a `-runnable` lock could install, so it was dropped
 	// and the file held four pins — under the line "4 of 4 pin(s) published
-	// — `pkgx --lock` can run this file". Every pin present was installable
+	// — `zpkx --lock` can run this file". Every pin present was installable
 	// and the sentence was true; the lock was still a closure with a hole in
 	// it. The exit status already said so, and the prose contradicted it.
 	if holes > 0 {
@@ -115,12 +115,12 @@ func reportUnpublished(w io.Writer, pins []lockedPin, bad []unpublishedPin, fail
 		return
 	}
 	if len(bad) == 0 && len(failed) == 0 {
-		fmt.Fprintf(w, "lock: %d of %d pin(s) published for %s — `pkgx --lock` can run this file\n",
+		fmt.Fprintf(w, "lock: %d of %d pin(s) published for %s — `zpkx --lock` can run this file\n",
 			len(pins), len(pins), platform)
 		return
 	}
 	if len(bad) > 0 {
-		fmt.Fprintf(w, "lock: %d of %d pin(s) NOT published for %s — `bk factory --lock` can build this file, `pkgx --lock` cannot run it:\n",
+		fmt.Fprintf(w, "lock: %d of %d pin(s) NOT published for %s — `zpkb factory --lock` can build this file, `zpkx --lock` cannot run it:\n",
 			len(bad), len(pins), platform)
 		for _, u := range bad {
 			here := "nothing published here"
@@ -130,7 +130,7 @@ func reportUnpublished(w io.Writer, pins []lockedPin, bad []unpublishedPin, fail
 			fmt.Fprintf(w, "    %-28s %-14s (%s)\n", u.Project, u.Locked, here)
 		}
 		if mode != artifact.PinsPublished {
-			fmt.Fprintln(w, "    `bk lock -runnable` pins what is published instead.")
+			fmt.Fprintln(w, "    `zpkb lock -runnable` pins what is published instead.")
 		}
 	}
 }
@@ -153,7 +153,7 @@ func lockModeOf(runnable bool) string {
 // the lock it produced in a FROM-scratch container:
 //
 //	$ bk lock -runnable -platform linux/aarch64 curl.se
-//	lock: 5 of 5 pin(s) published for linux/aarch64 — `pkgx --lock` can run this file
+//	lock: 5 of 5 pin(s) published for linux/aarch64 — `zpkx --lock` can run this file
 //
 //	$ pkgx --lock curl-run.lock.hcl curl --version
 //	pkgx: no version of openssl.org satisfies "=4.0.2" AND "^3";
