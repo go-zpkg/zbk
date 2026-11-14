@@ -46,13 +46,13 @@ type factoryHarness struct {
 	detail   string
 	// tests is where the recorded test outcomes go. Given a path like the
 	// other two, because the flag's default writes into the CURRENT
-	// directory and the suite was leaving a cmd/bk/tests.txt behind.
+	// directory and the suite was leaving a cmd/zpkb/tests.txt behind.
 	tests string
 	// artifacts is where built and mirrored artifacts are staged, for the SAME
 	// reason tests, failures and detail are given paths — and it was the one
 	// of the four that was missed. The fix had been applied three times and
 	// `--artifacts` still defaulted to the relative "dist", so a mirror test
-	// wrote `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` into the
+	// wrote `cmd/zpkb/dist/lib.org/linux/x86-64/v1.0.tar.xz` into the
 	// repository and `git add -A` staged it.
 	artifacts string
 	published []publishedArtifact
@@ -157,9 +157,9 @@ func specTag(project, version string) string {
 //
 // ⛔ --artifacts IS NOT OPTIONAL HERE. It defaults to the RELATIVE path "dist",
 // and `go test` runs with the package directory as its working directory — so
-// a run that stages an artifact writes into cmd/bk/dist, inside the repository,
+// a run that stages an artifact writes into cmd/zpkb/dist, inside the repository,
 // one `git add -A` from being committed. Measured: a mirror test staged
-// `cmd/bk/dist/lib.org/linux/x86-64/v1.0.tar.xz` and it got staged.
+// `cmd/zpkb/dist/lib.org/linux/x86-64/v1.0.tar.xz` and it got staged.
 //
 // The stub factoryPublish writes nothing, which is why this went unnoticed
 // until a test exercised the MIRROR path — that one puts the downloaded bytes

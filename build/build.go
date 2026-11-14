@@ -822,7 +822,7 @@ func SanitizedEnv(home, zpkgDir string) []string {
 	//
 	// So no build block in the pantry wants it, and the rate-limit argument
 	// does not apply to bk's downloads either. The two that do want it are
-	// tests, and `bk test` adds it there on purpose — see cmd/bk/test.go.
+	// tests, and `bk test` adds it there on purpose — see cmd/zpkb/test.go.
 	// Privilege where the need was measured, and not one caller wider.
 	for _, k := range []string{"LANG", "LOGNAME", "USER", "TERM", "ZPKG_PANTRY_DIR", "ZPKG_PANTRY_PATH",
 		"ZPKG_DIST", "ZPKG_CACHE", "ZPKG_PANTRY", "ZPKG_PANTRY_OVERLAY", "ZPKG_VERIFY",

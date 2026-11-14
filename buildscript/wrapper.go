@@ -488,7 +488,7 @@ func wrapFlags(tgt target.Target, zpkgDir, install string, hasBinutils, libcZpkx
 		// pantry overlay). Nothing comes from the host distribution.
 		//
 		// The setting that must hold for EVERY recipe is in $ZPKB_CC/$ZPKB_CXX, the
-		// stencil the cc/gcc/clang shims re-exec (cmd/bk/ccshim.go), and not in
+		// stencil the cc/gcc/clang shims re-exec (cmd/zpkb/ccshim.go), and not in
 		// CFLAGS/LDFLAGS, which a recipe's env replaces whole. $CC/$CXX default to
 		// it for the recipes that do read them, as the sovereign linux mode does.
 		//

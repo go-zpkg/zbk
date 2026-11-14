@@ -19,10 +19,10 @@ import (
 // ⛔ A TEST'S BLAST RADIUS MUST NOT DEPEND ON A FLAG DEFAULT. `-advisories`
 // defaults to the relative path "advisories", and `go test` runs with the
 // package directory as its working directory — so a run with -write and no
-// -advisories writes into cmd/bk/advisories, inside the repository, one
+// -advisories writes into cmd/zpkb/advisories, inside the repository, one
 // `git add -A` from being committed. That is exactly what happened: the
 // mutation that flipped -write's default to true was caught by the tests, and
-// left `cmd/bk/advisories/crates.io/bat/advisories.yaml` behind, which then got
+// left `cmd/zpkb/advisories/crates.io/bat/advisories.yaml` behind, which then got
 // staged.
 //
 // So the helper supplies -advisories unless the caller already did. The guard
@@ -43,7 +43,7 @@ func vulnfetch(t *testing.T, args ...string) (int, string, string) {
 // fail, by checking the helper really substitutes a temporary path.
 func TestTheSuiteCannotWriteIntoTheRepository(t *testing.T) {
 	if _, err := os.Stat("advisories"); err == nil {
-		t.Fatal("cmd/bk/advisories exists — a test wrote into the repository")
+		t.Fatal("cmd/zpkb/advisories exists — a test wrote into the repository")
 	}
 	url, _ := fetchServer(t, `{"results":[{"vulns":[{"id":"RUSTSEC-2021-0106"}]}]}`)
 	// -write with no -advisories: the helper must redirect it.
